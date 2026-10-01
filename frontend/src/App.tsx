@@ -44,11 +44,6 @@ function App() {
               {title}
             </span>
           </div>
-
-          <Button size="sm">
-            <Play data-icon="inline-start" />
-            Run Evaluation
-          </Button>
         </header>
 
         <main className="flex-1 bg-muted/20 p-4 md:p-6">
