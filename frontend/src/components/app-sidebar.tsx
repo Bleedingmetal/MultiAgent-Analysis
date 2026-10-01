@@ -1,124 +1,181 @@
 import {
-  ChartNoAxesCombined,
+  BarChart3,
   Database,
   GitCompareArrows,
-  LayoutDashboard,
-  Network,
-  Play,
-  Plus,
-  Settings,
+  History,
+  SlidersHorizontal,
 } from "lucide-react"
+
+import {
+  Link,
+  useLocation,
+} from "react-router"
 
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
 } from "@/components/ui/sidebar"
 
-const workspaceItems = [
+const navigation = [
   {
     title: "Overview",
-    icon: LayoutDashboard,
+    url: "/",
+    icon: BarChart3,
   },
   {
     title: "Configurations",
-    icon: Network,
+    url: "/configurations",
+    icon: SlidersHorizontal,
   },
   {
     title: "Runs",
-    icon: Play,
+    url: "/runs",
+    icon: History,
   },
   {
     title: "Benchmarks",
+    url: "/benchmarks",
     icon: Database,
   },
   {
     title: "Compare",
+    url: "/compare",
     icon: GitCompareArrows,
   },
 ]
 
 export function AppSidebar() {
-  return (
-    <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg">
-              <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <ChartNoAxesCombined className="size-4" />
-              </div>
+  const location =
+    useLocation()
 
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">
-                  Agent Evaluation
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  MassMutual MQP
-                </span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+  function isActive(
+    url: string,
+  ) {
+    if (url === "/") {
+      return (
+        location.pathname === "/"
+      )
+    }
+
+    return location.pathname.startsWith(
+      url,
+    )
+  }
+
+  return (
+    <Sidebar
+      collapsible="offcanvas"
+      className="border-r border-sidebar-border"
+    >
+      <SidebarHeader className="border-b border-sidebar-border px-5 py-5">
+        <Link
+          to="/"
+          className="
+            flex min-w-0
+            items-center
+          "
+        >
+          <img
+            src="/massmutual-logo.webp"
+            alt="MassMutual"
+            className="
+              h-9
+              w-auto
+              max-w-[190px]
+              object-contain
+              object-left
+            "
+          />
+        </Link>
+
+        <p
+          className="
+            mt-2
+            whitespace-nowrap
+            text-[11px]
+            font-medium
+            text-muted-foreground
+          "
+        >
+          Agent Evaluation
+        </p>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-
+      <SidebarContent className="px-2 py-3">
+        <SidebarGroup className="p-0">
           <SidebarGroupContent>
-            <SidebarMenu>
-              {workspaceItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    tooltip={item.title}
-                    isActive={item.title === "Overview"}
-                  >
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            <SidebarMenu className="gap-1">
+              {navigation.map(
+                (item) => {
+                  const Icon =
+                    item.icon
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Quick Actions</SidebarGroupLabel>
+                  return (
+                    <SidebarMenuItem
+                      key={
+                        item.title
+                      }
+                    >
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive(
+                          item.url,
+                        )}
+                        className="
+                          h-10
+                          w-full
+                          px-3
+                        "
+                      >
+                        <Link
+                          to={
+                            item.url
+                          }
+                          className="
+                            flex
+                            w-full
+                            min-w-0
+                            flex-row
+                            items-center
+                            gap-3
+                            whitespace-nowrap
+                          "
+                        >
+                          <Icon
+                            className="
+                              size-4
+                              shrink-0
+                            "
+                          />
 
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="New Configuration">
-                  <Plus />
-                  <span>New Configuration</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                          <span
+                            className="
+                              min-w-0
+                              truncate
+                            "
+                          >
+                            {
+                              item.title
+                            }
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                },
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Settings">
-              <Settings />
-              <span>Settings</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-
-      <SidebarRail />
     </Sidebar>
   )
 }
+
+export default AppSidebar

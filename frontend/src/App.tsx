@@ -1,8 +1,7 @@
+import { Outlet, useLocation } from "react-router"
 import { Play } from "lucide-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import Dashboard from "@/pages/dashboard"
-import Configurations from "@/pages/configurations"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -13,7 +12,20 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
+const pageTitles: Record<string, string> = {
+  "/": "Overview",
+  "/configurations": "Configurations",
+  "/runs": "Runs",
+  "/benchmarks": "Benchmarks",
+  "/compare": "Compare",
+}
+
 function App() {
+  const location = useLocation()
+
+  const title =
+    pageTitles[location.pathname] ?? "Agent Evaluation"
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -29,18 +41,13 @@ function App() {
             />
 
             <span className="text-sm font-medium">
-              Overview
+              {title}
             </span>
           </div>
-
-          <Button size="sm">
-            <Play data-icon="inline-start" />
-            Run Evaluation
-          </Button>
         </header>
 
         <main className="flex-1 bg-muted/20 p-4 md:p-6">
-          <Dashboard />
+          <Outlet />
         </main>
       </SidebarInset>
     </SidebarProvider>
