@@ -43,10 +43,7 @@ export function canDeleteConfigurationNode(
     return false
   }
 
-  /*
-   * Input and output are required endpoints
-   * for every evaluation architecture.
-   */
+  
   return (
     node.type !== "input" &&
     node.type !== "output"

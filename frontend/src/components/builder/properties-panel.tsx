@@ -67,7 +67,7 @@ export default function PropertiesPanel({
   onUpdateInstructions,
 }: Props) {
   return (
-    <aside className="border-l bg-[#111112]">
+    <aside className="border-l bg-card">
       <div className="border-b p-4">
         <p className="text-sm font-semibold">
           Properties
@@ -301,7 +301,7 @@ export default function PropertiesPanel({
             />
           </div>
 
-          <div className="border-t border-[#2d2d31] pt-4">
+          <div className="border-t border-border pt-4">
             {canDelete ? (
               <Button
                 variant="outline"
@@ -334,7 +334,7 @@ export default function PropertiesPanel({
             )}
 
             {canDelete && (
-              <p className="mt-2 text-center text-[10px] text-zinc-600">
+              <p className="mt-2 text-center text-[10px] text-muted-foreground">
                 Backspace or Delete
               </p>
             )}

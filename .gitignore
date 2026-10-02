@@ -1,18 +1,54 @@
 # Python
 backend/.venv/
+.venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Node
+# Node / Next.js
+node_modules/
 frontend/node_modules/
+frontend/.next/
+frontend/out/
 frontend/dist/
+frontend/dist-ssr/
+frontend/.turbo/
+*.tsbuildinfo
+next-env.d.ts
 
-# Environment variables
+# Environment / secrets
 .env
 .env.*
+!.env.example
+!.env*.example
 
-# JetBrains
+# Logs / debug
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editors / OS
 .idea/
-
-# macOS
+.vscode/*
+!.vscode/extensions.json
 .DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.local
+
+# Misc
+*.pem
+coverage/
+.cache/

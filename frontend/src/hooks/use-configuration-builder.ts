@@ -209,11 +209,7 @@ export function useConfigurationBuilder(
       ],
     )
 
-  /*
-   * Change the architecture itself,
-   * but preserve the identity of the
-   * configuration being edited.
-   */
+  
   const next:
     AgentConfiguration = {
     ...template,
@@ -399,16 +395,7 @@ export function useConfigurationBuilder(
           stageId,
       )
 
-    /*
-     * New nodes are intentionally placed
-     * relative to existing nodes.
-     *
-     * Vertical stage:
-     * new node goes below.
-     *
-     * Horizontal stage:
-     * new node goes to the right.
-     */
+    
     const placement =
       getNextChildPlacement(
         stageNode,
@@ -560,11 +547,7 @@ export function useConfigurationBuilder(
                 }
               }
 
-              /*
-               * If this card grew horizontally,
-               * move every later card right by
-               * exactly the same amount.
-               */
+              
               if (
                 widthDelta >
                   0 &&
@@ -595,10 +578,7 @@ export function useConfigurationBuilder(
             },
           )
 
-        /*
-         * Parent stage nodes are already first
-         * in the array, so appending a child is safe.
-         */
+        
         return [
           ...updated,
           newFlowNode,
@@ -844,9 +824,7 @@ export function useConfigurationBuilder(
     )
   }
 
-  /*
-   * Backspace / Delete.
-   */
+  
   useEffect(() => {
     function handleKeyDown(
       event:

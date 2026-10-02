@@ -137,12 +137,12 @@ function PaletteCard({
         group flex cursor-grab
         items-center gap-3
         rounded-lg border
-        border-[#303034]
-        bg-[#18181a]
+        border-border
+        bg-white
         px-3 py-2.5
         transition
-        hover:border-[#0265ff]/70
-        hover:bg-[#1e1e21]
+        hover:border-mm-charge/70
+        hover:bg-mm-charge/5
         active:cursor-grabbing
       "
     >
@@ -150,24 +150,24 @@ function PaletteCard({
         className="
           flex size-8 shrink-0
           items-center justify-center
-          rounded-md bg-[#202023]
+          rounded-md bg-muted
         "
       >
         <Icon
           className="
-            size-4 text-zinc-400
-            group-hover:text-[#4dc7eb]
+            size-4 text-mm-blue
+            group-hover:text-mm-charge
           "
         />
       </div>
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-zinc-200">
+        <p className="truncate text-sm font-medium text-mm-dark">
           {item.label}
         </p>
 
         {item.model && (
-          <p className="mt-0.5 text-[10px] text-zinc-500">
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
             {item.model}
           </p>
         )}
@@ -180,11 +180,11 @@ export default function NodePalette() {
   return (
     <ScrollArea className="h-full">
       <div className="p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+        <p className="text-xs font-semibold uppercase tracking-wider text-mm-blue">
           Components
         </p>
 
-        <p className="mt-1 text-xs text-zinc-600">
+        <p className="mt-1 text-xs text-muted-foreground">
           Drag components into a compatible layer.
         </p>
 

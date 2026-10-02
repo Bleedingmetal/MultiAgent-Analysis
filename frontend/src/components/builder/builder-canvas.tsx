@@ -64,10 +64,7 @@ export default function BuilderCanvas({
   const lastArchitecture =
     useRef<string>("")
 
-  /*
-   * Because the cards are now actual React Flow
-   * nodes, normal fitView finally works correctly.
-   */
+  
   useEffect(() => {
     if (
       !viewportInitialized
@@ -177,13 +174,7 @@ export default function BuilderCanvas({
           return
         }
 
-        /*
-         * We intentionally don't use the exact
-         * drop position for the new component.
-         *
-         * The stage decides the next clean,
-         * non-overlapping slot.
-         */
+        
         builder.addPaletteItem(
           item,
           stage.id,
@@ -207,11 +198,11 @@ export default function BuilderCanvas({
         bg-background
       "
     >
-      <aside className="border-r bg-[#111112]">
+      <aside className="border-r bg-card">
         <NodePalette />
       </aside>
 
-      <section className="relative min-w-0 bg-[#0d0d0e]">
+      <section className="relative min-w-0 bg-muted/40">
         <ReactFlow
           nodes={
             builder.nodes
@@ -249,12 +240,7 @@ export default function BuilderCanvas({
             _,
             node,
           ) => {
-            /*
-             * Stage selection is handled by
-             * React Flow for the resize handle,
-             * but it isn't a logical component
-             * for the Properties panel.
-             */
+            
             if (
               node.type ===
               "stage"
@@ -297,10 +283,7 @@ export default function BuilderCanvas({
 
           colorMode="dark"
 
-          /*
-           * Our own Delete/Backspace handler keeps
-           * logical configuration state in sync.
-           */
+          
           deleteKeyCode={
             null
           }

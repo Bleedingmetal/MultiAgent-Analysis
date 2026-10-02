@@ -1,3 +1,5 @@
+"use client"
+
 import {
   BarChart3,
   Database,
@@ -6,14 +8,13 @@ import {
   SlidersHorizontal,
 } from "lucide-react"
 
-import {
-  Link,
-  useLocation,
-} from "react-router"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -29,6 +30,16 @@ const navigation = [
     icon: BarChart3,
   },
   {
+    title: "Compare",
+    url: "/compare",
+    icon: GitCompareArrows,
+  },
+  {
+    title: "Benchmarks",
+    url: "/benchmarks",
+    icon: Database,
+  },
+  {
     title: "Configurations",
     url: "/configurations",
     icon: SlidersHorizontal,
@@ -38,34 +49,16 @@ const navigation = [
     url: "/runs",
     icon: History,
   },
-  {
-    title: "Benchmarks",
-    url: "/benchmarks",
-    icon: Database,
-  },
-  {
-    title: "Compare",
-    url: "/compare",
-    icon: GitCompareArrows,
-  },
 ]
 
 export function AppSidebar() {
-  const location =
-    useLocation()
+  const pathname = usePathname()
 
-  function isActive(
-    url: string,
-  ) {
+  function isActive(url: string) {
     if (url === "/") {
-      return (
-        location.pathname === "/"
-      )
+      return pathname === "/"
     }
-
-    return location.pathname.startsWith(
-      url,
-    )
+    return pathname.startsWith(url)
   }
 
   return (
@@ -73,107 +66,55 @@ export function AppSidebar() {
       collapsible="offcanvas"
       className="border-r border-sidebar-border"
     >
-      <SidebarHeader className="border-b border-sidebar-border px-5 py-5">
-        <Link
-          to="/"
-          className="
-            flex min-w-0
-            items-center
-          "
-        >
+      <SidebarHeader className="gap-0 border-b border-sidebar-border px-5 py-5">
+        <Link href="/" className="flex min-w-0 flex-col gap-3">
           <img
             src="/massmutual-logo.webp"
             alt="MassMutual"
-            className="
-              h-9
-              w-auto
-              max-w-[190px]
-              object-contain
-              object-left
-            "
+            className="h-8 w-auto max-w-[168px] object-contain object-left"
           />
+          <div>
+            <p className="text-sm font-semibold text-white">
+              Agent Evaluation
+            </p>
+            <p className="mt-1 text-[11px] text-white/55">
+              Single vs multi-agent
+            </p>
+          </div>
         </Link>
-
-        <p
-          className="
-            mt-2
-            whitespace-nowrap
-            text-[11px]
-            font-medium
-            text-muted-foreground
-          "
-        >
-          Agent Evaluation
-        </p>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-3">
+      <SidebarContent className="px-3 py-4">
         <SidebarGroup className="p-0">
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
-              {navigation.map(
-                (item) => {
-                  const Icon =
-                    item.icon
-
-                  return (
-                    <SidebarMenuItem
-                      key={
-                        item.title
-                      }
+              {navigation.map((item) => {
+                const Icon = item.icon
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      render={(props) => (
+                        <Link href={item.url} {...props} />
+                      )}
+                      isActive={isActive(item.url)}
+                      className="h-10 w-full px-3 data-active:bg-sidebar-accent data-active:text-white"
                     >
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive(
-                          item.url,
-                        )}
-                        className="
-                          h-10
-                          w-full
-                          px-3
-                        "
-                      >
-                        <Link
-                          to={
-                            item.url
-                          }
-                          className="
-                            flex
-                            w-full
-                            min-w-0
-                            flex-row
-                            items-center
-                            gap-3
-                            whitespace-nowrap
-                          "
-                        >
-                          <Icon
-                            className="
-                              size-4
-                              shrink-0
-                            "
-                          />
-
-                          <span
-                            className="
-                              min-w-0
-                              truncate
-                            "
-                          >
-                            {
-                              item.title
-                            }
-                          </span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )
-                },
-              )}
+                      <Icon className="size-4 shrink-0 opacity-90" />
+                      <span className="min-w-0 truncate font-medium">
+                        {item.title}
+                      </span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border px-5 py-4">
+        <p className="text-[11px] text-white/50">WPI MQP · MassMutual</p>
+      </SidebarFooter>
     </Sidebar>
   )
 }

@@ -49,13 +49,13 @@ export default function StageNode({
         overflow-visible
         rounded-xl
         border
-        bg-[#121214]
+        bg-white
         shadow-sm
         transition-colors
         ${
           selected
-            ? "border-[#0265ff]"
-            : "border-[#303034]"
+            ? "border-mm-charge"
+            : "border-border"
         }
       `}
     >
@@ -65,7 +65,7 @@ export default function StageNode({
           items-center
           justify-between
           border-b
-          border-[#2b2b2f]
+          border-border
           px-4
         "
       >
@@ -75,7 +75,7 @@ export default function StageNode({
             font-semibold
             uppercase
             tracking-[0.12em]
-            text-zinc-400
+            text-mm-blue
           "
         >
           {data.label}
@@ -86,7 +86,7 @@ export default function StageNode({
             text-[9px]
             uppercase
             tracking-wider
-            text-zinc-600
+            text-muted-foreground
           "
         >
           {data.orientation}
@@ -122,13 +122,7 @@ export default function StageNode({
             params.width -
             startWidth.current
 
-          /*
-           * The resize control has already resized
-           * this card through React Flow.
-           *
-           * We now push every later card right by
-           * exactly the width difference.
-           */
+          
           setNodes(
             (current) =>
               current.map(
@@ -189,10 +183,10 @@ export default function StageNode({
             rounded-sm
             border-b-2
             border-r-2
-            border-zinc-500
-            bg-[#121214]
+            border-mm-blue/40
+            bg-white
             transition-colors
-            hover:border-[#0265ff]
+            hover:border-mm-charge
           "
         />
       </NodeResizeControl>

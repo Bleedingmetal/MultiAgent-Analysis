@@ -1,3 +1,5 @@
+"use client"
+
 import {
   Bot,
   Clock3,
@@ -5,13 +7,12 @@ import {
   Trash2,
 } from "lucide-react"
 
-import {
-  useState,
-} from "react"
+import Link from "next/link"
 
 import {
-  Link,
-} from "react-router"
+  useEffect,
+  useState,
+} from "react"
 
 import {
   Badge,
@@ -108,7 +109,7 @@ function ConfigurationCard({
         flex min-h-[220px]
         flex-col
         transition-colors
-        hover:border-zinc-600
+        hover:border-mm-charge/50
       "
     >
       <CardHeader>
@@ -194,14 +195,14 @@ function ConfigurationCard({
 
         <div className="flex items-center gap-2">
           <Button
-            asChild
+            render={
+              <Link
+                href={`/configurations/${configuration.id}`}
+              />
+            }
             className="flex-1"
           >
-            <Link
-              to={`/configurations/${configuration.id}`}
-            >
-              Open
-            </Link>
+            Open
           </Button>
 
           <Button
@@ -229,10 +230,13 @@ export default function Configurations() {
   ] =
     useState<
       AgentConfiguration[]
-    >(
-      () =>
-        getConfigurations(),
+    >([])
+
+  useEffect(() => {
+    setConfigurations(
+      getConfigurations(),
     )
+  }, [])
 
   function handleDelete(
     id: string,
@@ -266,36 +270,14 @@ export default function Configurations() {
   }
 
   return (
-    <div className="space-y-6">
-      <div
-        className="
-          flex items-start
-          justify-between
-          gap-4
-        "
-      >
-        <div>
-          <h2
-            className="
-              text-2xl
-              font-semibold
-              tracking-tight
-            "
-          >
-            Configurations
-          </h2>
-
-          <p
-            className="
-              mt-1
-              text-sm
-              text-muted-foreground
-            "
-          >
-            Build and manage agent
-            architectures for evaluation.
-          </p>
-        </div>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+      <div className="mm-rise">
+        <h2 className="text-2xl font-semibold tracking-tight text-mm-dark">
+          Configurations
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Build agent architectures for evaluation.
+        </p>
       </div>
 
       <div
@@ -306,7 +288,7 @@ export default function Configurations() {
         "
       >
         <Link
-          to="/configurations/new"
+          href="/configurations/new"
           className="block"
         >
           <Card
@@ -317,9 +299,10 @@ export default function Configurations() {
               items-center
               justify-center
               border-dashed
+              border-mm-charge/40
               transition-colors
-              hover:border-[#0265ff]
-              hover:bg-muted/20
+              hover:border-mm-charge
+              hover:bg-mm-charge/5
             "
           >
             <CardContent

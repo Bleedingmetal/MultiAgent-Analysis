@@ -1,12 +1,19 @@
+"use client"
+
 import {
   ArrowLeft,
 } from "lucide-react"
 
+import Link from "next/link"
 import {
-  Link,
-  useNavigate,
   useParams,
-} from "react-router"
+  useRouter,
+} from "next/navigation"
+
+import {
+  useEffect,
+  useState,
+} from "react"
 
 import ConfigurationBuilder from "@/components/builder/configuration-builder"
 
@@ -25,20 +32,40 @@ import type {
 } from "@/types/configuration"
 
 export default function ConfigurationBuilderPage() {
-  const {
-    id,
-  } =
-    useParams<{
-      id: string
-    }>()
+  const params = useParams<{
+    id?: string
+  }>()
 
-  const navigate =
-    useNavigate()
+  const id = params?.id
 
-  const initialConfiguration =
-    id
-      ? getConfiguration(id)
-      : createNewConfiguration()
+  const router = useRouter()
+
+  const [
+    initialConfiguration,
+    setInitialConfiguration,
+  ] =
+    useState<
+      AgentConfiguration | null | undefined
+    >(undefined)
+
+  useEffect(() => {
+    if (id) {
+      setInitialConfiguration(
+        getConfiguration(id) ?? null,
+      )
+      return
+    }
+
+    setInitialConfiguration(
+      createNewConfiguration(),
+    )
+  }, [id])
+
+  if (
+    initialConfiguration === undefined
+  ) {
+    return null
+  }
 
   if (
     id &&
@@ -72,12 +99,10 @@ export default function ConfigurationBuilderPage() {
           </p>
         </div>
 
-        <Button asChild>
-          <Link to="/configurations">
+        <Button render={<Link href="/configurations" />}>
             <ArrowLeft data-icon="inline-start" />
 
             Back to Configurations
-          </Link>
         </Button>
       </div>
     )
@@ -91,7 +116,7 @@ export default function ConfigurationBuilderPage() {
       configuration,
     )
 
-    navigate(
+    router.push(
       "/configurations",
     )
   }
@@ -105,7 +130,7 @@ export default function ConfigurationBuilderPage() {
         handleSave
       }
       onCancel={() =>
-        navigate(
+        router.push(
           "/configurations",
         )
       }

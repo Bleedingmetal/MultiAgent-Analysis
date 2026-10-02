@@ -11,6 +11,10 @@ const STORAGE_KEY =
 
 export function getConfigurations():
   AgentConfiguration[] {
+  if (typeof window === "undefined") {
+    return []
+  }
+
   try {
     const stored =
       localStorage.getItem(
@@ -55,6 +59,10 @@ export function saveConfiguration(
   configuration:
     AgentConfiguration,
 ) {
+  if (typeof window === "undefined") {
+    return configuration
+  }
+
   const configurations =
     getConfigurations()
 
@@ -95,6 +103,10 @@ export function saveConfiguration(
 export function deleteConfiguration(
   id: string,
 ) {
+  if (typeof window === "undefined") {
+    return
+  }
+
   const configurations =
     getConfigurations().filter(
       (configuration) =>

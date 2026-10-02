@@ -54,10 +54,7 @@ export interface ConfigurationNode {
 
   layerId: string
 
-  /**
-   * Logical order inside the layer.
-   * This is saved. Visual x/y position is not.
-   */
+  
   order: number
 
   modelSettings?: ModelSettings

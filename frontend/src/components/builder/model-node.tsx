@@ -22,7 +22,7 @@ export type ModelNodeData = {
   model?: string
 
   role?: string
-}
+} & Record<string, unknown>
 
 export type ModelFlowNode =
   Node<
@@ -65,13 +65,13 @@ export default function ModelNode({
         justify-center
         rounded-lg
         border
-        bg-[#19191c]
+        bg-white
         px-3
         shadow-sm
         ${
           selected
-            ? "border-[#0265ff] shadow-[0_0_0_1px_#0265ff]"
-            : "border-[#343438]"
+            ? "border-mm-charge shadow-[0_0_0_1px_#0265ff]"
+            : "border-border"
         }
       `}
     >
@@ -90,10 +90,10 @@ export default function ModelNode({
             items-center
             justify-center
             rounded-md
-            bg-[#202024]
+            bg-mm-charge/10
           "
         >
-          <Bot className="size-4 text-[#4dc7eb]" />
+          <Bot className="size-4 text-mm-charge" />
         </div>
 
         <div className="min-w-0">
@@ -102,7 +102,7 @@ export default function ModelNode({
               truncate
               text-xs
               font-medium
-              text-zinc-100
+              text-mm-dark
             "
           >
             {data.label}
@@ -112,7 +112,7 @@ export default function ModelNode({
             className="
               truncate
               text-[10px]
-              text-zinc-500
+              text-muted-foreground
             "
           >
             {providerLabel(
@@ -131,7 +131,7 @@ export default function ModelNode({
           className="
             mt-1 truncate
             text-[9px]
-            text-zinc-600
+            text-muted-foreground
           "
         >
           {data.role}

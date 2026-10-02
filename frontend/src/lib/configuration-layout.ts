@@ -26,7 +26,7 @@ export type StageOrientation =
   | "horizontal"
   | "vertical"
 
-export interface StageNodeData {
+export type StageNodeData = {
   label: string
   layerId: string
   layerType: LayerType
@@ -34,7 +34,7 @@ export interface StageNodeData {
   orientation: StageOrientation
   minWidth: number
   minHeight: number
-}
+} & Record<string, unknown>
 
 export interface StageSize {
   width: number
@@ -80,10 +80,7 @@ export function getStageOrientation(
   configuration: AgentConfiguration,
   layer: ConfigurationLayer,
 ): StageOrientation {
-  /*
-   * Input and Output only contain one
-   * structural node, so center them.
-   */
+  
   if (
     layer.type === "input" ||
     layer.type === "output"
@@ -91,10 +88,7 @@ export function getStageOrientation(
     return "center"
   }
 
-  /*
-   * Prompt chains and evaluator-optimizer
-   * naturally flow horizontally.
-   */
+  
   if (
     layer.type === "agents" &&
     (
@@ -107,12 +101,7 @@ export function getStageOrientation(
     return "horizontal"
   }
 
-  /*
-   * Everything else defaults vertically.
-   *
-   * A single agent is still centered,
-   * but adding another agent puts it below.
-   */
+  
   return "vertical"
 }
 
@@ -316,9 +305,7 @@ function getInitialChildPositions(
     return positions
   }
 
-  /*
-   * Horizontal row.
-   */
+  
   if (
     stage.orientation ===
     "horizontal"
@@ -372,9 +359,7 @@ function getInitialChildPositions(
     return positions
   }
 
-  /*
-   * Vertical stack.
-   */
+  
   if (
     stage.orientation ===
     "vertical"
@@ -428,9 +413,7 @@ function getInitialChildPositions(
     return positions
   }
 
-  /*
-   * Single centered node.
-   */
+  
   const x =
     (
       stage.width -
@@ -651,7 +634,7 @@ export function createChildFlowNode(
         "center",
 
       background:
-        "#19191c",
+        "#ffffff",
 
       border:
         node.type ===
@@ -661,10 +644,10 @@ export function createChildFlowNode(
           node.type ===
             "evaluator"
           ? "1px solid #0265ff"
-          : "1px solid #343438",
+          : "1px solid #d5deeb",
 
       color:
-        "#f4f4f5",
+        "#001735",
 
       borderRadius:
         "8px",
@@ -691,11 +674,7 @@ export function configurationToFlow(
       configuration,
     )
 
-  /*
-   * IMPORTANT:
-   * React Flow requires parent nodes to appear
-   * before their children.
-   */
+  
   const stageNodes =
     stages.map(
       createStageFlowNode,
@@ -891,9 +870,7 @@ export function getNextChildPlacement(
         "vertical",
     ) as StageOrientation
 
-  /*
-   * Empty card: start perfectly centered.
-   */
+  
   if (
     children.length === 0
   ) {
@@ -924,11 +901,7 @@ export function getNextChildPlacement(
     }
   }
 
-  /*
-   * Horizontal:
-   *
-   * Agent 1 → Agent 2 → Agent 3
-   */
+  
   if (
     orientation ===
     "horizontal"
@@ -972,13 +945,7 @@ export function getNextChildPlacement(
     }
   }
 
-  /*
-   * Vertical:
-   *
-   * Agent 1
-   * Agent 2
-   * Agent 3
-   */
+  
   const furthestBottom =
     Math.max(
       ...children.map(

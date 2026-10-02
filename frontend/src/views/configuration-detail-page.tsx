@@ -1,3 +1,5 @@
+"use client"
+
 import {
   ArrowLeft,
   Bot,
@@ -6,10 +8,15 @@ import {
   Route,
 } from "lucide-react"
 
+import Link from "next/link"
 import {
-  Link,
   useParams,
-} from "react-router"
+} from "next/navigation"
+
+import {
+  useEffect,
+  useState,
+} from "react"
 
 import {
   Badge,
@@ -193,17 +200,40 @@ function ComponentCard({
 }
 
 export default function ConfigurationDetailPage() {
-  const {
-    id,
-  } =
-    useParams<{
-      id: string
-    }>()
+  const params = useParams<{
+    id: string
+  }>()
 
-  const configuration =
-    id
-      ? getConfiguration(id)
-      : undefined
+  const id = params?.id
+
+  const [
+    configuration,
+    setConfiguration,
+  ] =
+    useState<
+      ReturnType<
+        typeof getConfiguration
+      > | undefined
+    >(undefined)
+
+  const [
+    ready,
+    setReady,
+  ] =
+    useState(false)
+
+  useEffect(() => {
+    setConfiguration(
+      id
+        ? getConfiguration(id)
+        : undefined,
+    )
+    setReady(true)
+  }, [id])
+
+  if (!ready) {
+    return null
+  }
 
   if (!configuration) {
     return (
@@ -236,7 +266,7 @@ export default function ConfigurationDetailPage() {
         </div>
 
         <Button
-          asChild
+          render={<Link href="/configurations" />}
           className="
             h-10
             px-4
@@ -244,8 +274,7 @@ export default function ConfigurationDetailPage() {
             font-medium
           "
         >
-          <Link
-            to="/configurations"
+          <span
             className="
               flex
               flex-row
@@ -259,7 +288,7 @@ export default function ConfigurationDetailPage() {
             <span>
               Back to Configurations
             </span>
-          </Link>
+          </span>
         </Button>
       </div>
     )
@@ -292,7 +321,7 @@ export default function ConfigurationDetailPage() {
       >
         <div className="min-w-0">
           <Button
-            asChild
+            render={<Link href="/configurations" />}
             variant="ghost"
             className="
               -ml-3
@@ -303,8 +332,7 @@ export default function ConfigurationDetailPage() {
               font-medium
             "
           >
-            <Link
-              to="/configurations"
+            <span
               className="
                 flex
                 flex-row
@@ -318,7 +346,7 @@ export default function ConfigurationDetailPage() {
               <span>
                 Configurations
               </span>
-            </Link>
+            </span>
           </Button>
 
           <div
@@ -360,7 +388,11 @@ export default function ConfigurationDetailPage() {
         </div>
 
         <Button
-          asChild
+          render={
+            <Link
+              href={`/configurations/${configuration.id}/edit`}
+            />
+          }
           className="
             h-10
             shrink-0
@@ -369,8 +401,7 @@ export default function ConfigurationDetailPage() {
             font-medium
           "
         >
-          <Link
-            to={`/configurations/${configuration.id}/edit`}
+          <span
             className="
               flex
               flex-row
@@ -384,7 +415,7 @@ export default function ConfigurationDetailPage() {
             <span>
               Edit Configuration
             </span>
-          </Link>
+          </span>
         </Button>
       </div>
 
@@ -411,7 +442,7 @@ export default function ConfigurationDetailPage() {
                 gap-2
               "
             >
-              <Route className="size-4 shrink-0 text-[#4dc7eb]" />
+              <Route className="size-4 shrink-0 text-mm-charge" />
 
               <span className="text-sm">
                 {architectureLabel(
@@ -438,7 +469,7 @@ export default function ConfigurationDetailPage() {
                 gap-2
               "
             >
-              <Bot className="size-4 shrink-0 text-[#4dc7eb]" />
+              <Bot className="size-4 shrink-0 text-mm-charge" />
 
               <span className="text-sm">
                 {models.length}{" "}
@@ -466,7 +497,7 @@ export default function ConfigurationDetailPage() {
                 gap-2
               "
             >
-              <Calendar className="size-4 shrink-0 text-[#4dc7eb]" />
+              <Calendar className="size-4 shrink-0 text-mm-charge" />
 
               <span className="text-sm">
                 {formatDate(
@@ -530,7 +561,7 @@ export default function ConfigurationDetailPage() {
                         min-w-[220px]
                         rounded-xl
                         border
-                        bg-[#121214]
+                        bg-muted
                         p-4
                       "
                     >
@@ -540,7 +571,7 @@ export default function ConfigurationDetailPage() {
                           font-semibold
                           uppercase
                           tracking-[0.12em]
-                          text-zinc-500
+                          text-mm-blue
                         "
                       >
                         {layer.name}
@@ -558,7 +589,7 @@ export default function ConfigurationDetailPage() {
                                 className="
                                   rounded-md
                                   border
-                                  bg-[#19191c]
+                                  bg-card
                                   px-3
                                   py-2
                                 "
@@ -613,7 +644,7 @@ export default function ConfigurationDetailPage() {
                         className="
                           shrink-0
                           text-lg
-                          text-zinc-600
+                          text-mm-blue/40
                         "
                       >
                         →
