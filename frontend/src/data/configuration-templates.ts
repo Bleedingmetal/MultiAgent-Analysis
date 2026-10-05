@@ -105,7 +105,7 @@ export const singleAgentTemplate: AgentConfiguration = {
   nodes: [
     node(
       "prompt",
-      "Standard Task Prompt",
+      "Task input",
       "input",
       "input",
       0,
@@ -158,7 +158,7 @@ export const promptChainingTemplate: AgentConfiguration = {
   nodes: [
     node(
       "prompt",
-      "Standard Task Prompt",
+      "Task input",
       "input",
       "input",
       0,
@@ -241,7 +241,7 @@ export const routingTemplate: AgentConfiguration = {
   nodes: [
     node(
       "prompt",
-      "Standard Task Prompt",
+      "Task input",
       "input",
       "input",
       0,
@@ -364,7 +364,7 @@ export const parallelizationTemplate: AgentConfiguration = {
   nodes: [
     node(
       "prompt",
-      "Standard Task Prompt",
+      "Task input",
       "input",
       "input",
       0,
@@ -477,7 +477,7 @@ export const evaluatorOptimizerTemplate: AgentConfiguration = {
   nodes: [
     node(
       "prompt",
-      "Standard Task Prompt",
+      "Task input",
       "input",
       "input",
       0,
@@ -564,7 +564,7 @@ export const autonomousAgentTemplate: AgentConfiguration = {
   nodes: [
     node(
       "prompt",
-      "Standard Task Prompt",
+      "Task input",
       "input",
       "input",
       0,

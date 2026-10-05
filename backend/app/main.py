@@ -81,9 +81,19 @@ async def create_run(body: RunRequest):
     cost = 0.0
     try:
         if body.mode == "classify-plan":
-            result = run_classifier_plan(body.configuration, task)
+            result = run_classifier_plan(
+                body.configuration,
+                task,
+                model_override=body.model_override,
+                parent_run_id=body.parent_run_id,
+            )
         else:
-            result = run_single_agent(body.configuration, task)
+            result = run_single_agent(
+                body.configuration,
+                task,
+                model_override=body.model_override,
+                parent_run_id=body.parent_run_id,
+            )
         cost = result.cost_usd
         ok = True
         return store.add_run(result)

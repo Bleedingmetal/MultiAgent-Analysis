@@ -148,3 +148,40 @@ export function createNewConfiguration():
       now,
   }
 }
+
+/** Clone a run's config snapshot into local configs for edit + rerun. */
+export function cloneConfigurationFromSnapshot(
+  snapshot: AgentConfiguration,
+  options?: {
+    name?: string
+    modelOverride?: string
+  },
+): AgentConfiguration {
+  const now = new Date().toISOString()
+  const cloned = structuredClone(snapshot)
+
+  if (options?.modelOverride) {
+    const modelNode = cloned.nodes.find((n) => n.type === "model")
+    if (modelNode) {
+      modelNode.modelSettings = {
+        provider: "openai",
+        model: options.modelOverride,
+        temperature: modelNode.modelSettings?.temperature ?? 0.2,
+        maxTokens: modelNode.modelSettings?.maxTokens,
+        systemPrompt: modelNode.modelSettings?.systemPrompt,
+      }
+    }
+  }
+
+  const saved = saveConfiguration({
+    ...cloned,
+    id: crypto.randomUUID(),
+    name:
+      options?.name ??
+      `${cloned.name || "Config"} (from run)`,
+    createdAt: now,
+    updatedAt: now,
+  })
+
+  return saved
+}

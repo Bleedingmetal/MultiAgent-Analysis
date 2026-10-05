@@ -9,27 +9,12 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
-const pageCopy: Record<string, { title: string; subtitle: string }> = {
-  "/": {
-    title: "Overview",
-    subtitle: "Tradeoffs across architectures and task structures",
-  },
-  "/compare": {
-    title: "Compare",
-    subtitle: "Rank architectures by the metric that matters",
-  },
-  "/benchmarks": {
-    title: "Benchmarks",
-    subtitle: "Task sets that drive discrimination",
-  },
-  "/configurations": {
-    title: "Configurations",
-    subtitle: "Architectures ready for evaluation",
-  },
-  "/runs": {
-    title: "Runs",
-    subtitle: "Logged evaluation evidence",
-  },
+const pageTitles: Record<string, string> = {
+  "/": "Overview",
+  "/compare": "Compare",
+  "/benchmarks": "Benchmarks",
+  "/configurations": "Configurations",
+  "/runs": "Runs",
 }
 
 export function AppShell({
@@ -39,14 +24,11 @@ export function AppShell({
 }>) {
   const pathname = usePathname()
 
-  const meta =
-    pageCopy[pathname] ??
+  const title =
+    pageTitles[pathname] ??
     (pathname.startsWith("/configurations")
-      ? pageCopy["/configurations"]
-      : {
-          title: "Agent Evaluation",
-          subtitle: "MassMutual · WPI MQP",
-        })
+      ? "Configuration"
+      : "Agent Evaluation")
 
   return (
     <SidebarProvider>
@@ -54,20 +36,12 @@ export function AppShell({
       <AppSidebar />
       <SidebarInset className="bg-transparent">
         <header className="sticky top-0 z-10">
-          <div className="mx-3 mt-3 rounded-2xl border border-border/70 bg-white/70 shadow-[0_8px_30px_rgba(0,23,53,0.04)] backdrop-blur-xl md:mx-5 md:mt-4">
-            <div className="flex h-[3.75rem] items-center gap-4 px-4 md:px-5">
+          <div className="mx-3 mt-3 rounded-2xl border border-border/70 bg-white/75 shadow-[0_8px_30px_rgba(0,23,53,0.04)] backdrop-blur-xl md:mx-5 md:mt-4">
+            <div className="flex h-14 items-center gap-3 px-4 md:px-5">
               <SidebarTrigger className="text-mm-blue" />
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-[15px] font-semibold tracking-tight text-mm-dark">
-                  {meta.title}
-                </h1>
-                <p className="truncate text-[12px] text-muted-foreground">
-                  {meta.subtitle}
-                </p>
-              </div>
-              <span className="hidden rounded-full border border-border bg-white/80 px-3 py-1 text-[11px] font-medium text-mm-blue sm:inline-flex">
-                Mock data
-              </span>
+              <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-mm-dark">
+                {title}
+              </h1>
             </div>
           </div>
         </header>

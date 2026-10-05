@@ -42,6 +42,8 @@ class RunRequest(BaseModel):
     benchmark_id: Literal["finqa", "tau-retail", "fab"] = "finqa"
     task_id: str | None = None
     confirm: bool = False
+    model_override: str | None = None
+    parent_run_id: str | None = None
 
 
 class ClassifierPlan(BaseModel):
@@ -59,6 +61,7 @@ class RunResult(BaseModel):
     configuration_name: str
     architecture: str
     model: str
+    temperature: float = 0.2
     question: str
     expected_answer: str | None = None
     answer: str
@@ -70,3 +73,9 @@ class RunResult(BaseModel):
     classifier_plan: ClassifierPlan | None = None
     note: str | None = None
     created_at: str
+    # Detail / replay fields
+    system_prompt: str | None = None
+    user_prompt: str | None = None
+    configuration: AgentConfiguration | None = None
+    parent_run_id: str | None = None
+    status: str = "completed"

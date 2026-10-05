@@ -1,708 +1,187 @@
 "use client"
 
-import {
-  ArrowLeft,
-  Bot,
-  Calendar,
-  Pencil,
-  Route,
-} from "lucide-react"
-
 import Link from "next/link"
-import {
-  useParams,
-} from "next/navigation"
-
-import {
-  useEffect,
-  useState,
-} from "react"
-
-import {
-  Badge,
-} from "@/components/ui/badge"
-
-import {
-  Button,
-} from "@/components/ui/button"
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-
-import {
-  Separator,
-} from "@/components/ui/separator"
-
-import {
-  getConfiguration,
-} from "@/lib/configuration-storage"
+import { useParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { ArrowLeft, PencilSimple } from "@phosphor-icons/react"
 
 import { ConfigRunPanel } from "@/components/product/config-run-panel"
-
+import { Reveal } from "@/components/product/ui-bits"
+import { Button } from "@/components/ui/button"
+import { getConfiguration } from "@/lib/configuration-storage"
 import type {
   ArchitectureType,
   ConfigurationNode,
 } from "@/types/configuration"
 
-function architectureLabel(
-  architecture: ArchitectureType,
-) {
+function architectureLabel(architecture: ArchitectureType) {
   switch (architecture) {
     case "single-agent":
-      return "Single Agent"
-
+      return "Single agent"
     case "prompt-chaining":
-      return "Prompt Chaining"
-
+      return "Prompt chaining"
     case "routing":
       return "Routing"
-
     case "parallelization":
       return "Parallelization"
-
     case "evaluator-optimizer":
-      return "Evaluator-Optimizer"
-
+      return "Evaluator-optimizer"
     case "autonomous-agent":
-      return "Autonomous Agent"
-
+      return "Autonomous"
     case "custom":
       return "Custom"
   }
 }
 
-function formatDate(
-  date: string,
-) {
-  return new Intl.DateTimeFormat(
-    "en-US",
-    {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    },
-  ).format(
-    new Date(date),
-  )
+function formatDate(date: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(date))
 }
 
-function ComponentCard({
-  node,
-}: {
-  node: ConfigurationNode
-}) {
+function NodeChip({ node }: { node: ConfigurationNode }) {
   return (
-    <div
-      className="
-        rounded-lg
-        border
-        bg-muted/20
-        p-4
-      "
-    >
-      <div
-        className="
-          flex
-          items-start
-          justify-between
-          gap-3
-        "
-      >
-        <div className="min-w-0">
-          <p className="text-sm font-medium">
-            {node.name}
-          </p>
-
-          <p
-            className="
-              mt-1
-              text-xs
-              capitalize
-              text-muted-foreground
-            "
-          >
-            {node.type.replace(
-              "-",
-              " ",
-            )}
-          </p>
-        </div>
-
-        {node.modelSettings && (
-          <Badge
-            variant="secondary"
-            className="shrink-0"
-          >
-            {
-              node.modelSettings
-                .provider
-            }
-          </Badge>
-        )}
-      </div>
-
-      {node.modelSettings && (
-        <div
-          className="
-            mt-4
-            grid
-            gap-3
-            text-xs
-            sm:grid-cols-2
-          "
-        >
-          <div>
-            <p className="text-muted-foreground">
-              Model
-            </p>
-
-            <p className="mt-1">
-              {
-                node.modelSettings
-                  .model
-              }
-            </p>
-          </div>
-
-          <div>
-            <p className="text-muted-foreground">
-              Temperature
-            </p>
-
-            <p className="mt-1">
-              {
-                node.modelSettings
-                  .temperature ??
-                "Default"
-              }
-            </p>
-          </div>
-        </div>
-      )}
-
-      {node.metadata?.role && (
-        <div className="mt-3 text-xs">
-          <p className="text-muted-foreground">
-            Role
-          </p>
-
-          <p className="mt-1">
-            {node.metadata.role}
-          </p>
-        </div>
+    <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5">
+      <p className="text-[13px] font-medium text-mm-dark">{node.name}</p>
+      {node.modelSettings ? (
+        <p className="mt-0.5 font-data text-[11px] text-muted-foreground">
+          {node.modelSettings.provider} / {node.modelSettings.model}
+        </p>
+      ) : (
+        <p className="mt-0.5 text-[11px] capitalize text-muted-foreground">
+          {node.type.replace("-", " ")}
+        </p>
       )}
     </div>
   )
 }
 
 export default function ConfigurationDetailPage() {
-  const params = useParams<{
-    id: string
-  }>()
-
+  const params = useParams<{ id: string }>()
   const id = params?.id
 
-  const [
-    configuration,
-    setConfiguration,
-  ] =
-    useState<
-      ReturnType<
-        typeof getConfiguration
-      > | undefined
-    >(undefined)
-
-  const [
-    ready,
-    setReady,
-  ] =
-    useState(false)
+  const [configuration, setConfiguration] = useState<
+    ReturnType<typeof getConfiguration> | undefined
+  >(undefined)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    setConfiguration(
-      id
-        ? getConfiguration(id)
-        : undefined,
-    )
+    setConfiguration(id ? getConfiguration(id) : undefined)
     setReady(true)
   }, [id])
 
-  if (!ready) {
-    return null
-  }
+  if (!ready) return null
 
   if (!configuration) {
     return (
-      <div
-        className="
-          flex
-          min-h-[400px]
-          flex-col
-          items-center
-          justify-center
-          gap-4
-          text-center
-        "
-      >
-        <div>
-          <h2 className="text-xl font-semibold">
-            Configuration not found
-          </h2>
-
-          <p
-            className="
-              mt-1
-              text-sm
-              text-muted-foreground
-            "
-          >
-            This configuration may have
-            been deleted.
-          </p>
-        </div>
-
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
+        <h2 className="text-xl font-semibold text-mm-dark">Not found</h2>
         <Button
           render={<Link href="/configurations" />}
-          className="
-            h-10
-            px-4
-            text-sm
-            font-medium
-          "
+          variant="outline"
+          className="h-10 rounded-full px-4"
         >
-          <span
-            className="
-              flex
-              flex-row
-              items-center
-              gap-2
-              whitespace-nowrap
-            "
-          >
-            <ArrowLeft className="size-4 shrink-0" />
-
-            <span>
-              Back to Configurations
-            </span>
-          </span>
+          <ArrowLeft className="size-4" />
+          Configurations
         </Button>
       </div>
     )
   }
 
-  const models =
-    configuration.nodes.filter(
-      (node) =>
-        node.type === "model",
-    )
-
-  const orderedLayers = [
-    ...configuration.layers,
-  ].sort(
-    (a, b) =>
-      a.order - b.order,
+  const models = configuration.nodes.filter((n) => n.type === "model")
+  const orderedLayers = [...configuration.layers].sort(
+    (a, b) => a.order - b.order,
   )
 
   return (
-    <div className="space-y-6">
-      <div
-        className="
-          flex
-          flex-col
-          gap-4
-          sm:flex-row
-          sm:items-start
-          sm:justify-between
-        "
-      >
-        <div className="min-w-0">
-          <Button
-            render={<Link href="/configurations" />}
-            variant="ghost"
-            className="
-              -ml-3
-              mb-3
-              h-9
-              px-3
-              text-sm
-              font-medium
-            "
+    <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-8">
+      <Reveal className="flex flex-wrap items-end justify-between gap-5">
+        <div className="min-w-0 max-w-3xl">
+          <Link
+            href="/configurations"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-mm-dark"
           >
-            <span
-              className="
-                flex
-                flex-row
-                items-center
-                gap-2
-                whitespace-nowrap
-              "
-            >
-              <ArrowLeft className="size-4 shrink-0" />
-
-              <span>
-                Configurations
-              </span>
-            </span>
-          </Button>
-
-          <div
-            className="
-              flex
-              flex-wrap
-              items-center
-              gap-3
-            "
-          >
-            <h2
-              className="
-                text-2xl
-                font-semibold
-                tracking-tight
-              "
-            >
-              {configuration.name}
-            </h2>
-
-            <Badge variant="secondary">
-              {architectureLabel(
-                configuration.architecture,
-              )}
-            </Badge>
-          </div>
-
-          <p
-            className="
-              mt-2
-              max-w-2xl
-              text-sm
-              text-muted-foreground
-            "
-          >
-            {configuration.description ||
-              "No description provided."}
+            <ArrowLeft className="size-3.5" weight="bold" />
+            Configurations
+          </Link>
+          <h2 className="mt-4 text-[34px] font-semibold leading-[1.05] tracking-[-0.03em] text-mm-dark md:text-[42px]">
+            {configuration.name}
+          </h2>
+          {configuration.description ? (
+            <p className="mt-3 max-w-[48ch] text-[15px] leading-relaxed text-muted-foreground">
+              {configuration.description}
+            </p>
+          ) : null}
+          <p className="mt-4 font-data text-[12px] text-muted-foreground">
+            {architectureLabel(configuration.architecture)}
+            <span className="mx-2 text-border">/</span>
+            {models.length} {models.length === 1 ? "model" : "models"}
+            <span className="mx-2 text-border">/</span>
+            {formatDate(configuration.updatedAt)}
           </p>
         </div>
-
         <Button
-          render={
-            <Link
-              href={`/configurations/${configuration.id}/edit`}
-            />
-          }
-          className="
-            h-10
-            shrink-0
-            px-4
-            text-sm
-            font-medium
-          "
+          render={<Link href={`/configurations/${configuration.id}/edit`} />}
+          variant="outline"
+          className="h-10 rounded-full border-border/80 px-4 text-sm"
         >
-          <span
-            className="
-              flex
-              flex-row
-              items-center
-              gap-2
-              whitespace-nowrap
-            "
-          >
-            <Pencil className="size-4 shrink-0" />
-
-            <span>
-              Edit Configuration
-            </span>
-          </span>
+          <PencilSimple className="size-4" weight="bold" />
+          Edit
         </Button>
-      </div>
+      </Reveal>
 
-      <ConfigRunPanel configuration={configuration} />
+      <div className="grid gap-5 xl:grid-cols-12">
+        <Reveal delay={0.06} className="xl:col-span-8">
+          <ConfigRunPanel configuration={configuration} />
+        </Reveal>
 
-      <div
-        className="
-          grid
-          gap-4
-          md:grid-cols-3
-        "
-      >
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">
-              Architecture
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-            <div
-              className="
-                flex
-                flex-row
-                items-center
-                gap-2
-              "
-            >
-              <Route className="size-4 shrink-0 text-mm-charge" />
-
-              <span className="text-sm">
-                {architectureLabel(
-                  configuration.architecture,
-                )}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">
-              Models
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-            <div
-              className="
-                flex
-                flex-row
-                items-center
-                gap-2
-              "
-            >
-              <Bot className="size-4 shrink-0 text-mm-charge" />
-
-              <span className="text-sm">
-                {models.length}{" "}
-                {models.length === 1
-                  ? "model"
-                  : "models"}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">
-              Last Updated
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-            <div
-              className="
-                flex
-                flex-row
-                items-center
-                gap-2
-              "
-            >
-              <Calendar className="size-4 shrink-0 text-mm-charge" />
-
-              <span className="text-sm">
-                {formatDate(
-                  configuration.updatedAt,
-                )}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Workflow
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent>
-          <div
-            className="
-              flex
-              items-stretch
-              gap-3
-              overflow-x-auto
-              pb-2
-            "
-          >
-            {orderedLayers.map(
-              (
-                layer,
-                index,
-              ) => {
-                const layerNodes =
-                  configuration.nodes
-                    .filter(
-                      (node) =>
-                        node.layerId ===
-                        layer.id,
-                    )
-                    .sort(
-                      (a, b) =>
-                        a.order -
-                        b.order,
-                    )
-
-                return (
-                  <div
-                    key={
-                      layer.id
-                    }
-                    className="
-                      flex
-                      flex-row
-                      items-center
-                      gap-3
-                    "
-                  >
-                    <div
-                      className="
-                        min-w-[220px]
-                        rounded-xl
-                        border
-                        bg-muted
-                        p-4
-                      "
-                    >
-                      <p
-                        className="
-                          text-[11px]
-                          font-semibold
-                          uppercase
-                          tracking-[0.12em]
-                          text-mm-blue
-                        "
-                      >
+        <Reveal delay={0.1} className="xl:col-span-4">
+          <aside className="bezel xl:sticky xl:top-24">
+            <div className="bezel-core p-5">
+              <h3 className="text-[15px] font-semibold tracking-tight text-mm-dark">
+                Pipeline
+              </h3>
+              <ol className="mt-5 space-y-0">
+                {orderedLayers.map((layer, index) => {
+                  const layerNodes = configuration.nodes
+                    .filter((n) => n.layerId === layer.id)
+                    .sort((a, b) => a.order - b.order)
+                  return (
+                    <li key={layer.id} className="relative pl-6">
+                      {index < orderedLayers.length - 1 ? (
+                        <span
+                          aria-hidden
+                          className="absolute left-[7px] top-5 bottom-0 w-px bg-border"
+                        />
+                      ) : null}
+                      <span
+                        aria-hidden
+                        className="absolute left-0 top-1.5 size-[15px] rounded-full border-2 border-mm-charge bg-white"
+                      />
+                      <p className="text-[12px] font-medium text-muted-foreground">
                         {layer.name}
                       </p>
-
-                      <div className="mt-4 space-y-2">
-                        {layerNodes.length >
-                        0 ? (
-                          layerNodes.map(
-                            (node) => (
-                              <div
-                                key={
-                                  node.id
-                                }
-                                className="
-                                  rounded-md
-                                  border
-                                  bg-card
-                                  px-3
-                                  py-2
-                                "
-                              >
-                                <p className="text-xs font-medium">
-                                  {
-                                    node.name
-                                  }
-                                </p>
-
-                                {node.modelSettings && (
-                                  <p
-                                    className="
-                                      mt-1
-                                      text-[10px]
-                                      text-muted-foreground
-                                    "
-                                  >
-                                    {
-                                      node
-                                        .modelSettings
-                                        .provider
-                                    }{" "}
-                                    ·{" "}
-                                    {
-                                      node
-                                        .modelSettings
-                                        .model
-                                    }
-                                  </p>
-                                )}
-                              </div>
-                            ),
-                          )
+                      <div className="mt-2 mb-5 space-y-2">
+                        {layerNodes.length ? (
+                          layerNodes.map((node) => (
+                            <NodeChip key={node.id} node={node} />
+                          ))
                         ) : (
-                          <p
-                            className="
-                              text-xs
-                              text-muted-foreground
-                            "
-                          >
-                            No components
+                          <p className="text-[12px] text-muted-foreground">
+                            Empty
                           </p>
                         )}
                       </div>
-                    </div>
-
-                    {index <
-                      orderedLayers.length -
-                        1 && (
-                      <span
-                        className="
-                          shrink-0
-                          text-lg
-                          text-mm-blue/40
-                        "
-                      >
-                        →
-                      </span>
-                    )}
-                  </div>
-                )
-              },
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div>
-        <div className="mb-4">
-          <h3 className="text-base font-semibold">
-            Components
-          </h3>
-
-          <p
-            className="
-              mt-1
-              text-sm
-              text-muted-foreground
-            "
-          >
-            Models and workflow components
-            included in this configuration.
-          </p>
-        </div>
-
-        <Separator className="mb-4" />
-
-        <div
-          className="
-            grid
-            gap-4
-            md:grid-cols-2
-            xl:grid-cols-3
-          "
-        >
-          {configuration.nodes.map(
-            (node) => (
-              <ComponentCard
-                key={
-                  node.id
-                }
-                node={
-                  node
-                }
-              />
-            ),
-          )}
-        </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
+          </aside>
+        </Reveal>
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from datetime import datetime, timezone
@@ -40,20 +41,54 @@ def _temperature(config: AgentConfiguration) -> float:
     return 0.2
 
 
-def run_single_agent(config: AgentConfiguration, task: Task) -> RunResult:
-    model = settings()["openai_model"]
+def _resolve_model(config: AgentConfiguration, model_override: str | None) -> str:
+    if model_override and model_override.strip():
+        return model_override.strip()
+    # Prefer explicit node model only if it looks like a real OpenAI id
+    node = _primary_model_node(config)
+    if node and node.modelSettings and node.modelSettings.model:
+        candidate = node.modelSettings.model.strip()
+        if candidate.lower() not in {"gpt", "claude", "gemini", "model"}:
+            return candidate
+    return settings()["openai_model"]
+
+
+def _apply_model_to_config(
+    config: AgentConfiguration, model: str
+) -> AgentConfiguration:
+    """Return a copy with primary model node updated for snapshot fidelity."""
+    data = config.model_dump()
+    nodes = data.get("nodes") or []
+    for node in nodes:
+        if node.get("type") == "model" and node.get("modelSettings"):
+            node["modelSettings"]["model"] = model
+            node["modelSettings"]["provider"] = "openai"
+            break
+    return AgentConfiguration.model_validate(data)
+
+
+def run_single_agent(
+    config: AgentConfiguration,
+    task: Task,
+    *,
+    model_override: str | None = None,
+    parent_run_id: str | None = None,
+) -> RunResult:
+    model = _resolve_model(config, model_override)
+    snapshot = _apply_model_to_config(config, model)
     system = _system_prompt(config)
     user = (
         f"{task.context}\n\n"
         f"Question:\n{task.question}\n\n"
         "Respond with the answer. Prefer a short final answer."
     )
+    temp = _temperature(config)
 
     t0 = time.perf_counter()
     answer, prompt_tokens, completion_tokens = chat_completion(
         system=system,
         user=user,
-        temperature=_temperature(config),
+        temperature=temp,
         model=model,
     )
     latency = time.perf_counter() - t0
@@ -68,6 +103,7 @@ def run_single_agent(config: AgentConfiguration, task: Task) -> RunResult:
         configuration_name=config.name,
         architecture=config.architecture,
         model=model,
+        temperature=temp,
         question=task.question,
         expected_answer=task.expected_answer,
         answer=answer,
@@ -82,6 +118,11 @@ def run_single_agent(config: AgentConfiguration, task: Task) -> RunResult:
             else "Open-ended task; success not auto-scored in MVP."
         ),
         created_at=datetime.now(timezone.utc).isoformat(),
+        system_prompt=system,
+        user_prompt=user,
+        configuration=snapshot,
+        parent_run_id=parent_run_id,
+        status="completed",
     )
 
 
@@ -93,8 +134,15 @@ Return ONLY valid JSON with keys:
 Do not execute the task. Do not invent tools. Keep roles concrete."""
 
 
-def run_classifier_plan(config: AgentConfiguration, task: Task) -> RunResult:
-    model = settings()["openai_model"]
+def run_classifier_plan(
+    config: AgentConfiguration,
+    task: Task,
+    *,
+    model_override: str | None = None,
+    parent_run_id: str | None = None,
+) -> RunResult:
+    model = _resolve_model(config, model_override)
+    snapshot = _apply_model_to_config(config, model)
     user = (
         f"Configuration name: {config.name}\n"
         f"Declared architecture: {config.architecture}\n\n"
@@ -118,8 +166,6 @@ def run_classifier_plan(config: AgentConfiguration, task: Task) -> RunResult:
         suggested_layout="orchestrator-workers",
     )
     try:
-        import json
-
         start = raw.find("{")
         end = raw.rfind("}")
         if start >= 0 and end > start:
@@ -143,6 +189,7 @@ def run_classifier_plan(config: AgentConfiguration, task: Task) -> RunResult:
         configuration_name=config.name,
         architecture=config.architecture,
         model=model,
+        temperature=0.2,
         question=task.question,
         expected_answer=task.expected_answer,
         answer=raw,
@@ -154,4 +201,9 @@ def run_classifier_plan(config: AgentConfiguration, task: Task) -> RunResult:
         classifier_plan=plan,
         note="Classifier only. Specialist agents are not executed yet.",
         created_at=datetime.now(timezone.utc).isoformat(),
+        system_prompt=CLASSIFIER_SYSTEM,
+        user_prompt=user,
+        configuration=snapshot,
+        parent_run_id=parent_run_id,
+        status="completed",
     )

@@ -10,6 +10,19 @@ export type ClassifierPlan = {
   suggested_layout: string
 }
 
+export type RunConfiguration = {
+  version?: number
+  id: string
+  name: string
+  description?: string | null
+  architecture: string
+  createdAt?: string | null
+  updatedAt?: string | null
+  layers: unknown[]
+  nodes: unknown[]
+  edges: unknown[]
+}
+
 export type RunResult = {
   id: string
   mode: RunMode
@@ -19,6 +32,7 @@ export type RunResult = {
   configuration_name: string
   architecture: string
   model: string
+  temperature?: number
   question: string
   expected_answer: string | null
   answer: string
@@ -30,6 +44,11 @@ export type RunResult = {
   classifier_plan: ClassifierPlan | null
   note: string | null
   created_at: string
+  system_prompt?: string | null
+  user_prompt?: string | null
+  configuration?: RunConfiguration | null
+  parent_run_id?: string | null
+  status?: string
 }
 
 export type BenchmarkInfo = {
@@ -108,6 +127,8 @@ export function createRun(body: {
   benchmark_id: BenchmarkId
   task_id?: string | null
   confirm?: boolean
+  model_override?: string | null
+  parent_run_id?: string | null
 }) {
   return api<RunResult>("/api/runs", {
     method: "POST",
@@ -117,4 +138,8 @@ export function createRun(body: {
 
 export function listRuns(limit = 50) {
   return api<{ runs: RunResult[] }>(`/api/runs?limit=${limit}`)
+}
+
+export function getRun(runId: string) {
+  return api<RunResult>(`/api/runs/${runId}`)
 }
