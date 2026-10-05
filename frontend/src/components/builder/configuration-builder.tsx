@@ -1,5 +1,7 @@
 "use client"
 
+import "@xyflow/react/dist/style.css"
+
 import {
   ArrowLeft,
   Save,
@@ -99,30 +101,35 @@ export default function ConfigurationBuilder({
     )
 
   function handleSave() {
-    const trimmedName =
-      name.trim()
-
+    const trimmedName = name.trim()
     if (!trimmedName) {
       return
     }
 
-    const exported =
-      builder.exportConfiguration()
+    let payload: AgentConfiguration
+    try {
+      const exported = builder.exportConfiguration()
+      payload = {
+        ...exported,
+        name: trimmedName,
+        description: description.trim() || undefined,
+        updatedAt: new Date().toISOString(),
+      }
+    } catch (err) {
+      console.error("Failed to export configuration", err)
+      window.alert(
+        err instanceof Error
+          ? `Save failed: ${err.message}`
+          : "Save failed. Check the browser console.",
+      )
+      return
+    }
 
-    onSave({
-      ...exported,
-
-      name:
-        trimmedName,
-
-      description:
-        description.trim() ||
-        undefined,
-
-      updatedAt:
-        new Date()
-          .toISOString(),
-    })
+    // Dismiss first so Base UI doesn't leave a stuck overlay during navigation.
+    setSaveOpen(false)
+    window.setTimeout(() => {
+      onSave(payload)
+    }, 0)
   }
 
   return (
@@ -278,26 +285,23 @@ export default function ConfigurationBuilder({
 
           <DialogFooter>
             <Button
+              type="button"
               variant="outline"
-              onClick={() =>
-                setSaveOpen(
-                  false,
-                )
-              }
+              onClick={() => setSaveOpen(false)}
             >
               Cancel
             </Button>
 
             <Button
-              disabled={
-                !name.trim()
-              }
-              onClick={
-                handleSave
-              }
+              type="button"
+              disabled={!name.trim()}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                handleSave()
+              }}
             >
               <Save data-icon="inline-start" />
-
               Save
             </Button>
           </DialogFooter>

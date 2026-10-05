@@ -109,16 +109,11 @@ export default function ConfigurationBuilderPage() {
   }
 
   function handleSave(
-    configuration:
-      AgentConfiguration,
+    configuration: AgentConfiguration,
   ) {
-    saveConfiguration(
-      configuration,
-    )
-
-    router.push(
-      "/configurations",
-    )
+    const saved = saveConfiguration(configuration)
+    // Detail page has Run evaluation — better demo landing than the list.
+    router.replace(`/configurations/${saved.id}`)
   }
 
   return (

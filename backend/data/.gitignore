@@ -1,0 +1,5 @@
+# Backend datasets (large files ignored; samples kept)
+backend/data/finqa/test.json
+backend/data/fab/public.csv
+backend/data/fab/public.txt
+backend/data/tau_bench/tasks_test_retail.py

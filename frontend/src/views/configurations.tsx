@@ -270,12 +270,12 @@ export default function Configurations() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-      <div className="mm-rise">
-        <h2 className="text-2xl font-semibold tracking-tight text-mm-dark">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <div className="rise-in">
+        <h2 className="text-[28px] font-semibold tracking-tight text-mm-dark">
           Configurations
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           Build agent architectures for evaluation.
         </p>
       </div>

@@ -41,6 +41,8 @@ import {
   getConfiguration,
 } from "@/lib/configuration-storage"
 
+import { ConfigRunPanel } from "@/components/product/config-run-panel"
+
 import type {
   ArchitectureType,
   ConfigurationNode,
@@ -418,6 +420,8 @@ export default function ConfigurationDetailPage() {
           </span>
         </Button>
       </div>
+
+      <ConfigRunPanel configuration={configuration} />
 
       <div
         className="

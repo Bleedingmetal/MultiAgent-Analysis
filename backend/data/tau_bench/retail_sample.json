@@ -1,0 +1,77 @@
+[
+  {
+    "id": "tau-retail-000",
+    "user_id": "yusuf_rossi_9620",
+    "instruction": "You are Yusuf Rossi in 19122. You received your order #W2378156 and wish to exchange the mechanical keyboard for a similar one but with clicky switches and the smart thermostat for one compatible with Google Home instead of Apple HomeKit. If there is no keyboard that is clicky, RGB backlight, full size, you'd go for no backlight. You are detail-oriented and want to make sure everything is addressed in one go."
+  },
+  {
+    "id": "tau-retail-001",
+    "user_id": "yusuf_rossi_9620",
+    "instruction": "You are Yusuf Rossi in 19122. You received your order #W2378156 and wish to exchange the mechanical keyboard for a similar one but with clicky switches and the smart thermostat for one compatible with Google Home instead of Apple HomeKit. If there is no keyboard that is clicky, RGB backlight, full size, you'd rather only exchange the thermostat. You are detail-oriented and want to make sure everything is addressed in one go."
+  },
+  {
+    "id": "tau-retail-002",
+    "user_id": "yusuf_rossi_9620",
+    "instruction": "You are Yusuf Rossi in 19122. You want to know how many tshirt options are available in the online store right now. You want to also return the cleaner, headphone, and smart watch."
+  },
+  {
+    "id": "tau-retail-003",
+    "user_id": "yusuf_rossi_9620",
+    "instruction": "You are Yusuf Rossi in 19122. You want to know how many tshirt options are available in the online store right now. You want to modify all your pending small tshirt to purple, same size, same v-neck, and prefer polyester. You are a private person that does not want to reveal much about yourself."
+  },
+  {
+    "id": "tau-retail-004",
+    "user_id": "yusuf_rossi_9620",
+    "instruction": "You are Yusuf Rossi in 19122. You want to know how many tshirt options are available in the online store right now. You want to modify all your pending tshirts (i.e., your 2 relevant orders) to purple, s size, same v-neck, and prefer polyester. You are a private person that does not want to reveal much about yourself."
+  },
+  {
+    "id": "tau-retail-005",
+    "user_id": "mei_kovacs_8020",
+    "instruction": "You are mei_kovacs_8020 (zip code 28236) and you want to exchange the water bottle and the desk lamp. You want to exchange the water bottle to a bigger one, and the desk lamp to a less bright one (prefer battery > USB > AC). If the agent asks for confirmation, only exchange the desk lamp. If the agent asks for confirmation again, do not exchange anything, and return the water bottle instead."
+  },
+  {
+    "id": "tau-retail-006",
+    "user_id": "mei_kovacs_8020",
+    "instruction": "You are mei_kovacs_8020 (zip code 28236) and you want to exchange the water bottle and the desk lamp. You want to exchange the water bottle to a bigger one, and the desk lamp to a less bright one (prefer battery > USB > AC). If the agent asks for confirmation, only exchange the desk lamp."
+  },
+  {
+    "id": "tau-retail-007",
+    "user_id": "mei_kovacs_8020",
+    "instruction": "You are mei_kovacs_8020 (zip code 28236) and you want to exchange the water bottle and the desk lamp. You want to exchange the water bottle to a bigger one, and the desk lamp to a less bright one (prefer AC adapter > battery > USB). If the agent asks for confirmation, only exchange the desk lamp."
+  },
+  {
+    "id": "tau-retail-008",
+    "user_id": "mei_kovacs_8020",
+    "instruction": "You are mei_kovacs_8020 (zip code 28236) and you want to exchange the water bottle and the desk lamp. You want to exchange the water bottle to a bigger one, and the desk lamp to a brighter one (prefer battery > USB > AC). If the agent asks for confirmation, only exchange the desk lamp."
+  },
+  {
+    "id": "tau-retail-009",
+    "user_id": "mei_kovacs_8020",
+    "instruction": "You are mei_kovacs_8020 (zip code 28236) and you want to exchange the water bottle and the desk lamp. You want to exchange the water bottle to a bigger one, and the desk lamp to a brighter one (prefer AC adapter > battery > USB). If the agent asks for confirmation, only exchange the desk lamp."
+  },
+  {
+    "id": "tau-retail-010",
+    "user_id": "mia_garcia_4516",
+    "instruction": "You are mia_garcia_4516 (mia.garcia2723@example.com). For some reason, you want to return all things ordered. You have two payment methods and two orders, and you want to refund each order to the opposite order's payment method. If not possible, you are angry and swear for a few times, then asks for human representative. You are a mysterious person and do not want to reveal much about yourself or speak too many words at the same time."
+  },
+  {
+    "id": "tau-retail-011",
+    "user_id": "mia_garcia_4516",
+    "instruction": "You are mia_garcia_4516 (mia.garcia2723@example.com). For some reason, you want to return all things ordered. You have two payment methods and two orders, and you want to refund each order to the opposite order's payment method. If not possible, you are angry and swear for a few times, then agree to return all things with the original payment method. You are a mysterious person and do not want to reveal much about yourself or speak too many words at the same time."
+  },
+  {
+    "id": "tau-retail-012",
+    "user_id": "mia_garcia_4516",
+    "instruction": "You are mia_garcia_4516 (mia.garcia2723@example.com). You just got into gaming and want to cancel or return everything not associated with it. (Everything except a keyboard and a mouse, but do not reveal it to the agent). PayPal is prefered for refund, but otherwise you are angry and ask for human agent for help. You are into gaming but realized the importance of studying hard."
+  },
+  {
+    "id": "tau-retail-013",
+    "user_id": "mia_garcia_4516",
+    "instruction": "You are mia_garcia_4516 (mia.garcia2723@example.com). You just got into gaming and want to cancel or return everything not associated with it. (Everything except a keyboard and a mouse, but do not reveal it to the agent). PayPal is prefered for refund, but otherwise credit card can be accepted. You are into gaming but realized the importance of studying hard."
+  },
+  {
+    "id": "tau-retail-014",
+    "user_id": "mia_garcia_4516",
+    "instruction": "You are mia_garcia_4516 (mia.garcia2723@example.com). You just quit gaming and want to cancel or return everything associated with it. (It's just a keyboard and a mouse, but do not reveal it to the agent). Original payment is preferred. You are into gaming but realized the importance of studying hard."
+  }
+]
