@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 from app.config import settings
-from app.datasets.registry import Task, score_answer
+from app.datasets.registry import Task, score_answer, system_prompt_for
 from app.openai_client import chat_completion, estimate_cost
 from app.schemas import AgentConfiguration, ClassifierPlan, RunResult
 
@@ -18,20 +18,9 @@ def _primary_model_node(config: AgentConfiguration):
     return sorted(models, key=lambda n: n.order)[0]
 
 
-def _system_prompt(config: AgentConfiguration) -> str:
-    node = _primary_model_node(config)
-    base = (
-        "You are a careful single-agent assistant. "
-        "Answer with the final result as clearly as possible. "
-        "For numeric questions, put the final number on the last line."
-    )
-    if node and node.modelSettings and node.modelSettings.systemPrompt:
-        return f"{node.modelSettings.systemPrompt}\n\n{base}"
-    if node and node.metadata and node.metadata.get("instructions"):
-        return f"{node.metadata['instructions']}\n\n{base}"
-    if node and node.metadata and node.metadata.get("role"):
-        return f"Role: {node.metadata['role']}\n\n{base}"
-    return base
+def _system_prompt(config: AgentConfiguration, benchmark_id: str) -> str:
+    # Dataset prompt is the source of truth so users only pick dataset + task.
+    return system_prompt_for(benchmark_id)
 
 
 def _temperature(config: AgentConfiguration) -> float:
@@ -53,16 +42,25 @@ def _resolve_model(config: AgentConfiguration, model_override: str | None) -> st
     return settings()["openai_model"]
 
 
-def _apply_model_to_config(
-    config: AgentConfiguration, model: str
+def _apply_prompt_and_model(
+    config: AgentConfiguration,
+    model: str,
+    system_prompt: str,
 ) -> AgentConfiguration:
-    """Return a copy with primary model node updated for snapshot fidelity."""
+    """Snapshot with model + dataset system prompt filled in."""
     data = config.model_dump()
     nodes = data.get("nodes") or []
     for node in nodes:
-        if node.get("type") == "model" and node.get("modelSettings"):
-            node["modelSettings"]["model"] = model
-            node["modelSettings"]["provider"] = "openai"
+        if node.get("type") == "model":
+            settings = node.get("modelSettings") or {
+                "provider": "openai",
+                "model": model,
+                "temperature": 0.2,
+            }
+            settings["provider"] = "openai"
+            settings["model"] = model
+            settings["systemPrompt"] = system_prompt
+            node["modelSettings"] = settings
             break
     return AgentConfiguration.model_validate(data)
 
@@ -75,8 +73,8 @@ def run_single_agent(
     parent_run_id: str | None = None,
 ) -> RunResult:
     model = _resolve_model(config, model_override)
-    snapshot = _apply_model_to_config(config, model)
-    system = _system_prompt(config)
+    snapshot = _apply_prompt_and_model(config, model, system_prompt_for(task.benchmark_id))
+    system = _system_prompt(config, task.benchmark_id)
     user = (
         f"{task.context}\n\n"
         f"Question:\n{task.question}\n\n"
@@ -142,7 +140,8 @@ def run_classifier_plan(
     parent_run_id: str | None = None,
 ) -> RunResult:
     model = _resolve_model(config, model_override)
-    snapshot = _apply_model_to_config(config, model)
+    dataset_prompt = system_prompt_for(task.benchmark_id)
+    snapshot = _apply_prompt_and_model(config, model, dataset_prompt)
     user = (
         f"Configuration name: {config.name}\n"
         f"Declared architecture: {config.architecture}\n\n"

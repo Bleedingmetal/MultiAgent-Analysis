@@ -126,40 +126,74 @@ def _fab_task(item: dict[str, Any], index: int) -> Task:
     )
 
 
+DATASET_SYSTEM_PROMPTS: dict[str, str] = {
+    "finqa": (
+        "You are a financial question-answering assistant. "
+        "Use only the provided table and surrounding text. "
+        "Do not invent figures. For numeric questions, put the final answer alone on the last line. "
+        "For yes/no questions, answer yes or no clearly."
+    ),
+    "tau-retail": (
+        "You are a retail customer-service agent with access to user, order, and product tools. "
+        "Given the customer request, describe the concrete tool calls and final resolution. "
+        "Stay concise and actionable."
+    ),
+    "fab": (
+        "You are a finance research analyst answering questions grounded in SEC filings and public company disclosures. "
+        "State the key facts clearly. If evidence would require a specific filing, name what you would check. "
+        "Keep the final answer concise."
+    ),
+}
+
+
+def system_prompt_for(benchmark_id: str) -> str:
+    return DATASET_SYSTEM_PROMPTS.get(
+        benchmark_id,
+        "You are a careful assistant. Answer clearly and put the final answer on the last line.",
+    )
+
+
 @lru_cache
 def list_benchmarks() -> list[dict[str, Any]]:
     finqa_n = len(_load_finqa_raw())
     tau_n = len(_load_tau_raw())
     fab_n = len(_load_fab_raw())
-    return [
+    rows = [
         {
             "id": "finqa",
-            "name": "FinQA / TAT-QA style",
+            "name": "FinQA",
             "structure": "Deterministic, decomposable",
             "role": "Cheap scored cell",
             "task_count": finqa_n,
             "scored": True,
+            "available": finqa_n > 0,
+            "default_system_prompt": system_prompt_for("finqa"),
             "notes": "Numeric/exe answers from FinQA public test set.",
         },
         {
             "id": "tau-retail",
-            "name": "tau-bench Retail (sample)",
+            "name": "tau-bench Retail",
             "structure": "Sequential, shared-state",
             "role": "Fidelity anchor (stub)",
             "task_count": tau_n,
             "scored": False,
+            "available": tau_n > 0,
+            "default_system_prompt": system_prompt_for("tau-retail"),
             "notes": "Sample retail instructions only. Full tool+user sim comes later.",
         },
         {
             "id": "fab",
-            "name": "Finance Agent Benchmark (public)",
+            "name": "Finance Agent Benchmark",
             "structure": "Breadth-first research",
             "role": "Research cell",
             "task_count": fab_n,
             "scored": False,
+            "available": fab_n > 0,
+            "default_system_prompt": system_prompt_for("fab"),
             "notes": "vals-ai public validation questions. Open-ended; success not auto-scored yet.",
         },
     ]
+    return [r for r in rows if r["available"]]
 
 
 def list_tasks(benchmark_id: str, limit: int = 20) -> list[Task]:

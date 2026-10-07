@@ -5,6 +5,7 @@ import { CaretDown, MagnifyingGlass, Play, Sparkle } from "@phosphor-icons/react
 
 import {
   type BenchmarkId,
+  type BenchmarkInfo,
   type RunMode,
   type RunResult,
   createRun,
@@ -18,10 +19,28 @@ import { cn } from "@/lib/utils"
 
 type SpendInfo = NonNullable<Awaited<ReturnType<typeof getHealth>>["spend"]>
 
-const BENCHMARK_SHORT: Record<BenchmarkId, string> = {
-  finqa: "FinQA",
-  "tau-retail": "tau-bench",
-  fab: "FAB",
+function withDatasetPrompt(
+  configuration: AgentConfiguration,
+  systemPrompt: string,
+): AgentConfiguration {
+  const nodes = configuration.nodes.map((node, index) => {
+    const isPrimaryModel =
+      node.type === "model" &&
+      index ===
+        configuration.nodes.findIndex((n) => n.type === "model")
+    if (!isPrimaryModel) return node
+    return {
+      ...node,
+      modelSettings: {
+        provider: node.modelSettings?.provider ?? "openai",
+        model: node.modelSettings?.model ?? "gpt-4o-mini",
+        temperature: node.modelSettings?.temperature ?? 0.2,
+        maxTokens: node.modelSettings?.maxTokens,
+        systemPrompt,
+      },
+    }
+  })
+  return { ...configuration, nodes }
 }
 
 export function ConfigRunPanel({
@@ -29,9 +48,7 @@ export function ConfigRunPanel({
 }: {
   configuration: AgentConfiguration
 }) {
-  const [benchmarks, setBenchmarks] = useState<
-    { id: BenchmarkId; name: string; task_count: number; scored: boolean }[]
-  >([])
+  const [benchmarks, setBenchmarks] = useState<BenchmarkInfo[]>([])
   const [benchmarkId, setBenchmarkId] = useState<BenchmarkId>("finqa")
   const [tasks, setTasks] = useState<
     { id: string; question: string; expected_answer: string | null }[]
@@ -45,6 +62,9 @@ export function ConfigRunPanel({
   const [apiOk, setApiOk] = useState<boolean | null>(null)
   const [openaiOk, setOpenaiOk] = useState<boolean | null>(null)
   const [spend, setSpend] = useState<SpendInfo | null>(null)
+
+  const activeBenchmark = benchmarks.find((b) => b.id === benchmarkId)
+  const systemPrompt = activeBenchmark?.default_system_prompt ?? ""
 
   async function refreshHealth() {
     const health = await getHealth()
@@ -62,14 +82,13 @@ export function ConfigRunPanel({
         if (cancelled) return
         const ds = await getDatasets()
         if (cancelled) return
-        setBenchmarks(
-          ds.benchmarks.map((b) => ({
-            id: b.id,
-            name: b.name,
-            task_count: b.task_count,
-            scored: b.scored,
-          })),
+        const available = ds.benchmarks.filter(
+          (b) => (b.available ?? b.task_count > 0) && b.task_count > 0,
         )
+        setBenchmarks(available)
+        if (available.length && !available.some((b) => b.id === benchmarkId)) {
+          setBenchmarkId(available[0].id)
+        }
       } catch {
         if (!cancelled) {
           setApiOk(false)
@@ -80,6 +99,7 @@ export function ConfigRunPanel({
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -135,8 +155,11 @@ export function ConfigRunPanel({
     setBusy(mode)
     setError(null)
     try {
+      const configForRun = systemPrompt
+        ? withDatasetPrompt(configuration, systemPrompt)
+        : configuration
       const res = await createRun({
-        configuration,
+        configuration: configForRun,
         mode,
         benchmark_id: benchmarkId,
         task_id: taskId || null,
@@ -159,6 +182,7 @@ export function ConfigRunPanel({
     !!busy ||
     !apiOk ||
     !openaiOk ||
+    !taskId ||
     (spend != null &&
       (spend.remaining_runs <= 0 || spend.remaining_budget_usd <= 0))
 
@@ -200,32 +224,23 @@ export function ConfigRunPanel({
         <div className="space-y-5 p-5">
           <div>
             <p className="mb-2 text-[12px] font-medium text-muted-foreground">
-              Benchmark
+              Dataset
             </p>
-            <div className="seg-track w-full sm:w-auto">
-              {(
-                [
-                  ["finqa", "FinQA"],
-                  ["tau-retail", "tau-bench"],
-                  ["fab", "FAB"],
-                ] as const
-              ).map(([id, label]) => {
-                const meta = benchmarks.find((b) => b.id === id)
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    data-active={benchmarkId === id}
-                    className="seg-item flex-1 sm:flex-none"
-                    onClick={() => setBenchmarkId(id)}
-                  >
-                    {label}
-                    {meta?.scored ? (
-                      <span className="ml-1 opacity-50">· scored</span>
-                    ) : null}
-                  </button>
-                )
-              })}
+            <div className="seg-track w-full flex-wrap">
+              {benchmarks.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  data-active={benchmarkId === b.id}
+                  className="seg-item"
+                  onClick={() => setBenchmarkId(b.id)}
+                >
+                  {b.name}
+                  {b.scored ? (
+                    <span className="ml-1 opacity-50">scored</span>
+                  ) : null}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -235,7 +250,7 @@ export function ConfigRunPanel({
                 Task
               </p>
               <p className="font-data text-[11px] text-muted-foreground">
-                {BENCHMARK_SHORT[benchmarkId]} · {tasks.length} loaded
+                {tasks.length} loaded
               </p>
             </div>
 
@@ -336,10 +351,26 @@ export function ConfigRunPanel({
             ) : null}
           </div>
 
+          {systemPrompt ? (
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-muted-foreground">
+                System prompt
+              </p>
+              <div className="rounded-2xl border border-border/70 bg-[#f4f7fb] px-4 py-3">
+                <p className="text-[12px] text-muted-foreground">
+                  Autofilled from {activeBenchmark?.name ?? "dataset"}
+                </p>
+                <p className="mt-2 text-[13px] leading-relaxed text-mm-dark">
+                  {systemPrompt}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap gap-2.5">
             <button
               type="button"
-              disabled={blocked || !taskId}
+              disabled={blocked}
               onClick={() => run("single-agent")}
               className="island-cta disabled:pointer-events-none disabled:opacity-50"
             >
@@ -353,7 +384,7 @@ export function ConfigRunPanel({
             <Button
               type="button"
               variant="outline"
-              disabled={blocked || !taskId}
+              disabled={blocked}
               onClick={() => run("classify-plan")}
               className="h-[2.85rem] rounded-full px-4 text-sm"
             >

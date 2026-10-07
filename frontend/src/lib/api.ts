@@ -58,6 +58,8 @@ export type BenchmarkInfo = {
   role: string
   task_count: number
   scored: boolean
+  available?: boolean
+  default_system_prompt?: string
   notes: string
 }
 
