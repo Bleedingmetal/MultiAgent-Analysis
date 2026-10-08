@@ -143,15 +143,6 @@ export function ConfigRunPanel({
   }, [tasks, query])
 
   async function run(mode: RunMode) {
-    const label =
-      mode === "single-agent" ? "one single-agent OpenAI call" : "one classifier call"
-    const ok = window.confirm(
-      `This will make ${label} on gpt-4o-mini.\n\n` +
-        `Today: $${spend?.spend_usd.toFixed(4) ?? "0"} / $${spend?.daily_budget_usd ?? 1} · ` +
-        `${spend?.run_count ?? 0}/${spend?.max_runs_per_day ?? 25} runs\n\nContinue?`,
-    )
-    if (!ok) return
-
     setBusy(mode)
     setError(null)
     try {

@@ -79,11 +79,6 @@ export default function RunDetailPage() {
       setActionError("This run has no saved configuration snapshot.")
       return
     }
-    const ok = window.confirm(
-      `Rerun ${run.id} on ${model}?\nSame task + config snapshot. Counts against daily spend caps.`,
-    )
-    if (!ok) return
-
     setBusy(true)
     setActionError(null)
     try {
