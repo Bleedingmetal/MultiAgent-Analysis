@@ -29,11 +29,14 @@ Health: http://localhost:8000/api/health
 | τ-bench retail | `data/tau_bench/retail_sample.json` | 15 sample instructions |
 | FAB | `data/fab/public.csv` (+ `sample20.json`) | vals-ai public validation |
 
-Refresh extras:
+Download all datasets from the repository root:
 
 ```bash
-python scripts/fetch_extra_datasets.py
+make datasets
 ```
+
+The canonical downloader is `backend/scripts/download_datasets.py`. Run it
+directly to use `--force` or `--only finqa|fab|tau`.
 
 ## Modes
 

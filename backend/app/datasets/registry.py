@@ -28,6 +28,15 @@ def _table_to_text(table: list[list[Any]]) -> str:
     return "\n".join(lines)
 
 
+def _truncate_middle(text: str, limit: int) -> str:
+    """Keep evidence from both ends instead of dropping the end entirely."""
+    if len(text) <= limit:
+        return text
+    marker = " … "
+    side = (limit - len(marker)) // 2
+    return f"{text[:side]}{marker}{text[-side:]}"
+
+
 def _load_finqa_raw() -> list[dict[str, Any]]:
     full = DATA_ROOT / "finqa" / "test.json"
     sample = DATA_ROOT / "finqa" / "sample20.json"
@@ -49,9 +58,9 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
         expected = qa.get("answer")
     expected_s = None if expected is None else str(expected)
 
-    pre = " ".join(item.get("pre_text") or [])[:1200]
-    post = " ".join(item.get("post_text") or [])[:800]
-    table = _table_to_text(item.get("table") or [])[:2500]
+    pre = _truncate_middle(" ".join(item.get("pre_text") or []), 1400)
+    post = _truncate_middle(" ".join(item.get("post_text") or []), 1400)
+    table = _truncate_middle(_table_to_text(item.get("table") or []), 2500)
     context = (
         f"Pre-text:\n{pre}\n\nTable:\n{table}\n\nPost-text:\n{post}"
     ).strip()
@@ -259,4 +268,23 @@ def score_answer(expected: str | None, actual: str) -> bool | None:
     try:
         return abs(float(exp) - float(act)) <= max(1e-4, abs(float(exp)) * 0.01)
     except ValueError:
-        return False
+        pass
+
+    # Models often include units or prose around a correct FinQA number.
+    # Compare each number in the response, including percentage conversion.
+    for match in re.finditer(r"[-+]?\$?[\d,]*\.?\d+\s*%?", actual):
+        token = match.group().strip().replace("$", "").replace(",", "")
+        is_percent = token.endswith("%")
+        if is_percent:
+            token = token[:-1].strip()
+        try:
+            candidate = float(token)
+            if is_percent:
+                candidate /= 100
+            expected_number = float(exp)
+        except ValueError:
+            continue
+        tolerance = max(1e-4, abs(expected_number) * 0.01)
+        if abs(expected_number - candidate) <= tolerance:
+            return True
+    return False
