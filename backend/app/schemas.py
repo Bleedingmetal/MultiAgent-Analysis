@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 class ModelSettings(BaseModel):
     provider: str | None = None
     model: str | None = None
-    temperature: float | None = 0.2
+    temperature: float | None = 0.5
     maxTokens: int | None = None
     systemPrompt: str | None = None
 
@@ -61,9 +61,16 @@ class RunResult(BaseModel):
     configuration_name: str
     architecture: str
     model: str
-    temperature: float = 0.2
+    temperature: float = 0.5
     question: str
     expected_answer: str | None = None
+    # Human-facing expected (e.g. "$94 million"); scoring uses expected_answer.
+    expected_display: str | None = None
+    # Final-answer span that was scored from the model output.
+    scored_answer: str | None = None
+    # Model thought process / scratch work (audit trail).
+    reasoning: str | None = None
+    # Full raw model output (includes reasoning + final answer).
     answer: str
     success: bool | None = None
     latency_sec: float

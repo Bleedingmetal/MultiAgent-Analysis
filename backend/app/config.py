@@ -28,7 +28,7 @@ def settings() -> dict:
             os.getenv("PRICE_OUTPUT_PER_MTOK", "0.60")
         ),
         # safety rails (cheap MVP defaults)
-        "max_completion_tokens": int(os.getenv("MAX_COMPLETION_TOKENS", "400")),
+        "max_completion_tokens": int(os.getenv("MAX_COMPLETION_TOKENS", "600")),
         "max_prompt_chars": int(os.getenv("MAX_PROMPT_CHARS", "6000")),
         "daily_budget_usd": float(os.getenv("DAILY_BUDGET_USD", "1.00")),
         "max_runs_per_day": int(os.getenv("MAX_RUNS_PER_DAY", "25")),

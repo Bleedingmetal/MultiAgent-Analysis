@@ -50,6 +50,7 @@ async def get_tasks(benchmark_id: str, limit: int = 20):
                 "id": t.id,
                 "question": t.question,
                 "expected_answer": t.expected_answer,
+                "expected_display": t.expected_display,
                 "scored": t.expected_answer is not None
                 and benchmark_id == "finqa",
                 "metadata": t.metadata,

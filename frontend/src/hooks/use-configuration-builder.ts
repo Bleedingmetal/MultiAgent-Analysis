@@ -1,73 +1,38 @@
-import {
-  useEffect,
-  useState,
-} from "react"
+import { useEffect, useState } from "react"
 
-import {
-  addEdge,
-  applyEdgeChanges,
-  applyNodeChanges,
-  MarkerType,
-  type Connection,
-  type Edge,
-  type EdgeChange,
-  type Node,
-  type NodeChange,
-} from "@xyflow/react"
-
+import type { PaletteItem } from "@/components/builder/node-palette"
 import {
   configurationTemplates,
   singleAgentTemplate,
 } from "@/data/configuration-templates"
-
-import {
-  configurationToFlow,
-  createChildFlowNode,
-  getNextChildPlacement,
-  getNodeHeight,
-  getNodeWidth,
-  getStageMinimumSize,
-} from "@/lib/configuration-layout"
-
 import {
   canDeleteConfigurationNode,
   isNodeCompatibleWithLayer,
 } from "@/lib/configuration-validation"
-
-import type {
-  PaletteItem,
-} from "@/components/builder/node-palette"
-
 import type {
   AgentConfiguration,
   ArchitectureType,
-  ConfigurationEdge,
+  ConfigurationLayer,
   ConfigurationNode,
+  LayerType,
   ModelProvider,
 } from "@/types/configuration"
 
-function clone(
-  configuration:
-    AgentConfiguration,
-) {
-  return structuredClone(
-    configuration,
-  )
+const LAYER_DEFAULTS: Record<LayerType, string> = {
+  input: "Input",
+  orchestration: "Orchestration",
+  agents: "Agents",
+  tools: "Tools",
+  aggregation: "Aggregation",
+  output: "Output",
 }
 
-function isTypingTarget(
-  target:
-    EventTarget | null,
-) {
-  if (
-    !(
-      target instanceof
-      HTMLElement
-    )
-  ) {
-    return false
-  }
+function clone(configuration: AgentConfiguration) {
+  return structuredClone(configuration)
+}
 
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
   return Boolean(
     target.closest(
       [
@@ -81,880 +46,354 @@ function isTypingTarget(
   )
 }
 
-function normalizeLayerOrder(
-  nodes:
-    ConfigurationNode[],
+function normalizeLayerOrder(nodes: ConfigurationNode[], layerId: string) {
+  const siblings = nodes
+    .filter((node) => node.layerId === layerId)
+    .sort((a, b) => a.order - b.order)
+  const orderMap = new Map(siblings.map((node, index) => [node.id, index]))
+  return nodes.map((node) => {
+    if (node.layerId !== layerId) return node
+    return { ...node, order: orderMap.get(node.id) ?? node.order }
+  })
+}
 
-  layerId: string,
-) {
-  const siblings =
-    nodes
-      .filter(
-        (node) =>
-          node.layerId ===
-          layerId,
-      )
-      .sort(
-        (a, b) =>
-          a.order -
-          b.order,
-      )
-
-  const orderMap =
-    new Map(
-      siblings.map(
-        (node, index) => [
-          node.id,
-          index,
-        ],
-      ),
-    )
-
-  return nodes.map(
-    (node) => {
-      if (
-        node.layerId !==
-        layerId
-      ) {
-        return node
-      }
-
-      return {
-        ...node,
-
-        order:
-          orderMap.get(
-            node.id,
-          ) ??
-          node.order,
-      }
-    },
-  )
+function reindexLayers(layers: ConfigurationLayer[]) {
+  return layers
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((layer, index) => ({ ...layer, order: index }))
 }
 
 export function useConfigurationBuilder(
-  initialConfiguration?:
-    AgentConfiguration,
-    ) {
-  const initial =
-    clone(
-      initialConfiguration ??
-        singleAgentTemplate,
-    )
-
-  const initialFlow =
-    configurationToFlow(
-      initial,
-    )
-
-  const [
-    configuration,
-    setConfiguration,
-  ] =
-    useState<AgentConfiguration>(
-      initial,
-    )
-
-  const [
-    nodes,
-    setNodes,
-  ] =
-    useState<Node[]>(
-      initialFlow.nodes,
-    )
-
-  const [
-    edges,
-    setEdges,
-  ] =
-    useState<Edge[]>(
-      initialFlow.edges,
-    )
-
-  const [
-    selectedNodeId,
-    setSelectedNodeId,
-  ] =
-    useState<string | null>(
-      null,
-    )
-
-  const selectedNode =
-    configuration.nodes.find(
-      (node) =>
-        node.id ===
-        selectedNodeId,
-    )
-
-  const canDeleteSelectedNode =
-    canDeleteConfigurationNode(
-      selectedNode,
-    )
-
-  function loadTemplate(
-  architecture:
-    ArchitectureType,
+  initialConfiguration?: AgentConfiguration,
 ) {
-  if (
-    architecture ===
-    "custom"
-  ) {
-    return
-  }
+  const initial = clone(initialConfiguration ?? singleAgentTemplate)
 
-  const template =
-    clone(
-      configurationTemplates[
-        architecture
-      ],
-    )
-
-  
-  const next:
-    AgentConfiguration = {
-    ...template,
-
-    id:
-      configuration.id,
-
-    name:
-      configuration.name,
-
-    description:
-      configuration.description,
-
-    createdAt:
-      configuration.createdAt,
-
-    updatedAt:
-      new Date()
-        .toISOString(),
-  }
-
-  const flow =
-    configurationToFlow(
-      next,
-    )
-
-  setConfiguration(
-    next,
+  const [configuration, setConfiguration] =
+    useState<AgentConfiguration>(initial)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(
+    initial.layers.find((l) => l.type === "agents")?.id ??
+      initial.layers[0]?.id ??
+      null,
   )
+  const [linkSourceId, setLinkSourceId] = useState<string | null>(null)
 
-  setNodes(
-    flow.nodes,
+  const selectedNode = configuration.nodes.find(
+    (node) => node.id === selectedNodeId,
   )
+  const canDeleteSelectedNode = canDeleteConfigurationNode(selectedNode)
+  const isCustom = configuration.architecture === "custom"
 
-  setEdges(
-    flow.edges,
-  )
-
-  setSelectedNodeId(
-    null,
-  )
-}
-
-  const onNodesChange = (
-    changes:
-      NodeChange[],
-  ) => {
-    setNodes(
-      (current) =>
-        applyNodeChanges(
-          changes,
-          current,
-        ),
+  function loadTemplate(architecture: ArchitectureType) {
+    const template = clone(configurationTemplates[architecture])
+    setConfiguration({
+      ...template,
+      id: configuration.id,
+      name: configuration.name,
+      description: configuration.description,
+      createdAt: configuration.createdAt,
+      updatedAt: new Date().toISOString(),
+    })
+    setSelectedNodeId(null)
+    setLinkSourceId(null)
+    setSelectedLayerId(
+      template.layers.find((l) => l.type === "agents")?.id ??
+        template.layers[0]?.id ??
+        null,
     )
   }
 
-  const onEdgesChange = (
-    changes:
-      EdgeChange[],
-  ) => {
-    setEdges(
-      (current) =>
-        applyEdgeChanges(
-          changes,
-          current,
-        ),
-    )
-  }
+  function addComponent(item: PaletteItem, layerId?: string) {
+    const targetId =
+      layerId ??
+      selectedLayerId ??
+      configuration.layers
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .find((entry) => isNodeCompatibleWithLayer(item.type, entry.type))?.id
 
-  function onConnect(
-    connection:
-      Connection,
-  ) {
-    if (
-      !connection.source ||
-      !connection.target
-    ) {
-      return
-    }
+    const layer = configuration.layers.find((entry) => entry.id === targetId)
+    if (!layer) return
+    if (!isNodeCompatibleWithLayer(item.type, layer.type)) return
 
-    const logicalEdge:
-      ConfigurationEdge = {
-      id:
-        `${connection.source}-${connection.target}-${crypto.randomUUID()}`,
+    const siblingCount = configuration.nodes.filter(
+      (node) => node.layerId === layer.id,
+    ).length
 
-      source:
-        connection.source,
-
-      target:
-        connection.target,
-    }
-
-    setConfiguration(
-      (current) => ({
-        ...current,
-
-        edges: [
-          ...current.edges,
-          logicalEdge,
-        ],
-
-        updatedAt:
-          new Date()
-            .toISOString(),
-      }),
-    )
-
-    setEdges(
-      (current) =>
-        addEdge(
-          {
-            ...connection,
-
-            id:
-              logicalEdge.id,
-
-            type:
-              "smoothstep",
-
-            markerEnd: {
-              type:
-                MarkerType
-                  .ArrowClosed,
-            },
-
-            zIndex: 5,
-          },
-
-          current,
-        ),
-    )
-  }
-
-  function addPaletteItem(
-    item:
-      PaletteItem,
-
-    stageId: string,
-  ) {
-    const stageNode =
-      nodes.find(
-        (node) =>
-          node.id ===
-            stageId &&
-          node.type ===
-            "stage",
-      )
-
-    if (!stageNode) {
-      return
-    }
-
-    const layerId =
-      String(
-        stageNode.data
-          .layerId ?? "",
-      )
-
-    const layer =
-      configuration.layers.find(
-        (layer) =>
-          layer.id ===
-          layerId,
-      )
-
-    if (!layer) {
-      return
-    }
-
-    if (
-      !isNodeCompatibleWithLayer(
-        item.type,
-        layer.type,
-      )
-    ) {
-      return
-    }
-
-    const children =
-      nodes.filter(
-        (node) =>
-          node.parentId ===
-          stageId,
-      )
-
-    
-    const placement =
-      getNextChildPlacement(
-        stageNode,
-        children,
-      )
-
-    const siblingCount =
-      configuration.nodes.filter(
-        (node) =>
-          node.layerId ===
-          layerId,
-      ).length
-
-    const newNode:
-      ConfigurationNode = {
-      id:
-        crypto.randomUUID(),
-
-      name:
-        item.label,
-
-      type:
-        item.type,
-
-      layerId,
-
-      order:
-        siblingCount,
-
+    const newNode: ConfigurationNode = {
+      id: crypto.randomUUID(),
+      name: item.label,
+      type: item.type,
+      layerId: layer.id,
+      order: siblingCount,
       metadata: {},
     }
 
-    if (
-      item.type ===
-      "model"
-    ) {
+    if (item.type === "model") {
       newNode.modelSettings = {
-        provider:
-          item.provider ??
-          "openai",
-
-        model:
-          item.model ??
-          "GPT",
-
-        temperature:
-          0.2,
+        provider: item.provider ?? "openai",
+        model: item.model ?? "gpt-4o-mini",
+        temperature: 0.5,
       }
     }
 
-    const nextConfiguration:
-      AgentConfiguration = {
+    setConfiguration({
       ...configuration,
-
-      nodes: [
-        ...configuration.nodes,
-        newNode,
-      ],
-
-      updatedAt:
-        new Date()
-          .toISOString(),
-    }
-
-    const minimumSize =
-      getStageMinimumSize(
-        nextConfiguration,
-        layerId,
-      )
-
-    const currentWidth =
-      getNodeWidth(
-        stageNode,
-      )
-
-    const currentHeight =
-      getNodeHeight(
-        stageNode,
-      )
-
-    const nextWidth =
-      Math.max(
-        currentWidth,
-        placement.requiredWidth,
-        minimumSize.width,
-      )
-
-    const nextHeight =
-      Math.max(
-        currentHeight,
-        placement.requiredHeight,
-        minimumSize.height,
-      )
-
-    const widthDelta =
-      nextWidth -
-      currentWidth
-
-    const stageOrder =
-      Number(
-        stageNode.data
-          .order ?? 0,
-      )
-
-    const newFlowNode =
-      createChildFlowNode(
-        newNode,
-
-        stageId,
-
-        placement.position,
-      )
-
-    setConfiguration(
-      nextConfiguration,
-    )
-
-    setNodes(
-      (current) => {
-        const updated =
-          current.map(
-            (node) => {
-              if (
-                node.id ===
-                stageId
-              ) {
-                return {
-                  ...node,
-
-                  data: {
-                    ...node.data,
-
-                    minWidth:
-                      minimumSize.width,
-
-                    minHeight:
-                      minimumSize.height,
-                  },
-
-                  style: {
-                    ...node.style,
-
-                    width:
-                      nextWidth,
-
-                    height:
-                      nextHeight,
-                  },
-                }
-              }
-
-              
-              if (
-                widthDelta >
-                  0 &&
-                node.type ===
-                  "stage" &&
-                Number(
-                  node.data
-                    .order ?? 0,
-                ) >
-                  stageOrder
-              ) {
-                return {
-                  ...node,
-
-                  position: {
-                    ...node.position,
-
-                    x:
-                      node
-                        .position
-                        .x +
-                      widthDelta,
-                  },
-                }
-              }
-
-              return node
-            },
-          )
-
-        
-        return [
-          ...updated,
-          newFlowNode,
-        ]
-      },
-    )
-
-    setSelectedNodeId(
-      newNode.id,
-    )
+      architecture: isCustom ? "custom" : configuration.architecture,
+      nodes: [...configuration.nodes, newNode],
+      updatedAt: new Date().toISOString(),
+    })
+    setSelectedNodeId(newNode.id)
   }
 
-  function deleteNode(
-    nodeId: string,
-  ) {
-    const logicalNode =
-      configuration.nodes.find(
-        (node) =>
-          node.id ===
-          nodeId,
-      )
+  function deleteNode(nodeId: string) {
+    const logicalNode = configuration.nodes.find((node) => node.id === nodeId)
+    if (!canDeleteConfigurationNode(logicalNode)) return
 
-    if (
-      !canDeleteConfigurationNode(
-        logicalNode,
-      )
-    ) {
-      return
-    }
-
-    const layerId =
-      logicalNode!.layerId
-
-    let remainingNodes =
-      configuration.nodes.filter(
-        (node) =>
-          node.id !==
-          nodeId,
-      )
-
-    remainingNodes =
-      normalizeLayerOrder(
-        remainingNodes,
-        layerId,
-      )
-
-    const nextConfiguration:
-      AgentConfiguration = {
+    const layerId = logicalNode!.layerId
+    setConfiguration({
       ...configuration,
-
-      nodes:
-        remainingNodes,
-
-      edges:
-        configuration.edges.filter(
-          (edge) =>
-            edge.source !==
-              nodeId &&
-            edge.target !==
-              nodeId,
-        ),
-
-      updatedAt:
-        new Date()
-          .toISOString(),
-    }
-
-    const newMinimum =
-      getStageMinimumSize(
-        nextConfiguration,
+      nodes: normalizeLayerOrder(
+        configuration.nodes.filter((node) => node.id !== nodeId),
         layerId,
-      )
-
-    setConfiguration(
-      nextConfiguration,
-    )
-
-    setNodes(
-      (current) =>
-        current
-          .filter(
-            (node) =>
-              node.id !==
-              nodeId,
-          )
-          .map(
-            (node) => {
-              if (
-                String(
-                  node.data
-                    .layerId ??
-                    "",
-                ) ===
-                  layerId &&
-                node.type ===
-                  "stage"
-              ) {
-                return {
-                  ...node,
-
-                  data: {
-                    ...node.data,
-
-                    minWidth:
-                      newMinimum.width,
-
-                    minHeight:
-                      newMinimum.height,
-                  },
-                }
-              }
-
-              return node
-            },
-          ),
-    )
-
-    setEdges(
-      (current) =>
-        current.filter(
-          (edge) =>
-            edge.source !==
-              nodeId &&
-            edge.target !==
-              nodeId,
-        ),
-    )
-
-    setSelectedNodeId(
-      null,
-    )
+      ),
+      edges: configuration.edges.filter(
+        (edge) => edge.source !== nodeId && edge.target !== nodeId,
+      ),
+      updatedAt: new Date().toISOString(),
+    })
+    setSelectedNodeId(null)
+    if (linkSourceId === nodeId) setLinkSourceId(null)
   }
 
   function updateModel(
     nodeId: string,
-
     updates: {
-      provider?:
-        ModelProvider
-
+      provider?: ModelProvider
       model?: string
-
-      temperature?:
-        number
-
-      systemPrompt?:
-        string
+      temperature?: number
+      systemPrompt?: string
     },
   ) {
-    setConfiguration(
-      (current) => ({
-        ...current,
-
-        updatedAt:
-          new Date()
-            .toISOString(),
-
-        nodes:
-          current.nodes.map(
-            (node) => {
-              if (
-                node.id !==
-                nodeId
-              ) {
-                return node
-              }
-
-              return {
-                ...node,
-
-                modelSettings: {
-                  provider:
-                    node
-                      .modelSettings
-                      ?.provider ??
-                    "openai",
-
-                  model:
-                    node
-                      .modelSettings
-                      ?.model ??
-                    "GPT",
-
-                  ...node
-                    .modelSettings,
-
-                  ...updates,
-                },
-              }
-            },
-          ),
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) => {
+        if (node.id !== nodeId) return node
+        return {
+          ...node,
+          modelSettings: {
+            provider: node.modelSettings?.provider ?? "openai",
+            model: node.modelSettings?.model ?? "GPT",
+            ...node.modelSettings,
+            ...updates,
+          },
+        }
       }),
-    )
-
-    setNodes(
-      (current) =>
-        current.map(
-          (node) =>
-            node.id ===
-            nodeId
-              ? {
-                  ...node,
-
-                  data: {
-                    ...node.data,
-                    ...updates,
-                  },
-                }
-              : node,
-        ),
-    )
+    }))
   }
 
-  function updateInstructions(
-    nodeId: string,
-    instructions: string,
-  ) {
-    setConfiguration(
-      (current) => ({
-        ...current,
-
-        updatedAt:
-          new Date()
-            .toISOString(),
-
-        nodes:
-          current.nodes.map(
-            (node) =>
-              node.id ===
-              nodeId
-                ? {
-                    ...node,
-
-                    metadata: {
-                      ...node.metadata,
-
-                      instructions,
-                    },
-                  }
-                : node,
-          ),
-      }),
-    )
+  function updateInstructions(nodeId: string, instructions: string) {
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              metadata: { ...node.metadata, instructions },
+            }
+          : node,
+      ),
+    }))
   }
 
-  
+  function addLayer(type: LayerType) {
+    if (!isCustom && configuration.architecture !== "custom") {
+      // Switching into custom editing implicitly
+    }
+    const id = crypto.randomUUID()
+    const layers = reindexLayers([
+      ...configuration.layers,
+      {
+        id,
+        name: LAYER_DEFAULTS[type],
+        type,
+        order: configuration.layers.length,
+      },
+    ])
+    setConfiguration({
+      ...configuration,
+      architecture: "custom",
+      layers,
+      updatedAt: new Date().toISOString(),
+    })
+    setSelectedLayerId(id)
+  }
+
+  function removeLayer(layerId: string) {
+    const layer = configuration.layers.find((entry) => entry.id === layerId)
+    if (!layer) return
+    if (layer.type === "input" || layer.type === "output") return
+    if (configuration.layers.length <= 2) return
+
+    const removedNodeIds = new Set(
+      configuration.nodes
+        .filter((node) => node.layerId === layerId)
+        .map((node) => node.id),
+    )
+
+    setConfiguration({
+      ...configuration,
+      architecture: "custom",
+      layers: reindexLayers(
+        configuration.layers.filter((entry) => entry.id !== layerId),
+      ),
+      nodes: configuration.nodes.filter((node) => node.layerId !== layerId),
+      edges: configuration.edges.filter(
+        (edge) =>
+          !removedNodeIds.has(edge.source) && !removedNodeIds.has(edge.target),
+      ),
+      updatedAt: new Date().toISOString(),
+    })
+    if (selectedLayerId === layerId) {
+      setSelectedLayerId(
+        configuration.layers.find((entry) => entry.id !== layerId)?.id ?? null,
+      )
+    }
+    if (selectedNodeId && removedNodeIds.has(selectedNodeId)) {
+      setSelectedNodeId(null)
+    }
+  }
+
+  function moveLayer(layerId: string, direction: -1 | 1) {
+    const ordered = configuration.layers
+      .slice()
+      .sort((a, b) => a.order - b.order)
+    const index = ordered.findIndex((entry) => entry.id === layerId)
+    const swap = index + direction
+    if (index < 0 || swap < 0 || swap >= ordered.length) return
+
+    const next = ordered.slice()
+    ;[next[index], next[swap]] = [next[swap], next[index]]
+
+    setConfiguration({
+      ...configuration,
+      architecture: "custom",
+      layers: reindexLayers(next),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  function renameLayer(layerId: string, name: string) {
+    setConfiguration({
+      ...configuration,
+      architecture: "custom",
+      layers: configuration.layers.map((layer) =>
+        layer.id === layerId ? { ...layer, name: name.trim() || layer.name } : layer,
+      ),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  function connectNodes(sourceId: string, targetId: string) {
+    if (sourceId === targetId) return
+    const exists = configuration.edges.some(
+      (edge) => edge.source === sourceId && edge.target === targetId,
+    )
+    if (exists) return
+
+    setConfiguration({
+      ...configuration,
+      architecture: "custom",
+      edges: [
+        ...configuration.edges,
+        {
+          id: `${sourceId}-${targetId}-${crypto.randomUUID().slice(0, 6)}`,
+          source: sourceId,
+          target: targetId,
+        },
+      ],
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  function removeEdge(edgeId: string) {
+    setConfiguration({
+      ...configuration,
+      architecture: "custom",
+      edges: configuration.edges.filter((edge) => edge.id !== edgeId),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  function handleNodeSelect(nodeId: string | null) {
+    if (linkSourceId && nodeId && nodeId !== linkSourceId) {
+      connectNodes(linkSourceId, nodeId)
+      setLinkSourceId(null)
+      setSelectedNodeId(nodeId)
+      return
+    }
+    setSelectedNodeId(nodeId)
+  }
+
   useEffect(() => {
-    function handleKeyDown(
-      event:
-        KeyboardEvent,
-    ) {
-      if (
-        event.key !==
-          "Backspace" &&
-        event.key !==
-          "Delete"
-      ) {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setLinkSourceId(null)
         return
       }
+      if (event.key !== "Backspace" && event.key !== "Delete") return
+      if (isTypingTarget(event.target)) return
+      if (!selectedNodeId) return
 
-      if (
-        isTypingTarget(
-          event.target,
-        )
-      ) {
-        return
-      }
-
-      if (
-        !selectedNodeId
-      ) {
-        return
-      }
-
-      const logicalNode =
-        configuration.nodes.find(
-          (node) =>
-            node.id ===
-            selectedNodeId,
-        )
-
-      if (
-        !canDeleteConfigurationNode(
-          logicalNode,
-        )
-      ) {
-        return
-      }
+      const logicalNode = configuration.nodes.find(
+        (node) => node.id === selectedNodeId,
+      )
+      if (!canDeleteConfigurationNode(logicalNode)) return
 
       event.preventDefault()
-
-      deleteNode(
-        selectedNodeId,
-      )
+      deleteNode(selectedNodeId)
     }
 
-    window.addEventListener(
-      "keydown",
-      handleKeyDown,
-    )
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [selectedNodeId, configuration, linkSourceId])
 
-    return () => {
-      window.removeEventListener(
-        "keydown",
-        handleKeyDown,
-      )
-    }
-  }, [
-    selectedNodeId,
-    configuration,
-  ])
-
-  function exportConfiguration():
-    AgentConfiguration {
+  function exportConfiguration(): AgentConfiguration {
     return {
-      ...clone(
-        configuration,
-      ),
-
-      edges:
-        edges.map(
-          (edge) => ({
-            id:
-              edge.id,
-
-            source:
-              edge.source,
-
-            target:
-              edge.target,
-
-            label:
-              typeof edge.label ===
-              "string"
-                ? edge.label
-                : undefined,
-          }),
-        ),
-
-      updatedAt:
-        new Date()
-          .toISOString(),
+      ...clone(configuration),
+      updatedAt: new Date().toISOString(),
     }
   }
 
   return {
     configuration,
-
-    nodes,
-    edges,
-
     selectedNode,
     selectedNodeId,
-
+    selectedLayerId,
+    linkSourceId,
     canDeleteSelectedNode,
-
-    onNodesChange,
-    onEdgesChange,
-    onConnect,
-
-    setSelectedNodeId,
-
+    isCustom,
+    setSelectedNodeId: handleNodeSelect,
+    setSelectedLayerId,
+    setLinkSourceId,
     loadTemplate,
-
-    addPaletteItem,
-
+    addComponent,
     deleteNode,
-
     updateModel,
     updateInstructions,
-
+    addLayer,
+    removeLayer,
+    moveLayer,
+    renameLayer,
+    connectNodes,
+    removeEdge,
     exportConfiguration,
   }
 }
 
-export type ConfigurationBuilderState =
-  ReturnType<
-    typeof useConfigurationBuilder
-  >
+export type ConfigurationBuilderState = ReturnType<
+  typeof useConfigurationBuilder
+>

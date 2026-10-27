@@ -206,13 +206,33 @@ export default function RunDetailPage() {
           </p>
           {run.expected_answer != null ? (
             <p className="mt-2 font-data text-[12px] text-muted-foreground">
-              Expected {run.expected_answer}
+              Expected{" "}
+              {run.expected_display &&
+              run.expected_display !== run.expected_answer
+                ? `${run.expected_display} · verify ${run.expected_answer}`
+                : run.expected_answer}
             </p>
           ) : null}
+          {run.reasoning ? (
+            <>
+              <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
+                Reasoning
+              </h3>
+              <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark/90">
+                {run.reasoning}
+              </p>
+            </>
+          ) : null}
           <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
-            Answer
+            Final answer
           </h3>
           <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark/90">
+            {run.scored_answer || run.answer}
+          </p>
+          <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
+            Raw output
+          </h3>
+          <p className="mt-2 whitespace-pre-wrap font-data text-[12px] leading-relaxed text-muted-foreground">
             {run.answer}
           </p>
           {run.classifier_plan ? (

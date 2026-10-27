@@ -35,6 +35,9 @@ export type RunResult = {
   temperature?: number
   question: string
   expected_answer: string | null
+  expected_display?: string | null
+  scored_answer?: string | null
+  reasoning?: string | null
   answer: string
   success: boolean | null
   latency_sec: number
@@ -67,6 +70,7 @@ export type DatasetTask = {
   id: string
   question: string
   expected_answer: string | null
+  expected_display?: string | null
   scored: boolean
   metadata: Record<string, unknown>
 }

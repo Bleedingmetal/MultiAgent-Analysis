@@ -6,7 +6,12 @@ import uuid
 from datetime import datetime, timezone
 
 from app.config import settings
-from app.datasets.registry import Task, score_answer, system_prompt_for
+from app.datasets.registry import (
+    Task,
+    score_answer,
+    split_reasoning_and_answer,
+    system_prompt_for,
+)
 from app.openai_client import chat_completion, estimate_cost
 from app.schemas import AgentConfiguration, ClassifierPlan, RunResult
 
@@ -27,7 +32,7 @@ def _temperature(config: AgentConfiguration) -> float:
     node = _primary_model_node(config)
     if node and node.modelSettings and node.modelSettings.temperature is not None:
         return float(node.modelSettings.temperature)
-    return 0.2
+    return 0.5
 
 
 def _resolve_model(config: AgentConfiguration, model_override: str | None) -> str:
@@ -55,7 +60,7 @@ def _apply_prompt_and_model(
             settings = node.get("modelSettings") or {
                 "provider": "openai",
                 "model": model,
-                "temperature": 0.2,
+                "temperature": 0.5,
             }
             settings["provider"] = "openai"
             settings["model"] = model
@@ -78,7 +83,9 @@ def run_single_agent(
     user = (
         f"{task.context}\n\n"
         f"Question:\n{task.question}\n\n"
-        "Respond with the answer. Prefer a short final answer."
+        "Reply in this format:\n"
+        "Reasoning: <your step-by-step thought process>\n"
+        "Final answer: <bare number, percentage like 6.76%, or $94 million>"
     )
     temp = _temperature(config)
 
@@ -90,6 +97,9 @@ def run_single_agent(
         model=model,
     )
     latency = time.perf_counter() - t0
+    reasoning, scored = split_reasoning_and_answer(answer)
+    if task.expected_answer is None and not scored:
+        scored = None
     success = score_answer(task.expected_answer, answer)
 
     return RunResult(
@@ -104,6 +114,9 @@ def run_single_agent(
         temperature=temp,
         question=task.question,
         expected_answer=task.expected_answer,
+        expected_display=task.expected_display,
+        scored_answer=scored or None,
+        reasoning=reasoning,
         answer=answer,
         success=success,
         latency_sec=round(latency, 3),
@@ -154,7 +167,7 @@ def run_classifier_plan(
     raw, prompt_tokens, completion_tokens = chat_completion(
         system=CLASSIFIER_SYSTEM,
         user=user,
-        temperature=0.2,
+        temperature=0.5,
         model=model,
     )
     latency = time.perf_counter() - t0
@@ -188,9 +201,11 @@ def run_classifier_plan(
         configuration_name=config.name,
         architecture=config.architecture,
         model=model,
-        temperature=0.2,
+        temperature=0.5,
         question=task.question,
         expected_answer=task.expected_answer,
+        expected_display=task.expected_display,
+        scored_answer=None,
         answer=raw,
         success=None,
         latency_sec=round(latency, 3),

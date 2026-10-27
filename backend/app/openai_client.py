@@ -34,7 +34,7 @@ def chat_completion(
     *,
     system: str,
     user: str,
-    temperature: float = 0.2,
+    temperature: float = 0.5,
     model: str | None = None,
 ) -> tuple[str, int, int]:
     client = get_client()

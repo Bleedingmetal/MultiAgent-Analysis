@@ -51,7 +51,12 @@ export function ConfigRunPanel({
   const [benchmarks, setBenchmarks] = useState<BenchmarkInfo[]>([])
   const [benchmarkId, setBenchmarkId] = useState<BenchmarkId>("finqa")
   const [tasks, setTasks] = useState<
-    { id: string; question: string; expected_answer: string | null }[]
+    {
+      id: string
+      question: string
+      expected_answer: string | null
+      expected_display?: string | null
+    }[]
   >([])
   const [taskId, setTaskId] = useState<string>("")
   const [query, setQuery] = useState("")
@@ -115,6 +120,7 @@ export function ConfigRunPanel({
             id: t.id,
             question: t.question,
             expected_answer: t.expected_answer,
+            expected_display: t.expected_display,
           })),
         )
         setTaskId(res.tasks[0]?.id ?? "")
@@ -261,7 +267,11 @@ export function ConfigRunPanel({
                 </p>
                 {selected?.expected_answer != null ? (
                   <p className="mt-1.5 font-data text-[12px] text-muted-foreground">
-                    Expected {selected.expected_answer}
+                    Expected{" "}
+                    {selected.expected_display &&
+                    selected.expected_display !== selected.expected_answer
+                      ? `${selected.expected_display} · verify ${selected.expected_answer}`
+                      : selected.expected_answer}
                   </p>
                 ) : null}
               </div>
@@ -325,7 +335,11 @@ export function ConfigRunPanel({
                             </p>
                             {task.expected_answer != null ? (
                               <p className="mt-1 font-data text-[11px] text-muted-foreground">
-                                Expected {task.expected_answer}
+                                Expected{" "}
+                                {task.expected_display &&
+                                task.expected_display !== task.expected_answer
+                                  ? `${task.expected_display} · verify ${task.expected_answer}`
+                                  : task.expected_answer}
                               </p>
                             ) : (
                               <p className="mt-1 text-[11px] text-muted-foreground">
@@ -417,9 +431,43 @@ export function ConfigRunPanel({
                 </p>
               )}
 
-              <p className="mt-3 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark/90">
-                {result.answer}
-              </p>
+              {result.reasoning ? (
+                <div className="mt-4 rounded-xl bg-[#f4f7fb] px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
+                    Reasoning
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-mm-dark/90">
+                    {result.reasoning}
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="mt-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
+                  Final answer
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark">
+                  {result.scored_answer || result.answer}
+                </p>
+              </div>
+
+              {result.success != null ? (
+                <div className="mt-4 grid gap-1 border-t border-border/70 pt-4 font-data text-[12px] text-muted-foreground">
+                  {result.expected_display || result.expected_answer ? (
+                    <p>
+                      Expected{" "}
+                      <span className="text-mm-dark">
+                        {result.expected_display ?? result.expected_answer}
+                      </span>
+                      {result.expected_display &&
+                      result.expected_answer &&
+                      result.expected_display !== result.expected_answer
+                        ? ` · program ${result.expected_answer}`
+                        : null}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               {result.classifier_plan ? (
                 <div className="mt-4 grid gap-1 border-t border-border/70 pt-4 text-sm">

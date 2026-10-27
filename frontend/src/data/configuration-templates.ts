@@ -61,7 +61,7 @@ function model(
     modelSettings: {
       provider,
       model: modelName,
-      temperature: 0.2,
+      temperature: 0.5,
     },
 
     metadata: {
@@ -117,7 +117,7 @@ export const singleAgentTemplate: AgentConfiguration = {
       "agents",
       0,
       "openai",
-      "GPT",
+      "gpt-4o-mini",
       "Primary Agent",
     ),
 
@@ -170,7 +170,7 @@ export const promptChainingTemplate: AgentConfiguration = {
       "agents",
       0,
       "openai",
-      "GPT",
+      "gpt-4o-mini",
       "Step 1",
     ),
 
@@ -180,7 +180,7 @@ export const promptChainingTemplate: AgentConfiguration = {
       "agents",
       1,
       "openai",
-      "GPT",
+      "gpt-4o-mini",
       "Step 2",
     ),
 
@@ -190,7 +190,7 @@ export const promptChainingTemplate: AgentConfiguration = {
       "agents",
       2,
       "openai",
-      "GPT",
+      "gpt-4o-mini",
       "Step 3",
     ),
 
@@ -261,7 +261,7 @@ export const routingTemplate: AgentConfiguration = {
       "agents",
       0,
       "openai",
-      "GPT",
+      "gpt-4o-mini",
       "Route A",
     ),
 
@@ -271,7 +271,7 @@ export const routingTemplate: AgentConfiguration = {
       "agents",
       1,
       "anthropic",
-      "Claude",
+      "claude-sonnet-4-5",
       "Route B",
     ),
 
@@ -281,7 +281,7 @@ export const routingTemplate: AgentConfiguration = {
       "agents",
       2,
       "google",
-      "Gemini",
+      "gemini-2.5-flash",
       "Route C",
     ),
 
@@ -384,7 +384,7 @@ export const parallelizationTemplate: AgentConfiguration = {
       "agents",
       0,
       "openai",
-      "GPT",
+      "gpt-4o-mini",
       "Parallel Worker",
     ),
 
@@ -394,7 +394,7 @@ export const parallelizationTemplate: AgentConfiguration = {
       "agents",
       1,
       "anthropic",
-      "Claude",
+      "claude-sonnet-4-5",
       "Parallel Worker",
     ),
 
@@ -489,7 +489,7 @@ export const evaluatorOptimizerTemplate: AgentConfiguration = {
       "agents",
       0,
       "openai",
-      "GPT",
+      "gpt-4o-mini",
       "Generator",
     ),
 
@@ -576,7 +576,7 @@ export const autonomousAgentTemplate: AgentConfiguration = {
       "agents",
       0,
       "openai",
-      "GPT",
+      "gpt-4o-mini",
       "Autonomous Agent",
     ),
 
@@ -642,20 +642,40 @@ export const autonomousAgentTemplate: AgentConfiguration = {
   ],
 }
 
+/* CUSTOM -- blank multi-agent slate */
+
+export const customTemplate: AgentConfiguration = {
+  version: 1,
+  id: "custom-template",
+  name: "Custom",
+  architecture: "custom",
+  createdAt: now(),
+  updatedAt: now(),
+  layers: [
+    layer("input", "Input", "input", 0),
+    layer("orchestration", "Orchestration", "orchestration", 1),
+    layer("agents", "Agents", "agents", 2),
+    layer("output", "Output", "output", 3),
+  ],
+  nodes: [
+    node("prompt", "Task input", "input", "input", 0),
+    node("router", "Router", "router", "orchestration", 0),
+    model("agent-1", "GPT Agent", "agents", 0, "openai", "gpt-4o-mini", "Primary"),
+    node("final-answer", "Final Answer", "output", "output", 0),
+  ],
+  edges: [
+    edge("prompt", "router"),
+    edge("router", "agent-1"),
+    edge("agent-1", "final-answer"),
+  ],
+}
+
 export const configurationTemplates = {
   "single-agent": singleAgentTemplate,
-
-  "prompt-chaining":
-    promptChainingTemplate,
-
+  "prompt-chaining": promptChainingTemplate,
   routing: routingTemplate,
-
-  parallelization:
-    parallelizationTemplate,
-
-  "evaluator-optimizer":
-    evaluatorOptimizerTemplate,
-
-  "autonomous-agent":
-    autonomousAgentTemplate,
+  parallelization: parallelizationTemplate,
+  "evaluator-optimizer": evaluatorOptimizerTemplate,
+  "autonomous-agent": autonomousAgentTemplate,
+  custom: customTemplate,
 } as const

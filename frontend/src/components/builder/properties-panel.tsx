@@ -1,26 +1,8 @@
-import {
-  Boxes,
-  LockKeyhole,
-  Trash2,
-} from "lucide-react"
+import { Boxes, LockKeyhole, Trash2 } from "lucide-react"
 
-import type {
-  ConfigurationNode,
-  ModelProvider,
-} from "@/types/configuration"
-
-import {
-  Button,
-} from "@/components/ui/button"
-
-import {
-  Input,
-} from "@/components/ui/input"
-
-import {
-  Label,
-} from "@/components/ui/label"
-
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -28,23 +10,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
+import { Textarea } from "@/components/ui/textarea"
 import {
-  Textarea,
-} from "@/components/ui/textarea"
+  defaultModelForProvider,
+  modelsForProvider,
+} from "@/lib/provider-models"
+import type { ConfigurationNode, ModelProvider } from "@/types/configuration"
 
 interface Props {
   node?: ConfigurationNode
-
   canDelete: boolean
-
-  onDelete: (
-    nodeId: string,
-  ) => void
-
+  onDelete: (nodeId: string) => void
   onUpdateModel: (
     nodeId: string,
-
     updates: {
       provider?: ModelProvider
       model?: string
@@ -52,11 +30,7 @@ interface Props {
       systemPrompt?: string
     },
   ) => void
-
-  onUpdateInstructions: (
-    nodeId: string,
-    instructions: string,
-  ) => void
+  onUpdateInstructions: (nodeId: string, instructions: string) => void
 }
 
 export default function PropertiesPanel({
@@ -66,238 +40,102 @@ export default function PropertiesPanel({
   onUpdateModel,
   onUpdateInstructions,
 }: Props) {
-  return (
-    <aside className="border-l bg-card">
-      <div className="border-b p-4">
-        <p className="text-sm font-semibold">
-          Properties
-        </p>
+  const provider = node?.modelSettings?.provider ?? "openai"
+  const modelOptions = modelsForProvider(provider)
+  const currentModel = node?.modelSettings?.model ?? ""
+  const modelValue = modelOptions.some((option) => option.id === currentModel)
+    ? currentModel
+    : (modelOptions[0]?.id ?? "")
 
-        <p className="mt-1 text-xs text-muted-foreground">
-          Configure the selected component.
-        </p>
+  return (
+    <aside className="bg-white">
+      <div className="border-b border-border/80 px-4 py-3.5">
+        <p className="text-[13px] font-semibold text-mm-dark">Properties</p>
       </div>
 
       {!node ? (
-        <div className="flex min-h-64 flex-col items-center justify-center p-6 text-center">
-          <Boxes className="mb-3 size-8 text-muted-foreground" />
-
-          <p className="text-sm font-medium">
-            Nothing selected
-          </p>
-
-          <p className="mt-1 max-w-44 text-xs text-muted-foreground">
-            Select a component on the canvas.
-          </p>
+        <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
+          <Boxes className="mb-3 size-7 text-muted-foreground" />
+          <p className="text-sm font-medium text-mm-dark">Nothing selected</p>
         </div>
       ) : (
         <div className="space-y-5 p-4">
           <div>
-            <Label>
-              Name
-            </Label>
-
-            <Input
-              className="mt-2"
-              value={
-                node.name
-              }
-              readOnly
-            />
+            <Label>Name</Label>
+            <Input className="mt-2" value={node.name} readOnly />
           </div>
 
-          <div>
-            <Label>
-              Type
-            </Label>
+          {node.type === "model" && node.modelSettings ? (
+            <>
+              <div>
+                <Label>Provider</Label>
+                <Select
+                  value={provider}
+                  onValueChange={(value) => {
+                    const next = value as ModelProvider
+                    onUpdateModel(node.id, {
+                      provider: next,
+                      model: defaultModelForProvider(next),
+                    })
+                  }}
+                >
+                  <SelectTrigger className="mt-2 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="anthropic">Anthropic</SelectItem>
+                    <SelectItem value="google">Google</SelectItem>
+                    <SelectItem value="local">Local</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <Input
-              className="mt-2"
-              value={
-                node.type
-              }
-              readOnly
-            />
-          </div>
-
-          {node.type ===
-            "model" &&
-            node.modelSettings && (
-              <>
-                <div>
-                  <Label>
-                    Provider
-                  </Label>
-
-                  <Select
-                    value={
-                      node
-                        .modelSettings
-                        .provider
-                    }
-
-                    onValueChange={(
-                      value,
-                    ) =>
-                      onUpdateModel(
-                        node.id,
-                        {
-                          provider:
-                            value as ModelProvider,
-                        },
-                      )
-                    }
-                  >
-                    <SelectTrigger className="mt-2 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      <SelectItem value="openai">
-                        OpenAI
+              <div>
+                <Label>Model</Label>
+                <Select
+                  value={modelValue}
+                  onValueChange={(value) =>
+                    onUpdateModel(node.id, { model: value })
+                  }
+                >
+                  <SelectTrigger className="mt-2 w-full">
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
                       </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                      <SelectItem value="anthropic">
-                        Anthropic
-                      </SelectItem>
-
-                      <SelectItem value="google">
-                        Google
-                      </SelectItem>
-
-                      <SelectItem value="local">
-                        Local
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>
-                    Model
-                  </Label>
-
-                  <Input
-                    className="mt-2"
-
-                    value={
-                      node
-                        .modelSettings
-                        .model
-                    }
-
-                    onChange={(
-                      event,
-                    ) =>
-                      onUpdateModel(
-                        node.id,
-                        {
-                          model:
-                            event
-                              .target
-                              .value,
-                        },
-                      )
-                    }
-                  />
-                </div>
-
-                <div>
-                  <Label>
-                    Temperature
-                  </Label>
-
-                  <Input
-                    className="mt-2"
-                    type="number"
-                    min={0}
-                    max={2}
-                    step={0.1}
-
-                    value={
-                      node
-                        .modelSettings
-                        .temperature ??
-                      0.2
-                    }
-
-                    onChange={(
-                      event,
-                    ) =>
-                      onUpdateModel(
-                        node.id,
-                        {
-                          temperature:
-                            Number(
-                              event
-                                .target
-                                .value,
-                            ),
-                        },
-                      )
-                    }
-                  />
-                </div>
-
-                <div>
-                  <Label>
-                    System Prompt
-                  </Label>
-
-                  <Textarea
-                    className="mt-2 min-h-28"
-
-                    value={
-                      node
-                        .modelSettings
-                        .systemPrompt ??
-                      ""
-                    }
-
-                    onChange={(
-                      event,
-                    ) =>
-                      onUpdateModel(
-                        node.id,
-                        {
-                          systemPrompt:
-                            event
-                              .target
-                              .value,
-                        },
-                      )
-                    }
-                  />
-                </div>
-              </>
-            )}
+              <div>
+                <Label>System Prompt</Label>
+                <Textarea
+                  className="mt-2 min-h-28"
+                  value={node.modelSettings.systemPrompt ?? ""}
+                  onChange={(event) =>
+                    onUpdateModel(node.id, {
+                      systemPrompt: event.target.value,
+                    })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
 
           <div>
-            <Label>
-              Instructions
-            </Label>
-
+            <Label>Instructions</Label>
             <Textarea
               className="mt-2 min-h-24"
-
-              value={
-                node.metadata
-                  ?.instructions ??
-                ""
+              value={node.metadata?.instructions ?? ""}
+              onChange={(event) =>
+                onUpdateInstructions(node.id, event.target.value)
               }
-
-              onChange={(
-                event,
-              ) =>
-                onUpdateInstructions(
-                  node.id,
-                  event
-                    .target
-                    .value,
-                )
-              }
-
-              placeholder="Optional component-specific instructions..."
+              placeholder="Instructions"
             />
           </div>
 
@@ -305,38 +143,17 @@ export default function PropertiesPanel({
             {canDelete ? (
               <Button
                 variant="outline"
-
-                className="
-                  w-full
-                  border-red-500/30
-                  text-red-400
-                  hover:border-red-500/50
-                  hover:bg-red-500/10
-                  hover:text-red-300
-                "
-
-                onClick={() =>
-                  onDelete(
-                    node.id,
-                  )
-                }
+                className="w-full border-red-500/25 text-red-700 hover:border-red-500/40 hover:bg-red-50 hover:text-red-800"
+                onClick={() => onDelete(node.id)}
               >
                 <Trash2 data-icon="inline-start" />
-
-                Delete Component
+                Delete
               </Button>
             ) : (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <LockKeyhole className="size-3.5" />
-
-                Required architecture component
+                Required
               </div>
-            )}
-
-            {canDelete && (
-              <p className="mt-2 text-center text-[10px] text-muted-foreground">
-                Backspace or Delete
-              </p>
             )}
           </div>
         </div>

@@ -19,6 +19,8 @@ class Task:
     expected_answer: str | None
     context: str
     metadata: dict[str, Any]
+    # Human-facing label for UI (units); scoring still uses expected_answer.
+    expected_display: str | None = None
 
 
 def _table_to_text(table: list[list[Any]]) -> str:
@@ -50,6 +52,51 @@ def _load_finqa_raw() -> list[dict[str, Any]]:
         return json.load(f)
 
 
+def _infer_money_scale(*texts: str) -> str | None:
+    blob = " ".join(t for t in texts if t).lower()
+    if re.search(r"\bin billions?\b|\(\s*in billions", blob):
+        return "billion"
+    if re.search(r"\bin millions?\b|\(\s*in millions", blob):
+        return "million"
+    if re.search(r"\bin thousands?\b|\(\s*in thousands", blob):
+        return "thousand"
+    return None
+
+
+def humanize_expected(
+    exe_ans: str | None,
+    *,
+    answer_text: str | None = None,
+    unit_scale: str | None = None,
+) -> str | None:
+    """
+    User-facing expected label. Scoring still uses exe_ans.
+    Only adds units when FinQA evidence makes them clear — no guessing.
+    """
+    if exe_ans is None:
+        return None
+    text = (answer_text or "").strip()
+    if text and "%" in text:
+        return text
+
+    try:
+        number = float(str(exe_ans).replace(",", ""))
+    except ValueError:
+        return text or str(exe_ans)
+
+    if text and re.fullmatch(r"[-+]?\d*\.?\d+\s*%", text.replace(",", "")):
+        return text
+
+    if unit_scale in {"thousand", "million", "billion"}:
+        if abs(number - round(number)) < 1e-6 and abs(number) >= 1:
+            pretty = str(int(round(number)))
+        else:
+            pretty = f"{number:g}"
+        return f"${pretty} {unit_scale}"
+
+    return text or str(exe_ans)
+
+
 def _finqa_task(item: dict[str, Any], index: int) -> Task:
     qa = item.get("qa") or {}
     question = qa.get("question") or ""
@@ -57,8 +104,15 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
     if expected is None:
         expected = qa.get("answer")
     expected_s = None if expected is None else str(expected)
+    answer_text = qa.get("answer")
+    gold_blob = " ".join((qa.get("gold_inds") or {}).values())
+    pre_join = " ".join(item.get("pre_text") or [])
+    unit_scale = _infer_money_scale(gold_blob, pre_join)
+    expected_display = humanize_expected(
+        expected_s, answer_text=str(answer_text) if answer_text else None, unit_scale=unit_scale
+    )
 
-    pre = _truncate_middle(" ".join(item.get("pre_text") or []), 1400)
+    pre = _truncate_middle(pre_join, 1400)
     post = _truncate_middle(" ".join(item.get("post_text") or []), 1400)
     table = _truncate_middle(_table_to_text(item.get("table") or []), 2500)
     context = (
@@ -71,10 +125,13 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
         benchmark_id="finqa",
         question=question,
         expected_answer=expected_s,
+        expected_display=expected_display,
         context=context,
         metadata={
             "program": qa.get("program"),
-            "answer_text": qa.get("answer"),
+            "answer_text": answer_text,
+            "unit_scale": unit_scale,
+            "expected_display": expected_display,
         },
     )
 
@@ -138,19 +195,24 @@ def _fab_task(item: dict[str, Any], index: int) -> Task:
 DATASET_SYSTEM_PROMPTS: dict[str, str] = {
     "finqa": (
         "You are a financial question-answering assistant. "
-        "Use only the provided table and surrounding text. "
-        "Do not invent figures. For numeric questions, put the final answer alone on the last line. "
-        "For yes/no questions, answer yes or no clearly."
+        "Use only the provided table and surrounding text. Do not invent figures. "
+        "Respond in two parts:\n"
+        "Reasoning: short step-by-step using the evidence (figures and units).\n"
+        "Final answer: one quantity alone — bare number (e.g. 94), percentage (e.g. 6.76%), "
+        "or currency with scale (e.g. $94 million). "
+        "Do not invent units. For yes/no, put yes or no as the Final answer."
     ),
     "tau-retail": (
         "You are a retail customer-service agent with access to user, order, and product tools. "
-        "Given the customer request, describe the concrete tool calls and final resolution. "
-        "Stay concise and actionable."
+        "Respond in two parts:\n"
+        "Reasoning: which tools and steps you would take.\n"
+        "Final answer: the concrete resolution."
     ),
     "fab": (
         "You are a finance research analyst answering questions grounded in SEC filings and public company disclosures. "
-        "State the key facts clearly. If evidence would require a specific filing, name what you would check. "
-        "Keep the final answer concise."
+        "Respond in two parts:\n"
+        "Reasoning: key facts and what filings you would check.\n"
+        "Final answer: the concise conclusion."
     ),
 }
 
@@ -239,9 +301,47 @@ def get_task(benchmark_id: str, task_id: str | None = None) -> Task:
     raise KeyError(f"Task {task_id} not found in {benchmark_id}")
 
 
+# FinQA exe_ans is the program result in table units. Unit words are whitelist-only.
+_SCALE_WORDS: dict[str, float] = {
+    "thousand": 1e3,
+    "thousands": 1e3,
+    "k": 1e3,
+    "million": 1e6,
+    "millions": 1e6,
+    "m": 1e6,
+    "mm": 1e6,
+    "billion": 1e9,
+    "billions": 1e9,
+    "b": 1e9,
+    "bn": 1e9,
+}
+_TABLE_UNIT_SCALES = (1e3, 1e6, 1e9)
+_YES_NO = {"yes", "no", "true", "false"}
+
+# Final span: number, optional $, optional % / scale word. Reject unknown unit tails.
+_QUANTITY_RE = re.compile(
+    r"""
+    ^\s*
+    (?P<sign>[-+])?
+    \s*
+    (?P<currency>\$)?
+    \s*
+    (?P<number>\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d*\.\d+|\d+)
+    \s*
+    (?P<percent>%)?
+    \s*
+    (?P<scale>thousand|thousands|million|millions|billion|billions|mm|bn|[kmb])?
+    \s*
+    (?:of\s+)?(?:dollars?|usd)?
+    \s*$
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
 def normalize_answer(value: str) -> str:
-    s = value.strip().lower()
-    s = s.replace(",", "")
+    """Legacy helper for simple string forms; scoring uses parse_final_quantity."""
+    s = value.strip().lower().replace(",", "")
     s = re.sub(r"\s+", " ", s)
     if s.endswith("%"):
         try:
@@ -254,37 +354,167 @@ def normalize_answer(value: str) -> str:
         return s
 
 
+def _numeric_match(expected: float, candidate: float) -> bool:
+    tolerance = max(1e-4, abs(expected) * 0.01)
+    return abs(expected - candidate) <= tolerance
+
+
+def split_reasoning_and_answer(text: str) -> tuple[str | None, str]:
+    """
+    Split model output into (reasoning, final_answer_span).
+    Prefers explicit Reasoning: / Final answer: sections for auditability.
+    """
+    raw = text.strip()
+    if not raw:
+        return None, ""
+
+    sectioned = re.search(
+        r"(?is)^\s*(?:reasoning|thought\s*process|scratch\s*work)\s*:\s*(.*?)\n\s*"
+        r"(?:final\s*answer|answer)\s*:\s*(.+)\s*$",
+        raw,
+    )
+    if sectioned:
+        reasoning = sectioned.group(1).strip() or None
+        final_block = sectioned.group(2).strip()
+        final_line = final_block.splitlines()[-1].strip().rstrip(".")
+        return reasoning, final_line
+
+    marked = list(
+        re.finditer(r"(?im)^(?:final\s*answer|answer)\s*:\s*(.+)\s*$", raw)
+    )
+    if marked:
+        last = marked[-1]
+        final = last.group(1).strip().rstrip(".")
+        before = raw[: last.start()].strip()
+        before = re.sub(
+            r"(?im)^\s*(?:reasoning|thought\s*process|scratch\s*work)\s*:\s*",
+            "",
+            before,
+        ).strip()
+        return before or None, final
+
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    if len(lines) == 1:
+        return None, lines[0].rstrip(".")
+    return "\n".join(lines[:-1]), lines[-1].rstrip(".")
+
+
+def final_answer_span(text: str) -> str:
+    """Score only the committed final answer, not numbers inside scratch work."""
+    _, final = split_reasoning_and_answer(text)
+    return final
+
+
+@dataclass(frozen=True)
+class ParsedQuantity:
+    value: float
+    scale: float = 1.0
+    is_percent: bool = False
+    is_currency: bool = False
+    is_yes_no: bool = False
+    yes_no: str | None = None
+
+
+def parse_final_quantity(span: str) -> ParsedQuantity | None:
+    s = span.strip().lower()
+    s = s.replace(",", "")
+    s = re.sub(r"\s+", " ", s)
+    if not s:
+        return None
+
+    if s in _YES_NO:
+        return ParsedQuantity(
+            value=1.0 if s in {"yes", "true"} else 0.0,
+            is_yes_no=True,
+            yes_no="yes" if s in {"yes", "true"} else "no",
+        )
+
+    match = _QUANTITY_RE.match(s)
+    if not match:
+        return None
+
+    number_raw = match.group("number")
+    try:
+        value = float(number_raw)
+    except ValueError:
+        return None
+    if match.group("sign") == "-":
+        value = -value
+
+    is_percent = bool(match.group("percent"))
+    scale_word = (match.group("scale") or "").lower()
+    scale = _SCALE_WORDS.get(scale_word, 1.0)
+    if is_percent and scale != 1.0:
+        return None
+    return ParsedQuantity(
+        value=value,
+        scale=scale,
+        is_percent=is_percent,
+        is_currency=bool(match.group("currency")) or bool(scale_word),
+    )
+
+
+def _candidate_values(parsed: ParsedQuantity) -> list[float]:
+    """Map a stated quantity onto FinQA exe_ans space (ratio or table units)."""
+    if parsed.is_yes_no:
+        return [parsed.value]
+
+    if parsed.is_percent:
+        # Accept either 6.76% or the ratio form 0.0676
+        return [parsed.value / 100.0, parsed.value]
+
+    value = parsed.value
+    out = [value]
+    if parsed.scale != 1.0:
+        absolute = value * parsed.scale
+        out.append(absolute)
+        for unit in _TABLE_UNIT_SCALES:
+            out.append(absolute / unit)
+    else:
+        # Full dollar amounts vs table units (e.g. 94000000 vs 94 in millions)
+        for unit in _TABLE_UNIT_SCALES:
+            if abs(value) >= unit / 10:
+                out.append(value / unit)
+    # de-dupe preserving order
+    seen: set[float] = set()
+    uniq: list[float] = []
+    for item in out:
+        key = round(item, 10)
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(item)
+    return uniq
+
+
 def score_answer(expected: str | None, actual: str) -> bool | None:
+    """
+    Honest FinQA compare:
+    - only the final-answer span (last line / 'Answer:')
+    - whitelist units ($ / % / thousand|million|billion)
+    - unknown unit tails fail (no '94 potatoes')
+    - no hunting for a matching number inside reasoning prose
+    """
     if expected is None:
         return None
-    exp = normalize_answer(str(expected))
-    act = normalize_answer(actual)
-    if exp == act:
-        return True
-    # allow answer buried in model prose
-    if exp and exp in act:
-        return True
-    # numeric tolerance
-    try:
-        return abs(float(exp) - float(act)) <= max(1e-4, abs(float(exp)) * 0.01)
-    except ValueError:
-        pass
 
-    # Models often include units or prose around a correct FinQA number.
-    # Compare each number in the response, including percentage conversion.
-    for match in re.finditer(r"[-+]?\$?[\d,]*\.?\d+\s*%?", actual):
-        token = match.group().strip().replace("$", "").replace(",", "")
-        is_percent = token.endswith("%")
-        if is_percent:
-            token = token[:-1].strip()
-        try:
-            candidate = float(token)
-            if is_percent:
-                candidate /= 100
-            expected_number = float(exp)
-        except ValueError:
-            continue
-        tolerance = max(1e-4, abs(expected_number) * 0.01)
-        if abs(expected_number - candidate) <= tolerance:
-            return True
-    return False
+    expected_span = str(expected).strip()
+    expected_parsed = parse_final_quantity(expected_span)
+    if expected_parsed is None:
+        # Non-numeric gold: exact normalized string on final span only
+        return final_answer_span(actual).strip().lower() == expected_span.lower()
+
+    if expected_parsed.is_yes_no:
+        got = parse_final_quantity(final_answer_span(actual))
+        return bool(got and got.is_yes_no and got.yes_no == expected_parsed.yes_no)
+
+    span = final_answer_span(actual)
+    got = parse_final_quantity(span)
+    if got is None or got.is_yes_no:
+        return False
+
+    expected_number = expected_parsed.value
+    return any(
+        _numeric_match(expected_number, candidate)
+        for candidate in _candidate_values(got)
+    )
