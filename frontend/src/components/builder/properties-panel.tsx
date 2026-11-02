@@ -1,4 +1,5 @@
-import { Boxes, LockKeyhole, Trash2 } from "lucide-react"
+import { Boxes, ChevronDown, LockKeyhole, Trash2 } from "lucide-react"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,15 +13,32 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  CHAIN_ROLES,
+  defaultPromptStep,
+  PROMPT_TEMPLATE_VARIABLES,
+} from "@/lib/prompt-chain"
+import {
   defaultModelForProvider,
+  isExecutableProvider,
   modelsForProvider,
 } from "@/lib/provider-models"
-import type { ConfigurationNode, ModelProvider } from "@/types/configuration"
+import { cn } from "@/lib/utils"
+import type {
+  ArchitectureType,
+  ConfigurationNode,
+  ModelProvider,
+  PromptChainOutputFormat,
+  PromptChainPreviousOutputs,
+  PromptChainRole,
+  PromptStepSettings,
+} from "@/types/configuration"
 
 interface Props {
   node?: ConfigurationNode
+  architecture?: ArchitectureType
   canDelete: boolean
   onDelete: (nodeId: string) => void
+  onUpdateName: (nodeId: string, name: string) => void
   onUpdateModel: (
     nodeId: string,
     updates: {
@@ -31,21 +49,33 @@ interface Props {
     },
   ) => void
   onUpdateInstructions: (nodeId: string, instructions: string) => void
+  onUpdatePromptStep: (
+    nodeId: string,
+    updates: Partial<PromptStepSettings>,
+    options?: { applyRoleDefaults?: boolean },
+  ) => void
 }
 
 export default function PropertiesPanel({
   node,
+  architecture,
   canDelete,
   onDelete,
+  onUpdateName,
   onUpdateModel,
   onUpdateInstructions,
+  onUpdatePromptStep,
 }: Props) {
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const isChainAgent =
+    architecture === "prompt-chaining" && node?.type === "model"
   const provider = node?.modelSettings?.provider ?? "openai"
   const modelOptions = modelsForProvider(provider)
   const currentModel = node?.modelSettings?.model ?? ""
   const modelValue = modelOptions.some((option) => option.id === currentModel)
     ? currentModel
     : (modelOptions[0]?.id ?? "")
+  const step = node ? defaultPromptStep(node) : defaultPromptStep()
 
   return (
     <aside className="bg-white">
@@ -57,13 +87,57 @@ export default function PropertiesPanel({
         <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
           <Boxes className="mb-3 size-7 text-muted-foreground" />
           <p className="text-sm font-medium text-mm-dark">Nothing selected</p>
+          {architecture === "prompt-chaining" ? (
+            <p className="mt-1 max-w-[22ch] text-[12px] text-muted-foreground">
+              Click an agent in the chain to edit its role, model, and inputs.
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-5 p-4">
           <div>
-            <Label>Name</Label>
-            <Input className="mt-2" value={node.name} readOnly />
+            <Label htmlFor="node-name">Name</Label>
+            <Input
+              id="node-name"
+              className="mt-2"
+              value={node.name}
+              readOnly={!isChainAgent}
+              onChange={(event) => onUpdateName(node.id, event.target.value)}
+            />
           </div>
+
+          {isChainAgent ? (
+            <div>
+              <Label>Role</Label>
+              <Select
+                value={String(step.role)}
+                onValueChange={(value) => {
+                  if (!value) return
+                  onUpdatePromptStep(
+                    node.id,
+                    { role: value as PromptChainRole },
+                    { applyRoleDefaults: true },
+                  )
+                }}
+              >
+                <SelectTrigger className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CHAIN_ROLES.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                {CHAIN_ROLES.find((role) => role.id === step.role)?.description}
+                {" "}
+                Role defaults are editable.
+              </p>
+            </div>
+          ) : null}
 
           {node.type === "model" && node.modelSettings ? (
             <>
@@ -89,6 +163,11 @@ export default function PropertiesPanel({
                     <SelectItem value="local">Local</SelectItem>
                   </SelectContent>
                 </Select>
+                {isChainAgent && !isExecutableProvider(provider) ? (
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-[#b34800]">
+                    Execution currently supports OpenAI. This step will not run.
+                  </p>
+                ) : null}
               </div>
 
               <div>
@@ -96,7 +175,7 @@ export default function PropertiesPanel({
                 <Select
                   value={modelValue}
                   onValueChange={(value) =>
-                    onUpdateModel(node.id, { model: value })
+                    onUpdateModel(node.id, { model: value ?? undefined })
                   }
                 >
                   <SelectTrigger className="mt-2 w-full">
@@ -111,33 +190,186 @@ export default function PropertiesPanel({
                   </SelectContent>
                 </Select>
               </div>
-
-              <div>
-                <Label>System Prompt</Label>
-                <Textarea
-                  className="mt-2 min-h-28"
-                  value={node.modelSettings.systemPrompt ?? ""}
-                  onChange={(event) =>
-                    onUpdateModel(node.id, {
-                      systemPrompt: event.target.value,
-                    })
-                  }
-                />
-              </div>
             </>
           ) : null}
 
-          <div>
-            <Label>Instructions</Label>
-            <Textarea
-              className="mt-2 min-h-24"
-              value={node.metadata?.instructions ?? ""}
-              onChange={(event) =>
-                onUpdateInstructions(node.id, event.target.value)
-              }
-              placeholder="Instructions"
-            />
-          </div>
+          {isChainAgent ? (
+            <>
+              <div>
+                <Label htmlFor="chain-objective">Objective</Label>
+                <Textarea
+                  id="chain-objective"
+                  className="mt-2 min-h-20"
+                  value={step.objective}
+                  onChange={(event) =>
+                    onUpdatePromptStep(node.id, {
+                      objective: event.target.value,
+                    })
+                  }
+                  placeholder="What this agent should accomplish"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="chain-instructions">Instructions</Label>
+                <Textarea
+                  id="chain-instructions"
+                  className="mt-2 min-h-24"
+                  value={step.instructions}
+                  onChange={(event) =>
+                    onUpdatePromptStep(node.id, {
+                      instructions: event.target.value,
+                    })
+                  }
+                  placeholder="How it should work"
+                />
+              </div>
+
+              <div>
+                <p className="text-sm font-medium">Inputs</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Defaults to the original task plus the previous agent.
+                </p>
+                <label className="mt-2 flex items-center gap-2 rounded-xl border border-border/70 bg-[#fafbfd] px-3 py-2.5 text-[13px]">
+                  <input
+                    type="checkbox"
+                    checked={step.inputs.task}
+                    onChange={(event) =>
+                      onUpdatePromptStep(node.id, {
+                        inputs: {
+                          ...step.inputs,
+                          task: event.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  Original task
+                </label>
+                <div className="mt-2">
+                  <Label>Previous outputs</Label>
+                  <Select
+                    value={step.inputs.previousOutputs}
+                    onValueChange={(value) => {
+                      if (!value) return
+                      onUpdatePromptStep(node.id, {
+                        inputs: {
+                          ...step.inputs,
+                          previousOutputs: value as PromptChainPreviousOutputs,
+                        },
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="mt-2 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="last">Previous step</SelectItem>
+                      <SelectItem value="all">All previous steps</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen((open) => !open)}
+                className="flex w-full items-center justify-between rounded-xl border border-border/70 px-3 py-2 text-left"
+              >
+                <span className="text-[12px] font-medium text-mm-dark">
+                  Advanced
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "size-4 text-muted-foreground transition-transform",
+                    advancedOpen && "rotate-180",
+                  )}
+                />
+              </button>
+
+              {advancedOpen ? (
+                <div className="space-y-4 rounded-xl border border-border/70 bg-[#fafbfd] p-3">
+                  <div>
+                    <Label>Output format</Label>
+                    <Select
+                      value={step.outputFormat}
+                      onValueChange={(value) => {
+                        if (!value) return
+                        onUpdatePromptStep(node.id, {
+                          outputFormat: value as PromptChainOutputFormat,
+                        })
+                      }}
+                    >
+                      <SelectTrigger className="mt-2 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text">Plain text</SelectItem>
+                        <SelectItem value="structured">
+                          Structured JSON
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                      Intermediate steps can pass facts, calculations, and
+                      evidence as JSON. The final step always answers in text so
+                      it can be scored.
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="chain-template">Prompt template</Label>
+                    <Textarea
+                      id="chain-template"
+                      className="mt-2 min-h-32 font-data text-[12px]"
+                      value={step.promptTemplate}
+                      onChange={(event) =>
+                        onUpdatePromptStep(node.id, {
+                          promptTemplate: event.target.value,
+                        })
+                      }
+                    />
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                      Variables:{" "}
+                      {PROMPT_TEMPLATE_VARIABLES.map((name) => `{{${name}}}`).join(
+                        ", ",
+                      )}
+                      . Dataset instructions are added only on the last step.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {node.type === "model" && node.modelSettings ? (
+                <div>
+                  <Label>System Prompt</Label>
+                  <Textarea
+                    className="mt-2 min-h-28"
+                    value={node.modelSettings.systemPrompt ?? ""}
+                    onChange={(event) =>
+                      onUpdateModel(node.id, {
+                        systemPrompt: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
+
+              <div>
+                <Label>Instructions</Label>
+                <Textarea
+                  className="mt-2 min-h-24"
+                  value={node.metadata?.instructions ?? ""}
+                  onChange={(event) =>
+                    onUpdateInstructions(node.id, event.target.value)
+                  }
+                  placeholder="Instructions"
+                />
+              </div>
+            </>
+          )}
 
           <div className="border-t border-border pt-4">
             {canDelete ? (

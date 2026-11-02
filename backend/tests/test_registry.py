@@ -4,6 +4,7 @@ from app.datasets.registry import (
     _finqa_task,
     final_answer_span,
     humanize_expected,
+    parse_final_quantity,
     score_answer,
     split_reasoning_and_answer,
 )
@@ -22,6 +23,27 @@ class FinQATaskTests(unittest.TestCase):
         task = _finqa_task(item, 0)
 
         self.assertIn("153.7 and 139.9", task.context)
+
+    def test_finqa_task_keeps_expected_model_input_for_post_run_audit(self) -> None:
+        task = _finqa_task(
+            {
+                "id": "example",
+                "pre_text": [],
+                "table": [],
+                "post_text": [],
+                "qa": {
+                    "question": "What changed?",
+                    "exe_ans": "1",
+                    "model_input": [["text_1", "Investments began at $100."]],
+                },
+            },
+            0,
+        )
+
+        self.assertEqual(
+            task.metadata["expected_evidence"],
+            ["Investments began at $100."],
+        )
 
     def test_final_answer_span_ignores_scratch_work(self) -> None:
         text = (
@@ -55,6 +77,40 @@ class FinQATaskTests(unittest.TestCase):
         self.assertTrue(score_answer("0.14464", "14.5%"))
         self.assertTrue(score_answer("0.14464", "0.14464"))
 
+    def test_percentage_scoring_respects_display_precision(self) -> None:
+        self.assertTrue(
+            score_answer("0.14464", "14%", expected_is_percent=True)
+        )
+        self.assertTrue(
+            score_answer("0.14464", "14.5%", expected_is_percent=True)
+        )
+        self.assertTrue(
+            score_answer("0.14464", "14.464%", expected_is_percent=True)
+        )
+        self.assertTrue(
+            score_answer("0.14464", "0.14464", expected_is_percent=True)
+        )
+        self.assertFalse(
+            score_answer("0.14464", "15%", expected_is_percent=True)
+        )
+
+    def test_percentage_not_accepted_for_non_percentage_answer(self) -> None:
+        self.assertFalse(
+            score_answer("6.76", "6.76%", expected_is_percent=False)
+        )
+
+    def test_signs_and_numeric_threshold(self) -> None:
+        self.assertTrue(
+            score_answer("-0.06757", "−6.76%", expected_is_percent=True)
+        )
+        self.assertTrue(score_answer("100", "+100.9"))
+        self.assertTrue(score_answer("-100", "(100.9)"))
+        self.assertFalse(score_answer("100", "101.1"))
+        self.assertFalse(score_answer("-100", "100"))
+        parsed = parse_final_quantity("(94)")
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed.value if parsed else None, -94)
+
     def test_humanize_expected_adds_clear_units_only(self) -> None:
         self.assertEqual(
             humanize_expected("94.0", answer_text="94", unit_scale="million"),
@@ -66,6 +122,25 @@ class FinQATaskTests(unittest.TestCase):
         )
         # No invented units when evidence is missing
         self.assertEqual(humanize_expected("94.0", answer_text="94"), "94")
+
+    def test_finqa_step_percentage_becomes_human_expected_display(self) -> None:
+        task = _finqa_task(
+            {
+                "id": "percentage",
+                "pre_text": [],
+                "table": [],
+                "post_text": [],
+                "qa": {
+                    "question": "What percentage?",
+                    "answer": "",
+                    "exe_ans": "1.1197",
+                    "steps": [{"op": "minus", "res": "111.97%"}],
+                },
+            },
+            0,
+        )
+        self.assertTrue(task.metadata["expected_is_percent"])
+        self.assertEqual(task.expected_display, "111.97%")
 
     def test_score_rejects_wrong_or_janky_answers(self) -> None:
         self.assertFalse(score_answer("94.0", "$93 million"))

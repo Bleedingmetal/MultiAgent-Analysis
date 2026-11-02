@@ -37,3 +37,9 @@ export function modelsForProvider(provider: ModelProvider) {
 export function defaultModelForProvider(provider: ModelProvider) {
   return modelsForProvider(provider)[0]?.id ?? "gpt-4o-mini"
 }
+
+export const EXECUTABLE_PROVIDERS: ModelProvider[] = ["openai"]
+
+export function isExecutableProvider(provider?: ModelProvider | string | null) {
+  return provider === "openai"
+}

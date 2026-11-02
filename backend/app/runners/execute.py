@@ -3,17 +3,32 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.config import settings
+from app.datasets.finqa_program import (
+    execute_program,
+    extract_program,
+    format_result,
+    normalize_program,
+    operation_sequence,
+    strip_program_from_reasoning,
+)
 from app.datasets.registry import (
     Task,
+    response_format_for,
     score_answer,
     split_reasoning_and_answer,
     system_prompt_for,
 )
 from app.openai_client import chat_completion, estimate_cost
-from app.schemas import AgentConfiguration, ClassifierPlan, RunResult
+from app.schemas import (
+    AgentConfiguration,
+    ClassifierPlan,
+    FinQAReasoningComparison,
+    RunResult,
+)
 
 
 def _primary_model_node(config: AgentConfiguration):
@@ -70,6 +85,97 @@ def _apply_prompt_and_model(
     return AgentConfiguration.model_validate(data)
 
 
+def _finqa_reasoning_comparison(
+    task: Task,
+    raw_answer: str,
+) -> FinQAReasoningComparison | None:
+    if task.benchmark_id != "finqa":
+        return None
+    expected_program = str(task.metadata.get("program") or "").strip()
+    if not expected_program:
+        return None
+
+    agent_program = extract_program(raw_answer)
+    comparison = FinQAReasoningComparison(
+        expected_program=expected_program,
+        agent_program=agent_program,
+        expected_steps=list(task.metadata.get("steps") or []),
+        expected_evidence=list(task.metadata.get("expected_evidence") or []),
+        expected_result=task.expected_answer,
+    )
+    if not agent_program:
+        comparison.parse_error = "The response did not include a Program line."
+        return comparison
+
+    execution = execute_program(
+        agent_program,
+        table=list(task.metadata.get("table") or []),
+    )
+    comparison.agent_result = format_result(execution.result)
+    comparison.parse_error = execution.error
+    try:
+        comparison.program_exact_match = (
+            normalize_program(agent_program) == normalize_program(expected_program)
+        )
+        comparison.operator_sequence_match = (
+            operation_sequence(agent_program) == operation_sequence(expected_program)
+        )
+    except ValueError as exc:
+        comparison.parse_error = str(exc)
+
+    if comparison.agent_result is not None:
+        comparison.execution_matches_expected = bool(
+            score_answer(
+                task.expected_answer,
+                comparison.agent_result,
+                expected_is_percent=task.metadata.get("expected_is_percent"),
+            )
+        )
+    return comparison
+
+
+@dataclass
+class ScoredOutput:
+    reasoning: str | None
+    scored_answer: str | None
+    success: bool | None
+    comparison: FinQAReasoningComparison | None
+    note: str | None
+
+
+def score_task_output(task: Task, answer: str) -> ScoredOutput:
+    """Split a final answer into reasoning/answer and score it against the task.
+
+    Shared by every architecture so scoring never depends on how the answer was produced.
+    """
+    reasoning, scored = split_reasoning_and_answer(answer)
+    comparison = _finqa_reasoning_comparison(task, answer)
+    if comparison:
+        reasoning = strip_program_from_reasoning(reasoning)
+    if task.expected_answer is None and not scored:
+        scored = None
+    success = score_answer(
+        task.expected_answer,
+        answer,
+        expected_is_percent=task.metadata.get("expected_is_percent"),
+    )
+    return ScoredOutput(
+        reasoning=reasoning,
+        scored_answer=scored or None,
+        success=success,
+        comparison=comparison,
+        note=(
+            None
+            if success is not None
+            else "Open-ended task; success not auto-scored in MVP."
+        ),
+    )
+
+
+def task_user_prompt(task: Task) -> str:
+    return f"{task.context}\n\nQuestion:\n{task.question}"
+
+
 def run_single_agent(
     config: AgentConfiguration,
     task: Task,
@@ -80,13 +186,7 @@ def run_single_agent(
     model = _resolve_model(config, model_override)
     snapshot = _apply_prompt_and_model(config, model, system_prompt_for(task.benchmark_id))
     system = _system_prompt(config, task.benchmark_id)
-    user = (
-        f"{task.context}\n\n"
-        f"Question:\n{task.question}\n\n"
-        "Reply in this format:\n"
-        "Reasoning: <your step-by-step thought process>\n"
-        "Final answer: <bare number, percentage like 6.76%, or $94 million>"
-    )
+    user = f"{task_user_prompt(task)}\n\n{response_format_for(task.benchmark_id)}"
     temp = _temperature(config)
 
     t0 = time.perf_counter()
@@ -97,10 +197,7 @@ def run_single_agent(
         model=model,
     )
     latency = time.perf_counter() - t0
-    reasoning, scored = split_reasoning_and_answer(answer)
-    if task.expected_answer is None and not scored:
-        scored = None
-    success = score_answer(task.expected_answer, answer)
+    scored = score_task_output(task, answer)
 
     return RunResult(
         id=f"RUN-{uuid.uuid4().hex[:8].upper()}",
@@ -115,19 +212,16 @@ def run_single_agent(
         question=task.question,
         expected_answer=task.expected_answer,
         expected_display=task.expected_display,
-        scored_answer=scored or None,
-        reasoning=reasoning,
+        scored_answer=scored.scored_answer,
+        reasoning=scored.reasoning,
+        reasoning_comparison=scored.comparison,
         answer=answer,
-        success=success,
+        success=scored.success,
         latency_sec=round(latency, 3),
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        cost_usd=round(estimate_cost(prompt_tokens, completion_tokens), 6),
-        note=(
-            None
-            if success is not None
-            else "Open-ended task; success not auto-scored in MVP."
-        ),
+        cost_usd=round(estimate_cost(prompt_tokens, completion_tokens, model), 6),
+        note=scored.note,
         created_at=datetime.now(timezone.utc).isoformat(),
         system_prompt=system,
         user_prompt=user,
@@ -211,7 +305,7 @@ def run_classifier_plan(
         latency_sec=round(latency, 3),
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        cost_usd=round(estimate_cost(prompt_tokens, completion_tokens), 6),
+        cost_usd=round(estimate_cost(prompt_tokens, completion_tokens, model), 6),
         classifier_plan=plan,
         note="Classifier only. Specialist agents are not executed yet.",
         created_at=datetime.now(timezone.utc).isoformat(),

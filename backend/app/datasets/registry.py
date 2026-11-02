@@ -105,11 +105,25 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
         expected = qa.get("answer")
     expected_s = None if expected is None else str(expected)
     answer_text = qa.get("answer")
+    steps = qa.get("steps") or []
+    final_step_result = str(steps[-1].get("res") or "") if steps else ""
+    expected_is_percent = "%" in str(answer_text or "") or "%" in final_step_result
+    display_answer = str(answer_text) if answer_text else final_step_result or None
     gold_blob = " ".join((qa.get("gold_inds") or {}).values())
+    model_input = qa.get("model_input") or []
+    expected_evidence = [
+        str(entry[1])
+        for entry in model_input
+        if isinstance(entry, (list, tuple)) and len(entry) >= 2
+    ]
+    if not expected_evidence:
+        expected_evidence = list((qa.get("gold_inds") or {}).values())
     pre_join = " ".join(item.get("pre_text") or [])
     unit_scale = _infer_money_scale(gold_blob, pre_join)
     expected_display = humanize_expected(
-        expected_s, answer_text=str(answer_text) if answer_text else None, unit_scale=unit_scale
+        expected_s,
+        answer_text=display_answer,
+        unit_scale=unit_scale,
     )
 
     pre = _truncate_middle(pre_join, 1400)
@@ -129,7 +143,12 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
         context=context,
         metadata={
             "program": qa.get("program"),
+            "program_re": qa.get("program_re"),
+            "steps": steps,
+            "expected_evidence": expected_evidence,
+            "table": item.get("table") or [],
             "answer_text": answer_text,
+            "expected_is_percent": expected_is_percent,
             "unit_scale": unit_scale,
             "expected_display": expected_display,
         },
@@ -196,10 +215,17 @@ DATASET_SYSTEM_PROMPTS: dict[str, str] = {
     "finqa": (
         "You are a financial question-answering assistant. "
         "Use only the provided table and surrounding text. Do not invent figures. "
-        "Respond in two parts:\n"
-        "Reasoning: short step-by-step using the evidence (figures and units).\n"
+        "Produce a concise, auditable calculation using the FinQA DSL. "
+        "Supported operations are add, subtract, multiply, divide, exp, greater, "
+        "table_sum, table_average, table_max, and table_min. "
+        "Use #0, #1, and so on to reference earlier operation results, and constants "
+        "such as const_100 when needed. Respond in three parts:\n"
+        "Reasoning: briefly identify the evidence and formula.\n"
+        "Program: one line of comma-separated FinQA operations.\n"
         "Final answer: one quantity alone — bare number (e.g. 94), percentage (e.g. 6.76%), "
         "or currency with scale (e.g. $94 million). "
+        "A FinQA decimal ratio may be presented as its equivalent percentage "
+        "(for example, 0.0676 and 6.76% are equivalent). Preserve negative and positive signs. "
         "Do not invent units. For yes/no, put yes or no as the Final answer."
     ),
     "tau-retail": (
@@ -222,6 +248,24 @@ def system_prompt_for(benchmark_id: str) -> str:
         benchmark_id,
         "You are a careful assistant. Answer clearly and put the final answer on the last line.",
     )
+
+
+_FINQA_RESPONSE_FORMAT = (
+    "Reply in this format:\n"
+    "Reasoning: <brief evidence and formula>\n"
+    "Program: <one line of comma-separated FinQA operations>\n"
+    "Final answer: <bare number, percentage like 6.76%, or $94 million>"
+)
+_DEFAULT_RESPONSE_FORMAT = (
+    "Reply in this format:\n"
+    "Reasoning: <your concise rationale>\n"
+    "Final answer: <your answer>"
+)
+
+
+def response_format_for(benchmark_id: str) -> str:
+    """Answer layout the scorer expects from the agent that produces the final answer."""
+    return _FINQA_RESPONSE_FORMAT if benchmark_id == "finqa" else _DEFAULT_RESPONSE_FORMAT
 
 
 @lru_cache
@@ -317,6 +361,8 @@ _SCALE_WORDS: dict[str, float] = {
 }
 _TABLE_UNIT_SCALES = (1e3, 1e6, 1e9)
 _YES_NO = {"yes", "no", "true", "false"}
+_RELATIVE_TOLERANCE = 0.01
+_ABSOLUTE_TOLERANCE = 1e-4
 
 # Final span: number, optional $, optional % / scale word. Reject unknown unit tails.
 _QUANTITY_RE = re.compile(
@@ -355,7 +401,7 @@ def normalize_answer(value: str) -> str:
 
 
 def _numeric_match(expected: float, candidate: float) -> bool:
-    tolerance = max(1e-4, abs(expected) * 0.01)
+    tolerance = max(_ABSOLUTE_TOLERANCE, abs(expected) * _RELATIVE_TOLERANCE)
     return abs(expected - candidate) <= tolerance
 
 
@@ -411,16 +457,24 @@ class ParsedQuantity:
     scale: float = 1.0
     is_percent: bool = False
     is_currency: bool = False
+    decimal_places: int = 0
     is_yes_no: bool = False
     yes_no: str | None = None
 
 
 def parse_final_quantity(span: str) -> ParsedQuantity | None:
     s = span.strip().lower()
+    s = s.replace("−", "-").replace("–", "-")
     s = s.replace(",", "")
     s = re.sub(r"\s+", " ", s)
     if not s:
         return None
+
+    accounting_negative = s.startswith("(") and s.endswith(")")
+    if accounting_negative:
+        s = s[1:-1].strip()
+        if s.startswith(("+", "-")):
+            return None
 
     if s in _YES_NO:
         return ParsedQuantity(
@@ -440,6 +494,8 @@ def parse_final_quantity(span: str) -> ParsedQuantity | None:
         return None
     if match.group("sign") == "-":
         value = -value
+    if accounting_negative:
+        value = -value
 
     is_percent = bool(match.group("percent"))
     scale_word = (match.group("scale") or "").lower()
@@ -451,6 +507,9 @@ def parse_final_quantity(span: str) -> ParsedQuantity | None:
         scale=scale,
         is_percent=is_percent,
         is_currency=bool(match.group("currency")) or bool(scale_word),
+        decimal_places=(
+            len(number_raw.rsplit(".", 1)[1]) if "." in number_raw else 0
+        ),
     )
 
 
@@ -487,7 +546,25 @@ def _candidate_values(parsed: ParsedQuantity) -> list[float]:
     return uniq
 
 
-def score_answer(expected: str | None, actual: str) -> bool | None:
+def _percentage_match(expected_ratio: float, got: ParsedQuantity) -> bool:
+    if got.is_percent:
+        # Respect the precision the agent committed to. For example, FinQA's
+        # 0.14464 is equivalent to 14%, 14.5%, or 14.464% at those precisions.
+        expected_percent = expected_ratio * 100
+        rounded_expected = round(expected_percent, got.decimal_places)
+        rounding_slack = 10 ** (-(got.decimal_places + 4))
+        return abs(rounded_expected - got.value) <= rounding_slack
+    if got.scale != 1.0:
+        return False
+    return _numeric_match(expected_ratio, got.value)
+
+
+def score_answer(
+    expected: str | None,
+    actual: str,
+    *,
+    expected_is_percent: bool | None = None,
+) -> bool | None:
     """
     Honest FinQA compare:
     - only the final-answer span (last line / 'Answer:')
@@ -514,6 +591,10 @@ def score_answer(expected: str | None, actual: str) -> bool | None:
         return False
 
     expected_number = expected_parsed.value
+    if expected_is_percent is True:
+        return _percentage_match(expected_number, got)
+    if expected_is_percent is False and got.is_percent:
+        return False
     return any(
         _numeric_match(expected_number, candidate)
         for candidate in _candidate_values(got)

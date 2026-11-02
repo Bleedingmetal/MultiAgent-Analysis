@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.datasets import registry
 from app.runners.execute import run_classifier_plan, run_single_agent
+from app.runners.prompt_chain import ChainConfigError, resolve_chain, run_prompt_chain
 from app.schemas import RunRequest, RunResult
 from app import spend_guard, store
 
@@ -53,7 +54,20 @@ async def get_tasks(benchmark_id: str, limit: int = 20):
                 "expected_display": t.expected_display,
                 "scored": t.expected_answer is not None
                 and benchmark_id == "finqa",
-                "metadata": t.metadata,
+                # Ground-truth programs/evidence are evaluation-only and must
+                # not be exposed to the client before a run.
+                "metadata": {
+                    key: value
+                    for key, value in t.metadata.items()
+                    if key
+                    not in {
+                        "program",
+                        "program_re",
+                        "steps",
+                        "expected_evidence",
+                        "table",
+                    }
+                },
             }
             for t in tasks
         ],
@@ -73,6 +87,13 @@ async def create_run(body: RunRequest):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    if body.mode == "prompt-chain":
+        # Reject unrunnable chains before they consume a run slot.
+        try:
+            resolve_chain(body.configuration, body.model_override)
+        except ChainConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     try:
         spend_guard.begin_run()
     except RuntimeError as exc:
@@ -88,6 +109,14 @@ async def create_run(body: RunRequest):
                 model_override=body.model_override,
                 parent_run_id=body.parent_run_id,
             )
+        elif body.mode == "prompt-chain":
+            result = run_prompt_chain(
+                body.configuration,
+                task,
+                model_override=body.model_override,
+                parent_run_id=body.parent_run_id,
+                budget_usd=spend_guard.status()["remaining_budget_usd"],
+            )
         else:
             result = run_single_agent(
                 body.configuration,
@@ -96,9 +125,10 @@ async def create_run(body: RunRequest):
                 parent_run_id=body.parent_run_id,
             )
         cost = result.cost_usd
-        ok = True
+        # A chain that fails midway still spent money on its earlier steps.
+        ok = result.status == "completed" or cost > 0
         return store.add_run(result)
-    except RuntimeError as exc:
+    except (RuntimeError, ChainConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"OpenAI error: {exc}") from exc

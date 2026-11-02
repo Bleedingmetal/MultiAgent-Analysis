@@ -14,6 +14,8 @@ import {
   getHealth,
 } from "@/lib/api"
 import type { AgentConfiguration } from "@/types/configuration"
+import { ChainTraceView } from "@/components/product/chain-trace"
+import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -70,6 +72,8 @@ export function ConfigRunPanel({
 
   const activeBenchmark = benchmarks.find((b) => b.id === benchmarkId)
   const systemPrompt = activeBenchmark?.default_system_prompt ?? ""
+  const isPromptChain = configuration.architecture === "prompt-chaining"
+  const runMode: RunMode = isPromptChain ? "prompt-chain" : "single-agent"
 
   async function refreshHealth() {
     const health = await getHealth()
@@ -152,9 +156,10 @@ export function ConfigRunPanel({
     setBusy(mode)
     setError(null)
     try {
-      const configForRun = systemPrompt
-        ? withDatasetPrompt(configuration, systemPrompt)
-        : configuration
+      const configForRun =
+        mode === "prompt-chain" || !systemPrompt
+          ? configuration
+          : withDatasetPrompt(configuration, systemPrompt)
       const res = await createRun({
         configuration: configForRun,
         mode,
@@ -356,7 +361,7 @@ export function ConfigRunPanel({
             ) : null}
           </div>
 
-          {systemPrompt ? (
+          {systemPrompt && !isPromptChain ? (
             <div>
               <p className="mb-2 text-[12px] font-medium text-muted-foreground">
                 System prompt
@@ -372,15 +377,26 @@ export function ConfigRunPanel({
             </div>
           ) : null}
 
+          {isPromptChain ? (
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              Runs {configuration.nodes.filter((node) => node.type === "model").length}{" "}
+              agents in order. Dataset answer format is applied on the final step.
+            </p>
+          ) : null}
+
           <div className="flex flex-wrap gap-2.5">
             <button
               type="button"
               disabled={blocked}
-              onClick={() => run("single-agent")}
+              onClick={() => run(runMode)}
               className="island-cta disabled:pointer-events-none disabled:opacity-50"
             >
               <span>
-                {busy === "single-agent" ? "Running…" : "Run single-agent"}
+                {busy === runMode
+                  ? "Running…"
+                  : isPromptChain
+                    ? "Run chain"
+                    : "Run single-agent"}
               </span>
               <span className="island-cta-icon" aria-hidden>
                 <Play className="size-3.5" weight="fill" />
@@ -416,7 +432,11 @@ export function ConfigRunPanel({
                 </p>
               </div>
 
-              {result.success != null ? (
+              {result.status === "incomplete" ? (
+                <p className="mt-4 text-[28px] font-semibold tracking-tight text-[#b34800]">
+                  Incomplete
+                </p>
+              ) : result.success != null ? (
                 <p
                   className={cn(
                     "mt-4 text-[28px] font-semibold tracking-tight",
@@ -431,7 +451,22 @@ export function ConfigRunPanel({
                 </p>
               )}
 
-              {result.reasoning ? (
+              {result.error || result.note ? (
+                <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+                  {result.error ?? result.note}
+                </p>
+              ) : null}
+
+              {result.steps?.length ? (
+                <ChainTraceView steps={result.steps} />
+              ) : null}
+
+              {result.reasoning_comparison ? (
+                <FinQAReasoningComparisonView
+                  comparison={result.reasoning_comparison}
+                  agentReasoning={result.reasoning}
+                />
+              ) : result.reasoning ? (
                 <div className="mt-4 rounded-xl bg-[#f4f7fb] px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
                     Reasoning

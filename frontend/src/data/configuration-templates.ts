@@ -1,3 +1,4 @@
+import { promptStepForRole } from "@/lib/prompt-chain"
 import type {
   AgentConfiguration,
   ConfigurationEdge,
@@ -6,6 +7,7 @@ import type {
   ConfigurationNodeType,
   LayerType,
   ModelProvider,
+  PromptStepSettings,
 } from "@/types/configuration"
 
 const now = () => new Date().toISOString()
@@ -48,6 +50,7 @@ function model(
   provider: ModelProvider,
   modelName: string,
   role?: string,
+  promptStep?: PromptStepSettings,
 ): ConfigurationNode {
   return {
     ...node(
@@ -63,6 +66,8 @@ function model(
       model: modelName,
       temperature: 0.5,
     },
+
+    promptStep,
 
     metadata: {
       role,
@@ -166,32 +171,35 @@ export const promptChainingTemplate: AgentConfiguration = {
 
     model(
       "chain-1",
-      "Agent 1",
+      "Researcher",
       "agents",
       0,
       "openai",
       "gpt-4o-mini",
-      "Step 1",
+      "Researcher",
+      promptStepForRole("researcher"),
     ),
 
     model(
       "chain-2",
-      "Agent 2",
+      "Analyst",
       "agents",
       1,
       "openai",
       "gpt-4o-mini",
-      "Step 2",
+      "Analyst",
+      promptStepForRole("analyst"),
     ),
 
     model(
       "chain-3",
-      "Agent 3",
+      "Verifier",
       "agents",
       2,
       "openai",
       "gpt-4o-mini",
-      "Step 3",
+      "Verifier",
+      promptStepForRole("verifier"),
     ),
 
     node(

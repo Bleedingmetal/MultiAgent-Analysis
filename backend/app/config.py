@@ -30,6 +30,9 @@ def settings() -> dict:
         # safety rails (cheap MVP defaults)
         "max_completion_tokens": int(os.getenv("MAX_COMPLETION_TOKENS", "600")),
         "max_prompt_chars": int(os.getenv("MAX_PROMPT_CHARS", "6000")),
+        # System prompts are rendered from role templates in prompt chains.
+        "max_system_chars": int(os.getenv("MAX_SYSTEM_CHARS", "3000")),
+        "max_chain_steps": int(os.getenv("MAX_CHAIN_STEPS", "6")),
         "daily_budget_usd": float(os.getenv("DAILY_BUDGET_USD", "1.00")),
         "max_runs_per_day": int(os.getenv("MAX_RUNS_PER_DAY", "25")),
         "min_seconds_between_runs": float(

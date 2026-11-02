@@ -6,6 +6,7 @@ import NodePalette from "@/components/builder/node-palette"
 import PropertiesPanel from "@/components/builder/properties-panel"
 import type { ConfigurationBuilderState } from "@/hooks/use-configuration-builder"
 import { isNodeCompatibleWithLayer } from "@/lib/configuration-validation"
+import { MAX_CHAIN_STEPS, chainAgents } from "@/lib/prompt-chain"
 
 interface Props {
   builder: ConfigurationBuilderState
@@ -15,6 +16,9 @@ export default function BuilderCanvas({ builder }: Props) {
   const selectedLayer = builder.configuration.layers.find(
     (layer) => layer.id === builder.selectedLayerId,
   )
+  const isPromptChain =
+    builder.configuration.architecture === "prompt-chaining"
+  const chainCount = chainAgents(builder.configuration).length
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
@@ -41,7 +45,23 @@ export default function BuilderCanvas({ builder }: Props) {
             layers={builder.configuration.layers}
             nodes={builder.configuration.nodes}
             selectedNodeId={builder.selectedNodeId}
+            architecture={builder.configuration.architecture}
             onSelect={builder.setSelectedNodeId}
+            onMoveNode={
+              isPromptChain ? builder.moveChainAgent : undefined
+            }
+            onAddAgent={
+              isPromptChain
+                ? () =>
+                    builder.addComponent({
+                      label: "GPT Agent",
+                      type: "model",
+                      provider: "openai",
+                      model: "gpt-4o-mini",
+                    })
+                : undefined
+            }
+            canAddAgent={chainCount < MAX_CHAIN_STEPS}
           />
         )}
 
@@ -69,6 +89,8 @@ export default function BuilderCanvas({ builder }: Props) {
                   : undefined
                 : undefined
             }
+            allowedTypes={isPromptChain ? ["model"] : undefined}
+            executableProvidersOnly={isPromptChain}
           />
         </div>
       </div>
@@ -76,10 +98,13 @@ export default function BuilderCanvas({ builder }: Props) {
       <div className="min-w-0 overflow-hidden rounded-2xl border border-border/80 bg-white lg:sticky lg:top-24 lg:self-start">
         <PropertiesPanel
           node={builder.selectedNode}
+          architecture={builder.configuration.architecture}
           canDelete={builder.canDeleteSelectedNode}
           onDelete={builder.deleteNode}
+          onUpdateName={builder.updateNodeName}
           onUpdateModel={builder.updateModel}
           onUpdateInstructions={builder.updateInstructions}
+          onUpdatePromptStep={builder.updatePromptStep}
         />
       </div>
     </div>

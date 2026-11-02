@@ -79,9 +79,24 @@ function iconFor(type: ConfigurationNodeType) {
 interface Props {
   onAdd: (item: PaletteItem) => void
   targetLabel?: string
+  allowedTypes?: ConfigurationNodeType[]
+  executableProvidersOnly?: boolean
 }
 
-export default function NodePalette({ onAdd, targetLabel }: Props) {
+export default function NodePalette({
+  onAdd,
+  targetLabel,
+  allowedTypes,
+  executableProvidersOnly,
+}: Props) {
+  const visible = items.filter((item) => {
+    if (allowedTypes && !allowedTypes.includes(item.type)) return false
+    if (executableProvidersOnly && item.type === "model") {
+      return item.provider === "openai"
+    }
+    return true
+  })
+
   return (
     <div className="p-4">
       <div className="mb-3 flex items-baseline justify-between gap-2">
@@ -93,7 +108,7 @@ export default function NodePalette({ onAdd, targetLabel }: Props) {
         ) : null}
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {items.map((item) => {
+        {visible.map((item) => {
           const Icon = iconFor(item.type)
           return (
             <button

@@ -1,13 +1,57 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
-export type RunMode = "single-agent" | "classify-plan"
+export type RunMode = "single-agent" | "classify-plan" | "prompt-chain"
 export type BenchmarkId = "finqa" | "tau-retail" | "fab"
 
 export type ClassifierPlan = {
   roles: string[]
   rationale: string
   suggested_layout: string
+}
+
+export type ChainStepTrace = {
+  id: string
+  run_id: string
+  index: number
+  node_id: string
+  name: string
+  role: string
+  objective?: string
+  provider: string
+  model: string
+  temperature: number
+  max_tokens: number
+  output_format?: "text" | "structured"
+  status: "completed" | "invalid_output" | "error" | "skipped"
+  include_task?: boolean
+  input_step_indexes?: number[]
+  system_prompt?: string
+  user_prompt?: string
+  prompt_truncated?: boolean
+  response?: string | null
+  structured_output?: Record<string, unknown> | null
+  parse_error?: string | null
+  error?: string | null
+  warnings?: string[]
+  prompt_tokens: number
+  completion_tokens: number
+  cost_usd: number
+  latency_sec: number
+  started_at?: string | null
+}
+
+export type FinQAReasoningComparison = {
+  expected_program: string
+  agent_program?: string | null
+  expected_steps: Record<string, unknown>[]
+  expected_evidence: string[]
+  expected_result?: string | null
+  agent_result?: string | null
+  program_exact_match?: boolean | null
+  operator_sequence_match?: boolean | null
+  execution_matches_expected?: boolean | null
+  parse_error?: string | null
 }
 
 export type RunConfiguration = {
@@ -38,6 +82,7 @@ export type RunResult = {
   expected_display?: string | null
   scored_answer?: string | null
   reasoning?: string | null
+  reasoning_comparison?: FinQAReasoningComparison | null
   answer: string
   success: boolean | null
   latency_sec: number
@@ -52,6 +97,8 @@ export type RunResult = {
   configuration?: RunConfiguration | null
   parent_run_id?: string | null
   status?: string
+  error?: string | null
+  steps?: ChainStepTrace[]
 }
 
 export type BenchmarkInfo = {

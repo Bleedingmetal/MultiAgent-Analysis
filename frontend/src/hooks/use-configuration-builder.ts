@@ -9,6 +9,14 @@ import {
   canDeleteConfigurationNode,
   isNodeCompatibleWithLayer,
 } from "@/lib/configuration-validation"
+import {
+  MAX_CHAIN_STEPS,
+  chainAgents,
+  hydratePromptChain,
+  promptStepForRole,
+  rebuildPromptChainEdges,
+  roleLabel,
+} from "@/lib/prompt-chain"
 import type {
   AgentConfiguration,
   ArchitectureType,
@@ -16,6 +24,8 @@ import type {
   ConfigurationNode,
   LayerType,
   ModelProvider,
+  PromptChainRole,
+  PromptStepSettings,
 } from "@/types/configuration"
 
 const LAYER_DEFAULTS: Record<LayerType, string> = {
@@ -64,10 +74,27 @@ function reindexLayers(layers: ConfigurationLayer[]) {
     .map((layer, index) => ({ ...layer, order: index }))
 }
 
+function applyChainGraph(configuration: AgentConfiguration): AgentConfiguration {
+  if (configuration.architecture !== "prompt-chaining") return configuration
+  const agentsLayer = configuration.layers.find((layer) => layer.type === "agents")
+  const nodes = normalizeLayerOrder(
+    configuration.nodes.map((node) =>
+      node.type === "model" && agentsLayer
+        ? { ...node, layerId: agentsLayer.id }
+        : node,
+    ),
+    agentsLayer?.id ?? "agents",
+  )
+  const next = { ...configuration, nodes }
+  return { ...next, edges: rebuildPromptChainEdges(next) }
+}
+
 export function useConfigurationBuilder(
   initialConfiguration?: AgentConfiguration,
 ) {
-  const initial = clone(initialConfiguration ?? singleAgentTemplate)
+  const initial = hydratePromptChain(
+    clone(initialConfiguration ?? singleAgentTemplate),
+  )
 
   const [configuration, setConfiguration] =
     useState<AgentConfiguration>(initial)
@@ -82,11 +109,19 @@ export function useConfigurationBuilder(
   const selectedNode = configuration.nodes.find(
     (node) => node.id === selectedNodeId,
   )
-  const canDeleteSelectedNode = canDeleteConfigurationNode(selectedNode)
+  const canDeleteSelectedNode =
+    canDeleteConfigurationNode(selectedNode) &&
+    !(
+      configuration.architecture === "prompt-chaining" &&
+      selectedNode?.type === "model" &&
+      chainAgents(configuration).length <= 1
+    )
   const isCustom = configuration.architecture === "custom"
 
   function loadTemplate(architecture: ArchitectureType) {
-    const template = clone(configurationTemplates[architecture])
+    const template = hydratePromptChain(
+      clone(configurationTemplates[architecture]),
+    )
     setConfiguration({
       ...template,
       id: configuration.id,
@@ -105,7 +140,12 @@ export function useConfigurationBuilder(
   }
 
   function addComponent(item: PaletteItem, layerId?: string) {
+    const chainLayerId =
+      configuration.architecture === "prompt-chaining" && item.type === "model"
+        ? configuration.layers.find((entry) => entry.type === "agents")?.id
+        : undefined
     const targetId =
+      chainLayerId ??
       layerId ??
       selectedLayerId ??
       configuration.layers
@@ -136,14 +176,20 @@ export function useConfigurationBuilder(
         model: item.model ?? "gpt-4o-mini",
         temperature: 0.5,
       }
+      if (configuration.architecture === "prompt-chaining") {
+        if (chainAgents(configuration).length >= MAX_CHAIN_STEPS) return
+        newNode.promptStep = promptStepForRole("custom")
+        newNode.name = `Agent ${siblingCount + 1}`
+      }
     }
 
-    setConfiguration({
+    const next: AgentConfiguration = {
       ...configuration,
       architecture: isCustom ? "custom" : configuration.architecture,
       nodes: [...configuration.nodes, newNode],
       updatedAt: new Date().toISOString(),
-    })
+    }
+    setConfiguration(applyChainGraph(next))
     setSelectedNodeId(newNode.id)
   }
 
@@ -152,7 +198,7 @@ export function useConfigurationBuilder(
     if (!canDeleteConfigurationNode(logicalNode)) return
 
     const layerId = logicalNode!.layerId
-    setConfiguration({
+    const next: AgentConfiguration = {
       ...configuration,
       nodes: normalizeLayerOrder(
         configuration.nodes.filter((node) => node.id !== nodeId),
@@ -162,7 +208,8 @@ export function useConfigurationBuilder(
         (edge) => edge.source !== nodeId && edge.target !== nodeId,
       ),
       updatedAt: new Date().toISOString(),
-    })
+    }
+    setConfiguration(applyChainGraph(next))
     setSelectedNodeId(null)
     if (linkSourceId === nodeId) setLinkSourceId(null)
   }
@@ -194,6 +241,88 @@ export function useConfigurationBuilder(
     }))
   }
 
+  function updateNodeName(nodeId: string, name: string) {
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) =>
+        node.id === nodeId
+          ? { ...node, name: name.trim() || node.name }
+          : node,
+      ),
+    }))
+  }
+
+  function updatePromptStep(
+    nodeId: string,
+    updates: Partial<PromptStepSettings>,
+    options?: { applyRoleDefaults?: boolean },
+  ) {
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) => {
+        if (node.id !== nodeId) return node
+        const currentStep = node.promptStep ?? promptStepForRole("custom")
+        const nextRole = (updates.role ?? currentStep.role) as PromptChainRole
+        const roleDefaults =
+          options?.applyRoleDefaults && nextRole
+            ? promptStepForRole(nextRole)
+            : currentStep
+        return {
+          ...node,
+          name: options?.applyRoleDefaults
+            ? roleLabel(nextRole)
+            : node.name,
+          promptStep: {
+            ...roleDefaults,
+            ...updates,
+            role: updates.role ?? roleDefaults.role,
+            inputs: {
+              ...roleDefaults.inputs,
+              ...currentStep.inputs,
+              ...updates.inputs,
+            },
+          },
+          metadata: {
+            ...node.metadata,
+            role: String(updates.role ?? roleDefaults.role),
+            instructions:
+              updates.instructions ??
+              roleDefaults.instructions ??
+              node.metadata?.instructions,
+          },
+        }
+      }),
+    }))
+  }
+
+  function moveChainAgent(nodeId: string, direction: -1 | 1) {
+    setConfiguration((current) => {
+      if (current.architecture !== "prompt-chaining") return current
+      const agents = chainAgents(current)
+      const index = agents.findIndex((node) => node.id === nodeId)
+      const swap = index + direction
+      if (index < 0 || swap < 0 || swap >= agents.length) return current
+      const orderedIds = agents.map((node) => node.id)
+      ;[orderedIds[index], orderedIds[swap]] = [
+        orderedIds[swap],
+        orderedIds[index],
+      ]
+      const orderMap = new Map(orderedIds.map((id, order) => [id, order]))
+      const next: AgentConfiguration = {
+        ...current,
+        updatedAt: new Date().toISOString(),
+        nodes: current.nodes.map((node) =>
+          orderMap.has(node.id)
+            ? { ...node, order: orderMap.get(node.id) ?? node.order }
+            : node,
+        ),
+      }
+      return applyChainGraph(next)
+    })
+  }
+
   function updateInstructions(nodeId: string, instructions: string) {
     setConfiguration((current) => ({
       ...current,
@@ -202,6 +331,9 @@ export function useConfigurationBuilder(
         node.id === nodeId
           ? {
               ...node,
+              promptStep: node.promptStep
+                ? { ...node.promptStep, instructions }
+                : node.promptStep,
               metadata: { ...node.metadata, instructions },
             }
           : node,
@@ -362,8 +494,12 @@ export function useConfigurationBuilder(
   }, [selectedNodeId, configuration, linkSourceId])
 
   function exportConfiguration(): AgentConfiguration {
+    const exported =
+      configuration.architecture === "prompt-chaining"
+        ? applyChainGraph(hydratePromptChain(clone(configuration)))
+        : clone(configuration)
     return {
-      ...clone(configuration),
+      ...exported,
       updatedAt: new Date().toISOString(),
     }
   }
@@ -383,6 +519,9 @@ export function useConfigurationBuilder(
     addComponent,
     deleteNode,
     updateModel,
+    updateNodeName,
+    updatePromptStep,
+    moveChainAgent,
     updateInstructions,
     addLayer,
     removeLayer,

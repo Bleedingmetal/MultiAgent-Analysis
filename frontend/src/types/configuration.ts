@@ -47,6 +47,24 @@ export interface ModelSettings {
   systemPrompt?: string
 }
 
+export type PromptChainRole = "researcher" | "analyst" | "verifier" | "custom"
+export type PromptChainPreviousOutputs = "none" | "last" | "all"
+export type PromptChainOutputFormat = "text" | "structured"
+
+export interface PromptStepInputs {
+  task: boolean
+  previousOutputs: PromptChainPreviousOutputs
+}
+
+export interface PromptStepSettings {
+  role: PromptChainRole | string
+  objective: string
+  instructions: string
+  promptTemplate: string
+  inputs: PromptStepInputs
+  outputFormat: PromptChainOutputFormat
+}
+
 export interface ConfigurationNode {
   id: string
   name: string
@@ -58,6 +76,7 @@ export interface ConfigurationNode {
   order: number
 
   modelSettings?: ModelSettings
+  promptStep?: PromptStepSettings
 
   metadata?: {
     role?: string
