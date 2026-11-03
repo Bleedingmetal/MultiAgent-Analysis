@@ -87,7 +87,7 @@ export function MetricTile({
   large,
 }: {
   label: string
-  value: string
+  value: ReactNode
   hint?: string
   className?: string
   large?: boolean

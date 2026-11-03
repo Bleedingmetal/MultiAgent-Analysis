@@ -271,7 +271,7 @@ export const routingTemplate: AgentConfiguration = {
       "agents",
       1,
       "anthropic",
-      "claude-sonnet-4-5",
+      "claude-sonnet-5-5",
       "Route B",
     ),
 
@@ -394,7 +394,7 @@ export const parallelizationTemplate: AgentConfiguration = {
       "agents",
       1,
       "anthropic",
-      "claude-sonnet-4-5",
+      "claude-sonnet-5-5",
       "Parallel Worker",
     ),
 
@@ -580,21 +580,15 @@ export const autonomousAgentTemplate: AgentConfiguration = {
       "Autonomous Agent",
     ),
 
-    node(
-      "tool-1",
-      "Tool",
-      "tool",
-      "tools",
-      0,
-    ),
+    {
+      ...node("tool-1", "Calculator", "tool", "tools", 0),
+      metadata: { tool: "calculator" },
+    },
 
-    node(
-      "tool-2",
-      "Tool",
-      "tool",
-      "tools",
-      1,
-    ),
+    {
+      ...node("tool-2", "Context Search", "tool", "tools", 1),
+      metadata: { tool: "context_search" },
+    },
 
     node(
       "final-answer",

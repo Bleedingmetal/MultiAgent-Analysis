@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import date
@@ -81,6 +82,37 @@ def end_run(*, cost_usd: float, ok: bool) -> None:
     _roll_day()
     _state.in_flight = False
     _state.last_run_at = time.time()
+    # Money spent before a mid-run failure is still spent.
+    _state.spend_usd += max(0.0, cost_usd)
     if ok:
         _state.run_count += 1
-        _state.spend_usd += max(0.0, cost_usd)
+
+
+@dataclass
+class RunMeter:
+    """Per-run LLM call / cost accounting, checked before every API round trip."""
+
+    cost_usd: float = 0.0
+    llm_calls: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def before_call(self) -> None:
+        s = settings()
+        with self._lock:
+            if self.llm_calls >= s["max_llm_calls_per_run"]:
+                raise RuntimeError(
+                    f"Run stopped: hit MAX_LLM_CALLS_PER_RUN ({s['max_llm_calls_per_run']})."
+                )
+            if self.cost_usd >= s["max_run_cost_usd"]:
+                raise RuntimeError(
+                    f"Run stopped: hit MAX_RUN_COST_USD (${s['max_run_cost_usd']:.2f})."
+                )
+            if _state.spend_usd + self.cost_usd >= s["daily_budget_usd"]:
+                raise RuntimeError(
+                    f"Run stopped: daily spend cap (${s['daily_budget_usd']:.2f}) reached mid-run."
+                )
+            self.llm_calls += 1
+
+    def add_cost(self, cost_usd: float) -> None:
+        with self._lock:
+            self.cost_usd += max(0.0, cost_usd)

@@ -364,7 +364,9 @@ def split_reasoning_and_answer(text: str) -> tuple[str | None, str]:
     Split model output into (reasoning, final_answer_span).
     Prefers explicit Reasoning: / Final answer: sections for auditability.
     """
-    raw = text.strip()
+    # Strip markdown emphasis/headings (Claude often writes "**Final answer:** 94")
+    raw = re.sub(r"\*\*|__", "", text)
+    raw = re.sub(r"(?m)^\s*#+\s*", "", raw).strip()
     if not raw:
         return None, ""
 

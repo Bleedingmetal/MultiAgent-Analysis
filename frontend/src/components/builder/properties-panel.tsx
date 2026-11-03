@@ -15,7 +15,35 @@ import {
   defaultModelForProvider,
   modelsForProvider,
 } from "@/lib/provider-models"
-import type { ConfigurationNode, ModelProvider } from "@/types/configuration"
+import type {
+  ConfigurationNode,
+  ConfigurationNodeType,
+  ModelProvider,
+} from "@/types/configuration"
+
+// Node types the backend runs as an LLM call
+const LLM_NODE_TYPES: ConfigurationNodeType[] = [
+  "model",
+  "router",
+  "parallel-controller",
+  "evaluator",
+  "aggregator",
+]
+
+const INHERIT = "inherit"
+
+const PROVIDER_LABELS: Record<string, string> = {
+  [INHERIT]: "Same as first agent",
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  google: "Google",
+  local: "Local",
+}
+
+const TOOL_OPTIONS = [
+  { id: "calculator", label: "Calculator" },
+  { id: "context_search", label: "Context search" },
+]
 
 interface Props {
   node?: ConfigurationNode
@@ -31,6 +59,11 @@ interface Props {
     },
   ) => void
   onUpdateInstructions: (nodeId: string, instructions: string) => void
+  onUpdateMetadata: (
+    nodeId: string,
+    updates: NonNullable<ConfigurationNode["metadata"]>,
+  ) => void
+  onClearModel: (nodeId: string) => void
 }
 
 export default function PropertiesPanel({
@@ -39,7 +72,12 @@ export default function PropertiesPanel({
   onDelete,
   onUpdateModel,
   onUpdateInstructions,
+  onUpdateMetadata,
+  onClearModel,
 }: Props) {
+  const runsLlm = !!node && LLM_NODE_TYPES.includes(node.type)
+  // Control nodes without settings inherit the first agent's model in the backend
+  const inherits = runsLlm && node?.type !== "model" && !node?.modelSettings
   const provider = node?.modelSettings?.provider ?? "openai"
   const modelOptions = modelsForProvider(provider)
   const currentModel = node?.modelSettings?.model ?? ""
@@ -65,13 +103,18 @@ export default function PropertiesPanel({
             <Input className="mt-2" value={node.name} readOnly />
           </div>
 
-          {node.type === "model" && node.modelSettings ? (
+          {runsLlm ? (
             <>
               <div>
                 <Label>Provider</Label>
                 <Select
-                  value={provider}
+                  items={PROVIDER_LABELS}
+                  value={inherits ? INHERIT : provider}
                   onValueChange={(value) => {
+                    if (value === INHERIT) {
+                      onClearModel(node.id)
+                      return
+                    }
                     const next = value as ModelProvider
                     onUpdateModel(node.id, {
                       provider: next,
@@ -83,6 +126,9 @@ export default function PropertiesPanel({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    {node.type !== "model" ? (
+                      <SelectItem value={INHERIT}>Same as first agent</SelectItem>
+                    ) : null}
                     <SelectItem value="openai">OpenAI</SelectItem>
                     <SelectItem value="anthropic">Anthropic</SelectItem>
                     <SelectItem value="google">Google</SelectItem>
@@ -91,13 +137,18 @@ export default function PropertiesPanel({
                 </Select>
               </div>
 
+              {!inherits ? (
+              <>
               <div>
                 <Label>Model</Label>
                 <Select
+                  items={Object.fromEntries(
+                    modelOptions.map((option) => [option.id, option.label]),
+                  )}
                   value={modelValue}
-                  onValueChange={(value) =>
-                    onUpdateModel(node.id, { model: value })
-                  }
+                  onValueChange={(value) => {
+                    if (value) onUpdateModel(node.id, { model: value })
+                  }}
                 >
                   <SelectTrigger className="mt-2 w-full">
                     <SelectValue placeholder="Select model" />
@@ -116,7 +167,12 @@ export default function PropertiesPanel({
                 <Label>System Prompt</Label>
                 <Textarea
                   className="mt-2 min-h-28"
-                  value={node.modelSettings.systemPrompt ?? ""}
+                  value={node.modelSettings?.systemPrompt ?? ""}
+                  placeholder={
+                    node.type === "model"
+                      ? "Empty = dataset default prompt"
+                      : "Optional extra guidance"
+                  }
                   onChange={(event) =>
                     onUpdateModel(node.id, {
                       systemPrompt: event.target.value,
@@ -124,7 +180,62 @@ export default function PropertiesPanel({
                   }
                 />
               </div>
+              </>
+              ) : null}
             </>
+          ) : null}
+
+          {node.type === "tool" ? (
+            <div>
+              <Label>Tool</Label>
+              <Select
+                items={Object.fromEntries(
+                  TOOL_OPTIONS.map((option) => [option.id, option.label]),
+                )}
+                value={
+                  typeof node.metadata?.tool === "string"
+                    ? node.metadata.tool
+                    : "calculator"
+                }
+                onValueChange={(value) =>
+                  onUpdateMetadata(node.id, { tool: value })
+                }
+              >
+                <SelectTrigger className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TOOL_OPTIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {node.type === "evaluator" ? (
+            <div>
+              <Label>Max rounds</Label>
+              <Input
+                className="mt-2"
+                type="number"
+                min={1}
+                max={6}
+                value={
+                  typeof node.metadata?.maxRounds === "number"
+                    ? node.metadata.maxRounds
+                    : 3
+                }
+                onChange={(event) => {
+                  const value = Number(event.target.value)
+                  if (Number.isFinite(value) && value >= 1) {
+                    onUpdateMetadata(node.id, { maxRounds: Math.min(6, value) })
+                  }
+                }}
+              />
+            </div>
           ) : null}
 
           <div>

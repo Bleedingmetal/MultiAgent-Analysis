@@ -23,6 +23,11 @@ class FinQATaskTests(unittest.TestCase):
 
         self.assertIn("153.7 and 139.9", task.context)
 
+    def test_markdown_bold_final_answer_is_scored(self) -> None:
+        text = "**Reasoning:** 5829 - 5735 = 94\n\n**Final answer:** $94 million"
+        self.assertEqual(final_answer_span(text), "$94 million")
+        self.assertTrue(score_answer("94.0", text))
+
     def test_final_answer_span_ignores_scratch_work(self) -> None:
         text = (
             "2005 was 92.7 and 2006 was 100.7 so change looks like 8.\n"

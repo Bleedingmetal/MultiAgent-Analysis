@@ -6,14 +6,10 @@ import uuid
 from datetime import datetime, timezone
 
 from app.config import settings
-from app.datasets.registry import (
-    Task,
-    score_answer,
-    split_reasoning_and_answer,
-    system_prompt_for,
-)
-from app.openai_client import chat_completion, estimate_cost
+from app.datasets.registry import Task, system_prompt_for
+from app.llm import complete, infer_provider
 from app.schemas import AgentConfiguration, ClassifierPlan, RunResult
+from app.spend_guard import RunMeter
 
 
 def _primary_model_node(config: AgentConfiguration):
@@ -21,18 +17,6 @@ def _primary_model_node(config: AgentConfiguration):
     if not models:
         return None
     return sorted(models, key=lambda n: n.order)[0]
-
-
-def _system_prompt(config: AgentConfiguration, benchmark_id: str) -> str:
-    # Dataset prompt is the source of truth so users only pick dataset + task.
-    return system_prompt_for(benchmark_id)
-
-
-def _temperature(config: AgentConfiguration) -> float:
-    node = _primary_model_node(config)
-    if node and node.modelSettings and node.modelSettings.temperature is not None:
-        return float(node.modelSettings.temperature)
-    return 0.5
 
 
 def _resolve_model(config: AgentConfiguration, model_override: str | None) -> str:
@@ -58,83 +42,16 @@ def _apply_prompt_and_model(
     for node in nodes:
         if node.get("type") == "model":
             settings = node.get("modelSettings") or {
-                "provider": "openai",
+                "provider": infer_provider(model),
                 "model": model,
                 "temperature": 0.5,
             }
-            settings["provider"] = "openai"
+            settings["provider"] = infer_provider(model)
             settings["model"] = model
             settings["systemPrompt"] = system_prompt
             node["modelSettings"] = settings
             break
     return AgentConfiguration.model_validate(data)
-
-
-def run_single_agent(
-    config: AgentConfiguration,
-    task: Task,
-    *,
-    model_override: str | None = None,
-    parent_run_id: str | None = None,
-) -> RunResult:
-    model = _resolve_model(config, model_override)
-    snapshot = _apply_prompt_and_model(config, model, system_prompt_for(task.benchmark_id))
-    system = _system_prompt(config, task.benchmark_id)
-    user = (
-        f"{task.context}\n\n"
-        f"Question:\n{task.question}\n\n"
-        "Reply in this format:\n"
-        "Reasoning: <your step-by-step thought process>\n"
-        "Final answer: <bare number, percentage like 6.76%, or $94 million>"
-    )
-    temp = _temperature(config)
-
-    t0 = time.perf_counter()
-    answer, prompt_tokens, completion_tokens = chat_completion(
-        system=system,
-        user=user,
-        temperature=temp,
-        model=model,
-    )
-    latency = time.perf_counter() - t0
-    reasoning, scored = split_reasoning_and_answer(answer)
-    if task.expected_answer is None and not scored:
-        scored = None
-    success = score_answer(task.expected_answer, answer)
-
-    return RunResult(
-        id=f"RUN-{uuid.uuid4().hex[:8].upper()}",
-        mode="single-agent",
-        benchmark_id=task.benchmark_id,
-        task_id=task.id,
-        configuration_id=config.id,
-        configuration_name=config.name,
-        architecture=config.architecture,
-        model=model,
-        temperature=temp,
-        question=task.question,
-        expected_answer=task.expected_answer,
-        expected_display=task.expected_display,
-        scored_answer=scored or None,
-        reasoning=reasoning,
-        answer=answer,
-        success=success,
-        latency_sec=round(latency, 3),
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        cost_usd=round(estimate_cost(prompt_tokens, completion_tokens), 6),
-        note=(
-            None
-            if success is not None
-            else "Open-ended task; success not auto-scored in MVP."
-        ),
-        created_at=datetime.now(timezone.utc).isoformat(),
-        system_prompt=system,
-        user_prompt=user,
-        configuration=snapshot,
-        parent_run_id=parent_run_id,
-        status="completed",
-    )
 
 
 CLASSIFIER_SYSTEM = """You plan multi-agent layouts for enterprise tasks.
@@ -149,6 +66,7 @@ def run_classifier_plan(
     config: AgentConfiguration,
     task: Task,
     *,
+    meter: RunMeter,
     model_override: str | None = None,
     parent_run_id: str | None = None,
 ) -> RunResult:
@@ -164,12 +82,17 @@ def run_classifier_plan(
     )
 
     t0 = time.perf_counter()
-    raw, prompt_tokens, completion_tokens = chat_completion(
+    llm_result = complete(
+        provider=infer_provider(model),
+        model=model,
         system=CLASSIFIER_SYSTEM,
         user=user,
         temperature=0.5,
-        model=model,
+        before_call=meter.before_call,
     )
+    meter.add_cost(llm_result.cost_usd)
+    raw = llm_result.text
+    prompt_tokens, completion_tokens = llm_result.prompt_tokens, llm_result.completion_tokens
     latency = time.perf_counter() - t0
 
     plan = ClassifierPlan(
@@ -211,7 +134,7 @@ def run_classifier_plan(
         latency_sec=round(latency, 3),
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        cost_usd=round(estimate_cost(prompt_tokens, completion_tokens), 6),
+        cost_usd=round(llm_result.cost_usd, 6),
         classifier_plan=plan,
         note="Classifier only. Specialist agents are not executed yet.",
         created_at=datetime.now(timezone.utc).isoformat(),
@@ -220,4 +143,5 @@ def run_classifier_plan(
         configuration=snapshot,
         parent_run_id=parent_run_id,
         status="completed",
+        llm_calls=llm_result.calls,
     )

@@ -5,7 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.datasets import registry
-from app.runners.execute import run_classifier_plan, run_single_agent
+from app.llm import providers_status
+from app.runners.execute import run_classifier_plan
+from app.runners.pipeline import run_pipeline
 from app.schemas import RunRequest, RunResult
 from app import spend_guard, store
 
@@ -22,11 +24,12 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health_check():
-    key = settings()["openai_api_key"]
+    providers = providers_status()
     return {
         "status": "ok",
         "model": settings()["openai_model"],
-        "openai_configured": bool(key) and not key.startswith("sk-your-key"),
+        "openai_configured": providers["openai"],
+        "providers": providers,
         "spend": spend_guard.status(),
         "require_confirm": settings()["require_confirm"],
     }
@@ -60,8 +63,10 @@ async def get_tasks(benchmark_id: str, limit: int = 20):
     }
 
 
+# Sync handler: FastAPI runs it in a worker thread, so multi-call runs
+# don't block other requests (health, run history) while they execute.
 @app.post("/api/runs", response_model=RunResult)
-async def create_run(body: RunRequest):
+def create_run(body: RunRequest):
     if settings()["require_confirm"] and not body.confirm:
         raise HTTPException(
             status_code=400,
@@ -79,31 +84,24 @@ async def create_run(body: RunRequest):
         raise HTTPException(status_code=429, detail=str(exc)) from exc
 
     ok = False
-    cost = 0.0
+    meter = spend_guard.RunMeter()
     try:
-        if body.mode == "classify-plan":
-            result = run_classifier_plan(
-                body.configuration,
-                task,
-                model_override=body.model_override,
-                parent_run_id=body.parent_run_id,
-            )
-        else:
-            result = run_single_agent(
-                body.configuration,
-                task,
-                model_override=body.model_override,
-                parent_run_id=body.parent_run_id,
-            )
-        cost = result.cost_usd
+        runner = run_classifier_plan if body.mode == "classify-plan" else run_pipeline
+        result = runner(
+            body.configuration,
+            task,
+            meter=meter,
+            model_override=body.model_override,
+            parent_run_id=body.parent_run_id,
+        )
         ok = True
         return store.add_run(result)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"OpenAI error: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"LLM provider error: {exc}") from exc
     finally:
-        spend_guard.end_run(cost_usd=cost, ok=ok)
+        spend_guard.end_run(cost_usd=meter.cost_usd, ok=ok)
 
 
 @app.get("/api/runs")

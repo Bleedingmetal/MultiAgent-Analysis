@@ -6,6 +6,7 @@ import { CaretDown, MagnifyingGlass, Play, Sparkle } from "@phosphor-icons/react
 import {
   type BenchmarkId,
   type BenchmarkInfo,
+  type ProviderId,
   type RunMode,
   type RunResult,
   createRun,
@@ -18,30 +19,6 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 type SpendInfo = NonNullable<Awaited<ReturnType<typeof getHealth>>["spend"]>
-
-function withDatasetPrompt(
-  configuration: AgentConfiguration,
-  systemPrompt: string,
-): AgentConfiguration {
-  const nodes = configuration.nodes.map((node, index) => {
-    const isPrimaryModel =
-      node.type === "model" &&
-      index ===
-        configuration.nodes.findIndex((n) => n.type === "model")
-    if (!isPrimaryModel) return node
-    return {
-      ...node,
-      modelSettings: {
-        provider: node.modelSettings?.provider ?? "openai",
-        model: node.modelSettings?.model ?? "gpt-4o-mini",
-        temperature: node.modelSettings?.temperature ?? 0.2,
-        maxTokens: node.modelSettings?.maxTokens,
-        systemPrompt,
-      },
-    }
-  })
-  return { ...configuration, nodes }
-}
 
 export function ConfigRunPanel({
   configuration,
@@ -65,7 +42,9 @@ export function ConfigRunPanel({
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<RunResult | null>(null)
   const [apiOk, setApiOk] = useState<boolean | null>(null)
-  const [openaiOk, setOpenaiOk] = useState<boolean | null>(null)
+  const [providers, setProviders] = useState<Record<ProviderId, boolean> | null>(
+    null,
+  )
   const [spend, setSpend] = useState<SpendInfo | null>(null)
 
   const activeBenchmark = benchmarks.find((b) => b.id === benchmarkId)
@@ -74,7 +53,13 @@ export function ConfigRunPanel({
   async function refreshHealth() {
     const health = await getHealth()
     setApiOk(true)
-    setOpenaiOk(health.openai_configured)
+    setProviders(
+      health.providers ?? {
+        openai: health.openai_configured,
+        anthropic: false,
+        google: false,
+      },
+    )
     setSpend(health.spend ?? null)
     return health
   }
@@ -97,7 +82,7 @@ export function ConfigRunPanel({
       } catch {
         if (!cancelled) {
           setApiOk(false)
-          setOpenaiOk(false)
+          setProviders(null)
         }
       }
     })()
@@ -152,11 +137,8 @@ export function ConfigRunPanel({
     setBusy(mode)
     setError(null)
     try {
-      const configForRun = systemPrompt
-        ? withDatasetPrompt(configuration, systemPrompt)
-        : configuration
       const res = await createRun({
-        configuration: configForRun,
+        configuration,
         mode,
         benchmark_id: benchmarkId,
         task_id: taskId || null,
@@ -175,10 +157,12 @@ export function ConfigRunPanel({
     }
   }
 
+  const anyProvider = providers != null && Object.values(providers).some(Boolean)
+
   const blocked =
     !!busy ||
     !apiOk ||
-    !openaiOk ||
+    !anyProvider ||
     !taskId ||
     (spend != null &&
       (spend.remaining_runs <= 0 || spend.remaining_budget_usd <= 0))
@@ -200,15 +184,23 @@ export function ConfigRunPanel({
               />
               API
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  openaiOk ? "bg-mm-green" : "bg-mm-orange",
-                )}
-              />
-              OpenAI
-            </span>
+            {(
+              [
+                ["openai", "OpenAI"],
+                ["anthropic", "Anthropic"],
+                ["google", "Google"],
+              ] as const
+            ).map(([id, label]) => (
+              <span key={id} className="inline-flex items-center gap-1.5">
+                <span
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    providers?.[id] ? "bg-mm-green" : "bg-mm-orange",
+                  )}
+                />
+                {label}
+              </span>
+            ))}
             {spend ? (
               <span>
                 ${spend.spend_usd.toFixed(4)} · {spend.run_count}/
@@ -363,7 +355,8 @@ export function ConfigRunPanel({
               </p>
               <div className="rounded-2xl border border-border/70 bg-[#f4f7fb] px-4 py-3">
                 <p className="text-[12px] text-muted-foreground">
-                  Autofilled from {activeBenchmark?.name ?? "dataset"}
+                  {activeBenchmark?.name ?? "Dataset"} default · used by agents
+                  without their own system prompt
                 </p>
                 <p className="mt-2 text-[13px] leading-relaxed text-mm-dark">
                   {systemPrompt}
@@ -376,12 +369,10 @@ export function ConfigRunPanel({
             <button
               type="button"
               disabled={blocked}
-              onClick={() => run("single-agent")}
+              onClick={() => run("pipeline")}
               className="island-cta disabled:pointer-events-none disabled:opacity-50"
             >
-              <span>
-                {busy === "single-agent" ? "Running…" : "Run single-agent"}
-              </span>
+              <span>{busy === "pipeline" ? "Running…" : "Run"}</span>
               <span className="island-cta-icon" aria-hidden>
                 <Play className="size-3.5" weight="fill" />
               </span>
@@ -407,11 +398,15 @@ export function ConfigRunPanel({
           {result ? (
             <div className="rounded-2xl border border-border/70 bg-white p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <p className="font-data text-[11px] tracking-wide text-mm-blue">
-                  {result.id}
-                </p>
+                <a
+                  href={`/runs/${result.id}`}
+                  className="font-data text-[11px] tracking-wide text-mm-blue hover:underline"
+                >
+                  {result.id} · trace
+                </a>
                 <p className="font-data text-[12px] text-muted-foreground">
                   {result.latency_sec}s · ${result.cost_usd.toFixed(5)} ·{" "}
+                  {result.llm_calls ? `${result.llm_calls} calls · ` : null}
                   {result.model}
                 </p>
               </div>
@@ -427,7 +422,7 @@ export function ConfigRunPanel({
                 </p>
               ) : (
                 <p className="mt-4 text-[28px] font-semibold tracking-tight text-mm-dark">
-                  Plan
+                  {result.mode === "classify-plan" ? "Plan" : "Done"}
                 </p>
               )}
 

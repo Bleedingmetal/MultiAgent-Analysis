@@ -7,16 +7,19 @@ import { ArrowLeft, Copy, Play } from "@phosphor-icons/react"
 
 import { Bezel, Reveal } from "@/components/product/ui-bits"
 import { Button } from "@/components/ui/button"
+import { RunTrace } from "@/components/product/run-trace"
 import { createRun, getRun, type RunResult } from "@/lib/api"
 import { cloneConfigurationFromSnapshot } from "@/lib/configuration-storage"
+import { PROVIDER_MODELS } from "@/lib/provider-models"
 import type { AgentConfiguration } from "@/types/configuration"
 
+// "" = keep each node's configured model
+const KEEP_MODELS = ""
 const MODEL_OPTIONS = [
-  "gpt-4o-mini",
-  "gpt-4.1-mini",
-  "gpt-4o",
-  "gpt-4.1",
-]
+  ...PROVIDER_MODELS.openai,
+  ...PROVIDER_MODELS.anthropic,
+  ...PROVIDER_MODELS.google,
+].map((m) => m.id)
 
 function formatWhen(iso: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -33,7 +36,7 @@ export default function RunDetailPage() {
   const [run, setRun] = useState<RunResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [model, setModel] = useState("gpt-4o-mini")
+  const [model, setModel] = useState(KEEP_MODELS)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -45,7 +48,6 @@ export default function RunDetailPage() {
         const res = await getRun(id)
         if (cancelled) return
         setRun(res)
-        setModel(res.model || "gpt-4o-mini")
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Run not found")
@@ -91,7 +93,7 @@ export default function RunDetailPage() {
         mode: run.mode,
         benchmark_id: run.benchmark_id,
         task_id: run.task_id,
-        model_override: model,
+        model_override: model || null,
         parent_run_id: run.id,
         confirm: true,
       })
@@ -170,7 +172,7 @@ export default function RunDetailPage() {
             </p>
           ) : (
             <p className="text-[32px] font-semibold tracking-tight text-mm-dark">
-              Plan
+              {run.mode === "classify-plan" ? "Plan" : "Done"}
             </p>
           )}
         </div>
@@ -180,10 +182,11 @@ export default function RunDetailPage() {
         {[
           ["Config", run.configuration_name],
           ["Benchmark", run.benchmark_id],
-          ["Model", run.model],
+          ["Models", run.model],
           ["Cost", `$${run.cost_usd.toFixed(5)}`],
           ["Latency", `${run.latency_sec}s`],
           ["Tokens", `${run.prompt_tokens} → ${run.completion_tokens}`],
+          ["LLM calls", String(run.llm_calls ?? 1)],
           ["Architecture", run.architecture],
           ["Task", run.task_id],
         ].map(([label, value]) => (
@@ -251,6 +254,12 @@ export default function RunDetailPage() {
         </Bezel>
       </Reveal>
 
+      {run.steps && run.steps.length > 0 ? (
+        <Reveal delay={0.09}>
+          <RunTrace steps={run.steps} />
+        </Reveal>
+      ) : null}
+
       {(run.system_prompt || run.user_prompt) && (
         <Reveal delay={0.1} className="grid gap-4 lg:grid-cols-2">
           {run.system_prompt ? (
@@ -282,7 +291,7 @@ export default function RunDetailPage() {
             Clone & rerun
           </h3>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Change the model, save a config copy, or rerun the same task.
+            Rerun the same task, optionally forcing every node onto one model.
           </p>
 
           <label className="mt-4 block max-w-sm space-y-1.5">
@@ -294,13 +303,12 @@ export default function RunDetailPage() {
               onChange={(e) => setModel(e.target.value)}
               className="h-11 w-full rounded-xl border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/35"
             >
-              {[model, ...MODEL_OPTIONS.filter((m) => m !== model)].map(
-                (m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ),
-              )}
+              <option value={KEEP_MODELS}>Keep configured models</option>
+              {MODEL_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  All nodes → {m}
+                </option>
+              ))}
             </select>
           </label>
 

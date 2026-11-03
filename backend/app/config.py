@@ -2,16 +2,26 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+# Explicit path: a bare load_dotenv() searches from the cwd in uvicorn's reload
+# worker, missing backend/.env and silently keeping stale OS-level keys.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
+
+
+def key_configured(key: str) -> bool:
+    """True when a real key is set (not empty / not the .env.example placeholder)."""
+    return bool(key) and "your-key" not in key
 
 
 @lru_cache
 def settings() -> dict:
     return {
         "openai_api_key": os.getenv("OPENAI_API_KEY", ""),
+        "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY", ""),
+        "google_api_key": os.getenv("GOOGLE_API_KEY", ""),
         "openai_model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         "cors_origins": [
             o.strip()
@@ -22,7 +32,7 @@ def settings() -> dict:
             ).split(",")
             if o.strip()
         ],
-        # gpt-4o-mini approximate USD / 1M tokens
+        # Fallback USD / 1M tokens for models missing from app.pricing
         "price_input_per_mtok": float(os.getenv("PRICE_INPUT_PER_MTOK", "0.15")),
         "price_output_per_mtok": float(
             os.getenv("PRICE_OUTPUT_PER_MTOK", "0.60")
@@ -37,4 +47,12 @@ def settings() -> dict:
         ),
         "require_confirm": os.getenv("REQUIRE_CONFIRM", "true").lower()
         in {"1", "true", "yes"},
+        # multi-agent pipeline limits
+        "max_llm_calls_per_run": int(os.getenv("MAX_LLM_CALLS_PER_RUN", "24")),
+        "max_run_cost_usd": float(os.getenv("MAX_RUN_COST_USD", "0.25")),
+        "max_tool_steps": int(os.getenv("MAX_TOOL_STEPS", "6")),
+        # Claude 5.x thinks by default and thinking tokens count toward max_tokens,
+        # so Claude calls get this floor instead of MAX_COMPLETION_TOKENS.
+        "anthropic_max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "4000")),
+        "max_eval_rounds": int(os.getenv("MAX_EVAL_ROUNDS", "3")),
     }

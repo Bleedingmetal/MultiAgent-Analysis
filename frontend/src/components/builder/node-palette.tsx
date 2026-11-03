@@ -27,7 +27,7 @@ const items: PaletteItem[] = [
     label: "Claude Agent",
     type: "model",
     provider: "anthropic",
-    model: "claude-sonnet-4-5",
+    model: "claude-sonnet-5-5",
   },
   {
     label: "Gemini Agent",

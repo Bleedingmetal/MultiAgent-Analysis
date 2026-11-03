@@ -1,13 +1,36 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
-export type RunMode = "single-agent" | "classify-plan"
+// "single-agent" appears on runs recorded before the pipeline engine.
+export type RunMode = "pipeline" | "single-agent" | "classify-plan"
+export type ProviderId = "openai" | "anthropic" | "google"
 export type BenchmarkId = "finqa" | "tau-retail" | "fab"
 
 export type ClassifierPlan = {
   roles: string[]
   rationale: string
   suggested_layout: string
+}
+
+export type TraceStep = {
+  index: number
+  node_id: string
+  node_name: string
+  node_type: string
+  kind: "agent" | "router" | "controller" | "evaluator" | "aggregator" | "vote"
+  provider?: string | null
+  model?: string | null
+  round: number
+  system_prompt?: string | null
+  user_prompt?: string | null
+  output: string
+  decision?: Record<string, unknown> | null
+  tool_calls: { name: string; arguments: Record<string, unknown>; result: string }[]
+  llm_calls: number
+  prompt_tokens: number
+  completion_tokens: number
+  cost_usd: number
+  latency_sec: number
 }
 
 export type RunConfiguration = {
@@ -52,6 +75,8 @@ export type RunResult = {
   configuration?: RunConfiguration | null
   parent_run_id?: string | null
   status?: string
+  steps?: TraceStep[]
+  llm_calls?: number
 }
 
 export type BenchmarkInfo = {
@@ -101,6 +126,7 @@ export function getHealth() {
     status: string
     model: string
     openai_configured: boolean
+    providers?: Record<ProviderId, boolean>
     require_confirm?: boolean
     spend?: {
       day: string

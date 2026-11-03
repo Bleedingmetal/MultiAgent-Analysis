@@ -80,6 +80,8 @@ export default function BuilderCanvas({ builder }: Props) {
           onDelete={builder.deleteNode}
           onUpdateModel={builder.updateModel}
           onUpdateInstructions={builder.updateInstructions}
+          onUpdateMetadata={builder.updateMetadata}
+          onClearModel={builder.clearModel}
         />
       </div>
     </div>

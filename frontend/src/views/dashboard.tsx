@@ -1,20 +1,26 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useMemo, useState } from "react"
-import { ArrowRight } from "@phosphor-icons/react"
-import { motion, useReducedMotion } from "motion/react"
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { ArrowRight } from "@phosphor-icons/react";
+import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 
 import {
   Bezel,
   DeltaPill,
   IslandLink,
   MetricTile,
-  Reveal,
-  RevealInView,
   SectionTitle,
-} from "@/components/product/ui-bits"
-import { Button } from "@/components/ui/button"
+} from "@/components/product/ui-bits";
+import {
+  CountUp,
+  Enter,
+  HeroDrift,
+  ScrollBar,
+  Settle,
+  Swap,
+} from "@/components/product/scroll-motion";
+import { Button } from "@/components/ui/button";
 import {
   architectures,
   benchmarks,
@@ -27,13 +33,13 @@ import {
   recentRuns,
   taskRegimes,
   type ComparisonRow,
-} from "@/data/evaluation-mock"
+} from "@/data/evaluation-mock";
 
-type MetricKey = "success" | "costPerSuccess" | "latencySec"
+type MetricKey = "success" | "costPerSuccess" | "latencySec";
 
 const matrixArms = architectures.filter(
   (a) => a.id === "single-agent" || a.id === "orchestrator-workers",
-)
+);
 
 function heatBackground(
   metric: MetricKey,
@@ -41,41 +47,35 @@ function heatBackground(
   min: number,
   max: number,
 ) {
-  const span = max - min || 1
-  const t = (value - min) / span
-  const score = metric === "success" ? t : 1 - t
-  const alpha = 0.07 + score * 0.38
-  return `rgba(2, 101, 255, ${alpha.toFixed(3)})`
+  const span = max - min || 1;
+  const t = (value - min) / span;
+  const score = metric === "success" ? t : 1 - t;
+  const alpha = 0.07 + score * 0.38;
+  return `rgba(2, 101, 255, ${alpha.toFixed(3)})`;
 }
 
 function formatMetric(metric: MetricKey, value: number) {
-  if (metric === "success") return formatPct(value)
-  if (metric === "costPerSuccess") return formatUsd(value)
-  return formatLatency(value)
-}
-
-function onHeatMove(e: React.MouseEvent<HTMLButtonElement>) {
-  const rect = e.currentTarget.getBoundingClientRect()
-  e.currentTarget.style.setProperty("--mx", `${e.clientX - rect.left}px`)
-  e.currentTarget.style.setProperty("--my", `${e.clientY - rect.top}px`)
+  if (metric === "success") return formatPct(value);
+  if (metric === "costPerSuccess") return formatUsd(value);
+  return formatLatency(value);
 }
 
 export default function Dashboard() {
-  const reduce = useReducedMotion()
-  const [metric, setMetric] = useState<MetricKey>("success")
+  const reduce = useReducedMotion();
+  const [metric, setMetric] = useState<MetricKey>("success");
   const [selected, setSelected] = useState<{
-    benchmarkId: string
-    architectureId: string
+    benchmarkId: string;
+    architectureId: string;
   }>({
     benchmarkId: "fab",
     architectureId: "orchestrator-workers",
-  })
+  });
 
   const selectedRow = comparisonRows.find(
     (r) =>
       r.benchmarkId === selected.benchmarkId &&
       r.architectureId === selected.architectureId,
-  )!
+  )!;
 
   const counterpart = comparisonRows.find(
     (r) =>
@@ -84,41 +84,39 @@ export default function Dashboard() {
         (selected.architectureId === "single-agent"
           ? "orchestrator-workers"
           : "single-agent"),
-  )
+  );
 
   const ranges = useMemo(() => {
     const values = comparisonRows
       .filter((r) => matrixArms.some((a) => a.id === r.architectureId))
-      .map((r) => r[metric])
+      .map((r) => r[metric]);
     return {
       min: Math.min(...values),
       max: Math.max(...values),
-    }
-  }, [metric])
+    };
+  }, [metric]);
 
   const kpi = useMemo(() => {
     const focus = comparisonRows.filter((r) =>
       matrixArms.some((a) => a.id === r.architectureId),
-    )
+    );
     const avg = (key: MetricKey) =>
-      focus.reduce((sum, row) => sum + row[key], 0) / focus.length
+      focus.reduce((sum, row) => sum + row[key], 0) / focus.length;
     return {
       success: avg("success"),
       cost: avg("costPerSuccess"),
       latency: avg("latencySec"),
-    }
-  }, [])
+    };
+  }, []);
 
   const fabLift =
     (comparisonRows.find(
       (r) =>
-        r.benchmarkId === "fab" &&
-        r.architectureId === "orchestrator-workers",
+        r.benchmarkId === "fab" && r.architectureId === "orchestrator-workers",
     )?.success ?? 0) -
     (comparisonRows.find(
-      (r) =>
-        r.benchmarkId === "fab" && r.architectureId === "single-agent",
-    )?.success ?? 0)
+      (r) => r.benchmarkId === "fab" && r.architectureId === "single-agent",
+    )?.success ?? 0);
 
   const tauSlow =
     (comparisonRows.find(
@@ -128,9 +126,8 @@ export default function Dashboard() {
     )?.latencySec ?? 0) /
     (comparisonRows.find(
       (r) =>
-        r.benchmarkId === "tau-retail" &&
-        r.architectureId === "single-agent",
-    )?.latencySec ?? 1)
+        r.benchmarkId === "tau-retail" && r.architectureId === "single-agent",
+    )?.latencySec ?? 1);
 
   function cell(
     benchmarkId: string,
@@ -138,48 +135,53 @@ export default function Dashboard() {
   ): ComparisonRow | undefined {
     return comparisonRows.find(
       (r) =>
-        r.benchmarkId === benchmarkId &&
-        r.architectureId === architectureId,
-    )
+        r.benchmarkId === benchmarkId && r.architectureId === architectureId,
+    );
   }
 
-  const selectedBench = getBenchmark(selected.benchmarkId)
-  const selectedArch = getArchitecture(selected.architectureId)
+  const selectedBench = getBenchmark(selected.benchmarkId);
+  const selectedArch = getArchitecture(selected.architectureId);
 
   return (
     <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-10">
-      <Reveal className="flex flex-wrap items-end justify-between gap-6">
-        <div className="max-w-xl">
-          <h2 className="text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] text-mm-dark md:text-[42px]">
-            Architecture tradeoffs
-          </h2>
-          <p className="mt-3 max-w-[42ch] text-[15px] leading-relaxed text-muted-foreground">
-            Select a matrix cell to inspect success, cost, and latency for that
-            architecture on that benchmark.
-          </p>
-        </div>
-        <IslandLink href="/compare">Open full compare</IslandLink>
-      </Reveal>
+      <HeroDrift>
+        <Enter className="flex flex-wrap items-end justify-between gap-6">
+          <div className="max-w-xl">
+            <h2 className="text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] text-mm-dark md:text-[42px]">
+              Architecture tradeoffs
+            </h2>
+            <p className="mt-3 max-w-[42ch] text-[15px] leading-relaxed text-muted-foreground">
+              Select a matrix cell to inspect success, cost, and latency for
+              that architecture on that benchmark.
+            </p>
+          </div>
+          <IslandLink href="/compare">Open full compare</IslandLink>
+        </Enter>
+      </HeroDrift>
 
       <div className="grid gap-4 lg:grid-cols-12">
-        <Reveal delay={0.06} className="lg:col-span-5">
+        <Enter order={1} className="lg:col-span-5">
           <MetricTile
             large
             label="Mean success"
-            value={formatPct(kpi.success)}
+            value={
+              <CountUp value={kpi.success} format={formatPct} delay={0.4} />
+            }
             hint="Single + orchestrator across three benchmarks"
             className="h-full"
           />
-        </Reveal>
-        <Reveal delay={0.1} className="grid gap-4 sm:grid-cols-2 lg:col-span-7">
+        </Enter>
+        <Enter order={2} className="grid gap-4 sm:grid-cols-2 lg:col-span-7">
           <MetricTile
             label="Mean cost / success"
-            value={formatUsd(kpi.cost)}
+            value={<CountUp value={kpi.cost} format={formatUsd} delay={0.5} />}
             hint="Lower when budget is the constraint"
           />
           <MetricTile
             label="Mean latency"
-            value={formatLatency(kpi.latency)}
+            value={
+              <CountUp value={kpi.latency} format={formatLatency} delay={0.6} />
+            }
             hint="Critical for human-facing tool use"
           />
           <div className="surface flex flex-col justify-between p-5 sm:col-span-2">
@@ -200,10 +202,10 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        </Reveal>
+        </Enter>
       </div>
 
-      <Reveal delay={0.14} className="grid gap-4 xl:grid-cols-12">
+      <Settle className="grid gap-4 xl:grid-cols-12">
         <Bezel className="xl:col-span-8" coreClassName="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-5 py-4">
             <div>
@@ -214,25 +216,39 @@ export default function Dashboard() {
                 Heat encodes the selected metric
               </p>
             </div>
-            <div className="seg-track">
-              {(
-                [
-                  ["success", "Success"],
-                  ["costPerSuccess", "Cost"],
-                  ["latencySec", "Latency"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  data-active={metric === key}
-                  className="seg-item"
-                  onClick={() => setMetric(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <LayoutGroup id="overview-metric">
+              <div className="seg-track">
+                {(
+                  [
+                    ["success", "Success"],
+                    ["costPerSuccess", "Cost"],
+                    ["latencySec", "Latency"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    data-active={metric === key}
+                    className="seg-item relative"
+                    onClick={() => setMetric(key)}
+                  >
+                    {metric === key ? (
+                      <motion.span
+                        layoutId="seg-thumb"
+                        className="seg-thumb"
+                        transition={
+                          reduce
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 420, damping: 38 }
+                        }
+                        aria-hidden
+                      />
+                    ) : null}
+                    <span className="relative z-[1]">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </LayoutGroup>
           </div>
 
           <div className="overflow-x-auto p-5">
@@ -252,7 +268,7 @@ export default function Dashboard() {
                 </div>
               ))}
 
-              {benchmarks.map((bench, bi) => (
+              {benchmarks.map((bench) => (
                 <div key={bench.id} className="contents">
                   <div className="flex items-center pr-2">
                     <div>
@@ -264,17 +280,18 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  {matrixArms.map((arm, ai) => {
-                    const row = cell(bench.id, arm.id)
-                    if (!row) return <div key={arm.id} />
+                  {matrixArms.map((arm) => {
+                    const row = cell(bench.id, arm.id);
+                    if (!row) return <div key={arm.id} />;
                     const active =
                       selected.benchmarkId === bench.id &&
-                      selected.architectureId === arm.id
+                      selected.architectureId === arm.id;
                     return (
-                      <motion.button
+                      <button
                         key={arm.id}
                         type="button"
                         data-selected={active}
+                        aria-pressed={active}
                         className="heat-cell rounded-2xl border border-border/60 px-3.5 py-3.5 text-left"
                         style={{
                           background: heatBackground(
@@ -284,18 +301,6 @@ export default function Dashboard() {
                             ranges.max,
                           ),
                         }}
-                        initial={
-                          reduce
-                            ? false
-                            : { opacity: 0, scale: 0.96 }
-                        }
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{
-                          delay: 0.18 + bi * 0.05 + ai * 0.03,
-                          duration: 0.45,
-                          ease: [0.16, 1, 0.3, 1],
-                        }}
-                        onMouseMove={onHeatMove}
                         onClick={() =>
                           setSelected({
                             benchmarkId: bench.id,
@@ -303,9 +308,12 @@ export default function Dashboard() {
                           })
                         }
                       >
-                        <p className="relative z-[1] font-data text-[20px] font-medium text-mm-dark">
+                        <Swap
+                          k={metric}
+                          className="relative z-[1] block font-data text-[20px] font-medium text-mm-dark"
+                        >
                           {formatMetric(metric, row[metric])}
-                        </p>
+                        </Swap>
                         <p className="relative z-[1] mt-1.5 text-[11px] text-mm-dark/60">
                           {metric === "success"
                             ? `${formatUsd(row.costPerSuccess)} · ${formatLatency(row.latencySec)}`
@@ -313,8 +321,8 @@ export default function Dashboard() {
                               ? `${formatPct(row.success)} · ${formatLatency(row.latencySec)}`
                               : `${formatPct(row.success)} · ${formatUsd(row.costPerSuccess)}`}
                         </p>
-                      </motion.button>
-                    )
+                      </button>
+                    );
                   })}
                 </div>
               ))}
@@ -323,7 +331,10 @@ export default function Dashboard() {
         </Bezel>
 
         <aside className="xl:col-span-4">
-          <Bezel className="h-full xl:sticky xl:top-24" coreClassName="flex h-full flex-col overflow-hidden">
+          <Bezel
+            className="h-full xl:sticky xl:top-24"
+            coreClassName="flex h-full flex-col overflow-hidden"
+          >
             <div className="border-b border-border/70 px-5 py-4">
               <p className="text-[12px] font-medium text-muted-foreground">
                 Selected cell
@@ -337,25 +348,48 @@ export default function Dashboard() {
             </div>
 
             <div className="flex flex-1 flex-col gap-4 px-5 py-5">
-              <div className="grid grid-cols-3 gap-2">
+              <ul className="space-y-3">
                 {(
                   [
-                    ["Success", formatPct(selectedRow.success)],
-                    ["Cost", formatUsd(selectedRow.costPerSuccess)],
-                    ["Latency", formatLatency(selectedRow.latencySec)],
+                    [
+                      "Success",
+                      formatPct(selectedRow.success),
+                      selectedRow.success / 100,
+                    ],
+                    [
+                      "Cost / success",
+                      formatUsd(selectedRow.costPerSuccess),
+                      selectedRow.costPerSuccess / 0.1,
+                    ],
+                    [
+                      "Latency",
+                      formatLatency(selectedRow.latencySec),
+                      selectedRow.latencySec / 25,
+                    ],
                   ] as const
-                ).map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl bg-muted/70 px-2.5 py-3"
-                  >
-                    <p className="text-[11px] text-muted-foreground">{label}</p>
-                    <p className="mt-1 font-data text-sm font-medium text-mm-dark">
-                      {value}
-                    </p>
-                  </div>
+                ).map(([label, value, ratio]) => (
+                  <li key={label}>
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="text-muted-foreground">{label}</span>
+                      <Swap
+                        k={`${selected.benchmarkId}-${selected.architectureId}`}
+                        className="font-data font-medium text-mm-dark"
+                      >
+                        {value}
+                      </Swap>
+                    </div>
+                    <span
+                      className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-muted"
+                      aria-hidden
+                    >
+                      <ScrollBar
+                        ratio={ratio}
+                        className="block h-full rounded-full bg-mm-charge"
+                      />
+                    </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
 
               {counterpart ? (
                 <div className="rounded-2xl border border-border/80 bg-[#f7f9fc] p-4">
@@ -402,9 +436,7 @@ export default function Dashboard() {
               <div className="mt-auto pt-2">
                 <Button
                   render={
-                    <Link
-                      href={`/compare?benchmark=${selected.benchmarkId}`}
-                    />
+                    <Link href={`/compare?benchmark=${selected.benchmarkId}`} />
                   }
                   variant="outline"
                   className="h-10 w-full rounded-full border-border/80 text-sm"
@@ -416,23 +448,17 @@ export default function Dashboard() {
             </div>
           </Bezel>
         </aside>
-      </Reveal>
+      </Settle>
 
-      <RevealInView>
+      <Settle as="section">
         <SectionTitle title="Task types" />
         <div className="grid gap-4 lg:grid-cols-3">
           {taskRegimes.map((regime, i) => (
-            <motion.div
+            <Settle
               key={regime.id}
+              as="article"
+              delay={i * 0.4}
               className="surface-interactive p-5"
-              initial={reduce ? false : { opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{
-                delay: i * 0.06,
-                duration: 0.55,
-                ease: [0.16, 1, 0.3, 1],
-              }}
             >
               <p className="text-[15px] font-semibold tracking-tight text-mm-dark">
                 {regime.title}
@@ -458,12 +484,12 @@ export default function Dashboard() {
                   </span>
                 </p>
               </div>
-            </motion.div>
+            </Settle>
           ))}
         </div>
-      </RevealInView>
+      </Settle>
 
-      <RevealInView>
+      <Settle as="section">
         <SectionTitle
           title="Recent runs"
           action={
@@ -491,8 +517,8 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {recentRuns.slice(0, 5).map((run) => {
-                const bench = getBenchmark(run.benchmarkId)
-                const arch = getArchitecture(run.architectureId)
+                const bench = getBenchmark(run.benchmarkId);
+                const arch = getArchitecture(run.architectureId);
                 return (
                   <tr
                     key={run.id}
@@ -517,12 +543,12 @@ export default function Dashboard() {
                       {formatLatency(run.latencySec)}
                     </td>
                   </tr>
-                )
+                );
               })}
             </tbody>
           </table>
         </Bezel>
-      </RevealInView>
+      </Settle>
     </div>
-  )
+  );
 }

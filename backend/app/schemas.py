@@ -38,7 +38,8 @@ class AgentConfiguration(BaseModel):
 
 class RunRequest(BaseModel):
     configuration: AgentConfiguration
-    mode: Literal["single-agent", "classify-plan"] = "single-agent"
+    # "single-agent" is accepted from older clients and runs through the pipeline engine.
+    mode: Literal["pipeline", "single-agent", "classify-plan"] = "pipeline"
     benchmark_id: Literal["finqa", "tau-retail", "fab"] = "finqa"
     task_id: str | None = None
     confirm: bool = False
@@ -50,6 +51,32 @@ class ClassifierPlan(BaseModel):
     roles: list[str]
     rationale: str
     suggested_layout: str
+
+
+class TraceStep(BaseModel):
+    """One node activation in a pipeline run (audit trail)."""
+
+    index: int
+    node_id: str
+    node_name: str
+    node_type: str
+    # agent | router | controller | evaluator | aggregator | vote
+    kind: str
+    provider: str | None = None
+    model: str | None = None
+    # >1 when an evaluator sent the node back for revision
+    round: int = 1
+    system_prompt: str | None = None
+    user_prompt: str | None = None
+    output: str = ""
+    # Structured decision: route chosen, subtask assignments, verdict, vote tally
+    decision: dict[str, Any] | None = None
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    llm_calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost_usd: float = 0.0
+    latency_sec: float = 0.0
 
 
 class RunResult(BaseModel):
@@ -86,3 +113,5 @@ class RunResult(BaseModel):
     configuration: AgentConfiguration | None = None
     parent_run_id: str | None = None
     status: str = "completed"
+    steps: list[TraceStep] = Field(default_factory=list)
+    llm_calls: int = 0

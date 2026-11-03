@@ -185,7 +185,7 @@ export function useConfigurationBuilder(
           ...node,
           modelSettings: {
             provider: node.modelSettings?.provider ?? "openai",
-            model: node.modelSettings?.model ?? "GPT",
+            model: node.modelSettings?.model ?? "gpt-4o-mini",
             ...node.modelSettings,
             ...updates,
           },
@@ -195,6 +195,13 @@ export function useConfigurationBuilder(
   }
 
   function updateInstructions(nodeId: string, instructions: string) {
+    updateMetadata(nodeId, { instructions })
+  }
+
+  function updateMetadata(
+    nodeId: string,
+    updates: NonNullable<ConfigurationNode["metadata"]>,
+  ) {
     setConfiguration((current) => ({
       ...current,
       updatedAt: new Date().toISOString(),
@@ -202,9 +209,19 @@ export function useConfigurationBuilder(
         node.id === nodeId
           ? {
               ...node,
-              metadata: { ...node.metadata, instructions },
+              metadata: { ...node.metadata, ...updates },
             }
           : node,
+      ),
+    }))
+  }
+
+  function clearModel(nodeId: string) {
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) =>
+        node.id === nodeId ? { ...node, modelSettings: undefined } : node,
       ),
     }))
   }
@@ -384,6 +401,8 @@ export function useConfigurationBuilder(
     deleteNode,
     updateModel,
     updateInstructions,
+    updateMetadata,
+    clearModel,
     addLayer,
     removeLayer,
     moveLayer,

@@ -181,8 +181,6 @@
 
 .surface-interactive:hover {
   border-color: rgba(2, 101, 255, 0.28);
-  box-shadow: var(--shadow-lift);
-  transform: translateY(-2px);
 }
 
 .grain {
@@ -206,29 +204,8 @@
     border-color 240ms var(--ease-soft);
 }
 
-.heat-cell::after {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  opacity: 0;
-  background: radial-gradient(
-    120px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(255, 255, 255, 0.55),
-    transparent 55%
-  );
-  transition: opacity 220ms var(--ease-soft);
-}
-
-.heat-cell:hover::after {
-  opacity: 1;
-}
-
 .heat-cell:hover {
-  transform: translateY(-2px);
   border-color: rgba(2, 101, 255, 0.35);
-  box-shadow: var(--shadow-lift);
 }
 
 .heat-cell[data-selected="true"] {
@@ -255,11 +232,15 @@
 }
 
 .seg-item[data-active="true"] {
-  background: white;
   color: var(--color-mm-dark);
-  box-shadow:
-    0 1px 2px rgba(0, 46, 107, 0.06),
-    0 4px 12px rgba(0, 23, 53, 0.06);
+}
+
+.seg-thumb {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: white;
+  box-shadow: 0 1px 2px rgba(0, 46, 107, 0.06);
 }
 
 .island-cta {
@@ -273,16 +254,11 @@
   font-size: 13px;
   font-weight: 550;
   letter-spacing: -0.01em;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.18) inset,
-    0 10px 28px rgba(2, 101, 255, 0.28);
+  box-shadow: 0 6px 18px rgba(2, 101, 255, 0.18);
 }
 
 .island-cta:hover {
   background: #0058e6;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.18) inset,
-    0 14px 32px rgba(2, 101, 255, 0.34);
 }
 
 .island-cta-icon {
