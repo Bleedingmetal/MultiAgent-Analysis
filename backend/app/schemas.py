@@ -205,6 +205,8 @@ class RunResult(BaseModel):
     # Model thought process / scratch work (audit trail).
     reasoning: str | None = None
     reasoning_comparison: FinQAReasoningComparison | None = None
+    # FinQA's gold program and its own step annotation disagree for this question.
+    label_disputed: bool = False
     # Full raw model output (includes reasoning + final answer).
     answer: str
     success: bool | None = None
@@ -227,3 +229,84 @@ class RunResult(BaseModel):
     # pipeline runs. The two have disjoint required fields, so validation is unambiguous.
     steps: list[ChainStepTrace | TraceStep] = Field(default_factory=list)
     llm_calls: int = 0
+
+
+BatchStatus = Literal[
+    "running", "completed", "stopped", "cancelled", "interrupted", "failed"
+]
+BatchItemStatus = Literal["pending", "running", "passed", "failed", "unscored", "error", "skipped"]
+
+
+class BatchRequest(BaseModel):
+    configuration: AgentConfiguration
+    mode: Literal["pipeline", "prompt-chain", "routing"] = "pipeline"
+    benchmark_id: Literal["finqa"] = "finqa"
+    # Number of questions; None = the whole dataset.
+    size: int | None = Field(default=25, ge=1)
+    # Stop starting new questions once the batch has spent this much.
+    budget_usd: float = Field(default=1.0, gt=0)
+    concurrency: int = Field(default=4, ge=1, le=8)
+    confirm: bool = False
+
+
+class BatchItem(BaseModel):
+    index: int
+    task_id: str
+    question: str
+    expected_display: str | None = None
+    status: BatchItemStatus = "pending"
+    run_id: str | None = None
+    scored_answer: str | None = None
+    success: bool | None = None
+    # FinQA: did the agent's Program line execute to the expected result?
+    program_match: bool | None = None
+    label_disputed: bool = False
+    cost_usd: float = 0.0
+    latency_sec: float = 0.0
+    error: str | None = None
+
+
+class BatchSummary(BaseModel):
+    total: int = 0
+    done: int = 0
+    passed: int = 0
+    failed: int = 0
+    errors: int = 0
+    skipped: int = 0
+    # passed / (passed + failed); errors are reported separately, not hidden in it.
+    pass_rate: float | None = None
+    cost_usd: float = 0.0
+    avg_cost_usd: float | None = None
+    # $ spent per correct answer (whole batch cost / passes).
+    cost_per_pass_usd: float | None = None
+    # Average cost per question x total, while running.
+    projected_cost_usd: float | None = None
+    avg_latency_sec: float | None = None
+    p50_latency_sec: float | None = None
+    p95_latency_sec: float | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    program_match_rate: float | None = None
+    # Questions whose FinQA label contradicts itself (either answer is accepted).
+    disputed: int = 0
+    elapsed_sec: float = 0.0
+
+
+class BatchRun(BaseModel):
+    id: str
+    configuration_id: str
+    configuration_name: str
+    architecture: str
+    mode: str
+    benchmark_id: str
+    size: int
+    budget_usd: float
+    concurrency: int
+    status: BatchStatus = "running"
+    stop_reason: str | None = None
+    created_at: str
+    finished_at: str | None = None
+    models: list[str] = Field(default_factory=list)
+    summary: BatchSummary = Field(default_factory=BatchSummary)
+    configuration: AgentConfiguration | None = None
+    items: list[BatchItem] = Field(default_factory=list)

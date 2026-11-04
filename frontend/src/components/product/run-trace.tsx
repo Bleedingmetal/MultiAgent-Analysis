@@ -1,6 +1,7 @@
 "use client"
 
 import { Bezel } from "@/components/product/ui-bits"
+import { AgentOutputView } from "@/components/product/reasoning-steps"
 import type { TraceStep } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -44,9 +45,6 @@ export function RunTrace({ steps }: { steps: TraceStep[] }) {
   return (
     <Bezel coreClassName="p-5">
       <h3 className="text-[15px] font-semibold text-mm-dark">Trace</h3>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        Every node activation in execution order.
-      </p>
       <ol className="mt-4 space-y-2.5">
         {steps.map((step) => {
           const summary = decisionSummary(step)
@@ -92,7 +90,7 @@ export function RunTrace({ steps }: { steps: TraceStep[] }) {
                 <div className="border-t border-border/70 px-4 py-3">
                   {step.tool_calls.length > 0 ? (
                     <div className="mb-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
+                      <p className="text-[12px] font-medium text-muted-foreground">
                         Tool calls
                       </p>
                       <ul className="mt-2 space-y-1 font-data text-[12px] text-mm-dark/90">
@@ -107,7 +105,7 @@ export function RunTrace({ steps }: { steps: TraceStep[] }) {
                   ) : null}
                   {step.decision && step.kind === "controller" ? (
                     <div className="mb-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
+                      <p className="text-[12px] font-medium text-muted-foreground">
                         Assignments
                       </p>
                       <Pre>
@@ -117,16 +115,20 @@ export function RunTrace({ steps }: { steps: TraceStep[] }) {
                   ) : null}
                   {step.decision && step.kind === "vote" ? (
                     <div className="mb-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
+                      <p className="text-[12px] font-medium text-muted-foreground">
                         Tally
                       </p>
                       <Pre>{JSON.stringify(step.decision.tally, null, 2)}</Pre>
                     </div>
                   ) : null}
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
-                    Output
-                  </p>
-                  <Pre>{step.output || "(no output)"}</Pre>
+                  <AgentOutputView
+                    raw={step.output}
+                    answerLabel={
+                      step.kind === "agent" || step.kind === "aggregator"
+                        ? "Conclusion"
+                        : "Decision"
+                    }
+                  />
                   {step.system_prompt ? (
                     <details className="mt-3">
                       <summary className="cursor-pointer text-[12px] font-medium text-muted-foreground">

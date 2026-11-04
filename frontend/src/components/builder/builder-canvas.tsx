@@ -7,6 +7,7 @@ import PropertiesPanel from "@/components/builder/properties-panel"
 import type { ConfigurationBuilderState } from "@/hooks/use-configuration-builder"
 import { isNodeCompatibleWithLayer } from "@/lib/configuration-validation"
 import { MAX_CHAIN_STEPS, chainAgents } from "@/lib/prompt-chain"
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "@/lib/provider-models"
 import { MAX_ROUTES, routeAgents } from "@/lib/routing"
 
 interface Props {
@@ -57,10 +58,10 @@ export default function BuilderCanvas({ builder }: Props) {
               isPromptChain
                 ? () =>
                     builder.addComponent({
-                      label: "GPT Agent",
+                      label: "Claude Agent",
                       type: "model",
-                      provider: "openai",
-                      model: "gpt-4o-mini",
+                      provider: DEFAULT_PROVIDER,
+                      model: DEFAULT_MODEL,
                     })
                 : undefined
             }
@@ -69,10 +70,10 @@ export default function BuilderCanvas({ builder }: Props) {
               isRouting
                 ? () =>
                     builder.addComponent({
-                      label: "GPT Agent",
+                      label: "Claude Agent",
                       type: "model",
-                      provider: "openai",
-                      model: "gpt-4o-mini",
+                      provider: DEFAULT_PROVIDER,
+                      model: DEFAULT_MODEL,
                     })
                 : undefined
             }

@@ -141,12 +141,12 @@ export default function Compare() {
             <col className="w-[18%]" />
           </colgroup>
           <thead>
-            <tr className="border-b border-border/70 text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+            <tr className="border-b border-border/70 text-[12px] text-muted-foreground">
               <th className="px-4 py-2.5 font-medium">#</th>
               <th className="px-4 py-2.5 font-medium">Architecture</th>
               <th
                 className={cn(
-                  "px-4 py-2.5 font-medium",
+                  "px-4 py-2.5 text-right font-medium",
                   metric === "success" && "text-mm-blue",
                 )}
               >
@@ -154,7 +154,7 @@ export default function Compare() {
               </th>
               <th
                 className={cn(
-                  "px-4 py-2.5 font-medium",
+                  "px-4 py-2.5 text-right font-medium",
                   metric === "costPerSuccess" && "text-mm-blue",
                 )}
               >
@@ -162,7 +162,7 @@ export default function Compare() {
               </th>
               <th
                 className={cn(
-                  "px-4 py-2.5 font-medium",
+                  "px-4 py-2.5 text-right font-medium",
                   metric === "latencySec" && "text-mm-blue",
                 )}
               >
@@ -202,7 +202,7 @@ export default function Compare() {
                   </td>
                   <td
                     className={cn(
-                      "px-4 py-3 font-data",
+                      "px-4 py-3 text-right font-data",
                       metric === "success" && "font-medium text-mm-dark",
                     )}
                   >
@@ -210,7 +210,7 @@ export default function Compare() {
                   </td>
                   <td
                     className={cn(
-                      "px-4 py-3 font-data",
+                      "px-4 py-3 text-right font-data",
                       metric === "costPerSuccess" && "font-medium text-mm-dark",
                     )}
                   >
@@ -218,7 +218,7 @@ export default function Compare() {
                   </td>
                   <td
                     className={cn(
-                      "px-4 py-3 font-data",
+                      "px-4 py-3 text-right font-data",
                       metric === "latencySec" && "font-medium text-mm-dark",
                     )}
                   >

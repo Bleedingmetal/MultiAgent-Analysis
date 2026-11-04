@@ -1,3 +1,4 @@
+import { providerForModel } from "@/lib/provider-models"
 import {
   singleAgentTemplate,
 } from "@/data/configuration-templates"
@@ -164,7 +165,7 @@ export function cloneConfigurationFromSnapshot(
     const modelNode = cloned.nodes.find((n) => n.type === "model")
     if (modelNode) {
       modelNode.modelSettings = {
-        provider: "openai",
+        provider: providerForModel(options.modelOverride),
         model: options.modelOverride,
         temperature: modelNode.modelSettings?.temperature ?? 0.2,
         maxTokens: modelNode.modelSettings?.maxTokens,

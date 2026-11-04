@@ -115,6 +115,7 @@ export type RunResult = {
   scored_answer?: string | null
   reasoning?: string | null
   reasoning_comparison?: FinQAReasoningComparison | null
+  label_disputed?: boolean
   answer: string
   success: boolean | null
   latency_sec: number
@@ -240,4 +241,110 @@ export function listRuns(limit = 50) {
 
 export function getRun(runId: string) {
   return api<RunResult>(`/api/runs/${runId}`)
+}
+
+// ---- End-to-end (batch) runs ----
+
+export type BatchStatus =
+  | "running"
+  | "completed"
+  | "stopped"
+  | "cancelled"
+  | "interrupted"
+  | "failed"
+
+export type BatchItemStatus =
+  | "pending"
+  | "running"
+  | "passed"
+  | "failed"
+  | "unscored"
+  | "error"
+  | "skipped"
+
+export type BatchItem = {
+  index: number
+  task_id: string
+  question: string
+  expected_display?: string | null
+  status: BatchItemStatus
+  run_id?: string | null
+  scored_answer?: string | null
+  success?: boolean | null
+  program_match?: boolean | null
+  label_disputed?: boolean
+  cost_usd: number
+  latency_sec: number
+  error?: string | null
+}
+
+export type BatchSummary = {
+  total: number
+  done: number
+  passed: number
+  failed: number
+  errors: number
+  skipped: number
+  pass_rate?: number | null
+  cost_usd: number
+  avg_cost_usd?: number | null
+  cost_per_pass_usd?: number | null
+  projected_cost_usd?: number | null
+  avg_latency_sec?: number | null
+  p50_latency_sec?: number | null
+  p95_latency_sec?: number | null
+  prompt_tokens: number
+  completion_tokens: number
+  program_match_rate?: number | null
+  disputed?: number
+  elapsed_sec: number
+}
+
+export type BatchRun = {
+  id: string
+  configuration_id: string
+  configuration_name: string
+  architecture: string
+  mode: string
+  benchmark_id: string
+  size: number
+  budget_usd: number
+  concurrency: number
+  status: BatchStatus
+  stop_reason?: string | null
+  created_at: string
+  finished_at?: string | null
+  models: string[]
+  summary: BatchSummary
+  // Snapshot of the configuration that ran (absent in list responses)
+  configuration?: RunConfiguration | null
+  items: BatchItem[]
+}
+
+export function createBatch(body: {
+  configuration: unknown
+  mode: RunMode
+  benchmark_id: BenchmarkId
+  size: number | null
+  budget_usd: number
+  concurrency?: number
+}) {
+  return api<BatchRun>("/api/batches", {
+    method: "POST",
+    body: JSON.stringify({ confirm: true, ...body }),
+  })
+}
+
+export function listBatches(configurationId?: string, limit = 20) {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (configurationId) query.set("configuration_id", configurationId)
+  return api<{ batches: BatchRun[] }>(`/api/batches?${query}`)
+}
+
+export function getBatch(batchId: string) {
+  return api<BatchRun>(`/api/batches/${batchId}`)
+}
+
+export function cancelBatch(batchId: string) {
+  return api<BatchRun>(`/api/batches/${batchId}/cancel`, { method: "POST" })
 }

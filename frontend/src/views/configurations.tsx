@@ -275,9 +275,6 @@ export default function Configurations() {
         <h2 className="text-[28px] font-semibold tracking-tight text-mm-dark">
           Configurations
         </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Build agent architectures for evaluation.
-        </p>
       </div>
 
       <div

@@ -27,7 +27,7 @@ def get_client() -> None:
 def estimate_cost(
     prompt_tokens: int, completion_tokens: int, model: str | None = None
 ) -> float:
-    return cost_usd(model or settings()["openai_model"], prompt_tokens, completion_tokens)
+    return cost_usd(model or settings()["default_model"], prompt_tokens, completion_tokens)
 
 
 def truncate_prompt(text: str, max_chars: int | None = None) -> str:
@@ -47,7 +47,7 @@ def chat_completion(
     max_tokens: int | None = None,
 ) -> tuple[str, int, int]:
     s = settings()
-    used_model = model or s["openai_model"]
+    used_model = model or s["default_model"]
     provider = infer_provider(used_model)
     require_provider(provider, used_model)
     # A per-call value can lower the spend-safety cap but never raise it.

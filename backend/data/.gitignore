@@ -4,3 +4,4 @@ fab/public.csv
 fab/public.txt
 tau_bench/tasks_test_retail.py
 runs/history.jsonl
+batches/

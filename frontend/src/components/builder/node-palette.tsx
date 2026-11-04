@@ -2,6 +2,7 @@
 
 import { Bot, Combine, GitBranch, GitFork, Plus, Repeat2, Wrench } from "lucide-react"
 
+import { DEFAULT_MODEL } from "@/lib/provider-models"
 import type {
   ConfigurationNodeType,
   ModelProvider,
@@ -18,16 +19,16 @@ export interface PaletteItem {
 
 const items: PaletteItem[] = [
   {
+    label: "Claude Agent",
+    type: "model",
+    provider: "anthropic",
+    model: DEFAULT_MODEL,
+  },
+  {
     label: "GPT Agent",
     type: "model",
     provider: "openai",
     model: "gpt-4o-mini",
-  },
-  {
-    label: "Claude Agent",
-    type: "model",
-    provider: "anthropic",
-    model: "claude-sonnet-5-5",
   },
   {
     label: "Gemini Agent",

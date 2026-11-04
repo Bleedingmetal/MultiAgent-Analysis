@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "@/lib/provider-models"
 import type {
   AgentConfiguration,
   ConfigurationEdge,
@@ -148,8 +149,8 @@ export function hydrateRouting(
   const nodes = configuration.nodes.map((node) => {
     if (node.type === "router") {
       const ms = node.modelSettings ?? {
-        provider: "openai" as const,
-        model: "gpt-4o-mini",
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
         temperature: 0.2,
       }
       return {

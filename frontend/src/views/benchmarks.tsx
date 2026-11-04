@@ -14,9 +14,6 @@ export default function Benchmarks() {
           <h2 className="text-[32px] font-semibold tracking-[-0.03em] text-mm-dark md:text-[38px]">
             Benchmarks
           </h2>
-          <p className="mt-2 max-w-[42ch] text-[15px] text-muted-foreground">
-            Task sets that force different architecture tradeoffs.
-          </p>
         </div>
         <IslandLink href="/compare">Compare</IslandLink>
       </Reveal>
@@ -46,7 +43,7 @@ export default function Benchmarks() {
                     Checker: {bench.checker}
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-mm-dark to-[#002a5c] p-6 text-white">
+                <div className="bg-mm-dark p-6 text-white">
                   <p className="text-[12px] text-mm-light/80">
                     Example use case
                   </p>

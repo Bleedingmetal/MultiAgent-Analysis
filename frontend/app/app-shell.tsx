@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { BackgroundField } from "@/components/product/background-field"
 import {
   SidebarInset,
   SidebarProvider,
@@ -14,6 +15,7 @@ const pageTitles: Record<string, string> = {
   "/compare": "Compare",
   "/benchmarks": "Benchmarks",
   "/configurations": "Configurations",
+  "/agent-prompts": "Agent prompts",
   "/runs": "Runs",
 }
 
@@ -24,28 +26,25 @@ export function AppShell({
 }>) {
   const pathname = usePathname()
 
+  // Deeper pages take their section's name (/runs/e2e/… is under Runs)
+  const section = Object.keys(pageTitles).find(
+    (path) => path !== "/" && pathname.startsWith(path),
+  )
   const title =
-    pageTitles[pathname] ??
-    (pathname.startsWith("/configurations")
-      ? "Configuration"
-      : "Agent Evaluation")
+    pageTitles[pathname] ?? (section ? pageTitles[section] : "Agent Evaluation")
 
   return (
     <SidebarProvider>
-      <div className="grain" aria-hidden />
+      <BackgroundField />
       <AppSidebar />
-      <SidebarInset className="bg-transparent">
-        <header className="sticky top-0 z-10">
-          <div className="mx-3 mt-3 rounded-2xl border border-border/70 bg-white/75 shadow-[0_8px_30px_rgba(0,23,53,0.04)] backdrop-blur-xl md:mx-5 md:mt-4">
-            <div className="flex h-14 items-center gap-3 px-4 md:px-5">
-              <SidebarTrigger className="text-mm-blue" />
-              <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-mm-dark">
-                {title}
-              </h1>
-            </div>
-          </div>
+      <SidebarInset className="relative z-[1] min-w-0 bg-transparent">
+        <header className="flex h-14 items-center gap-3 px-4 md:px-8">
+          <SidebarTrigger className="-ml-1.5 text-mm-blue" />
+          <h1 className="min-w-0 flex-1 truncate text-[14px] font-medium text-muted-foreground">
+            {title}
+          </h1>
         </header>
-        <main className="flex-1 px-4 py-7 md:px-8 md:py-9">{children}</main>
+        <main className="min-w-0 flex-1 px-4 pt-2 pb-12 md:px-8">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   )

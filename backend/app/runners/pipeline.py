@@ -39,7 +39,14 @@ from app.datasets.registry import (
     split_reasoning_and_answer,
     system_prompt_for,
 )
-from app.llm import LLMResult, complete, infer_provider, require_provider
+from app.llm import (
+    LLMResult,
+    complete,
+    default_model_for,
+    default_provider,
+    infer_provider,
+    require_provider,
+)
 from app.runners.execute import score_task_output
 from app.runners.tools import build_toolset, tool_kind_for
 from app.schemas import (
@@ -50,10 +57,6 @@ from app.schemas import (
 )
 from app.spend_guard import RunMeter
 
-DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-5-5",
-    "google": "gemini-2.5-flash",
-}
 # Placeholder names the builder may store instead of a real model id
 _GENERIC_MODEL_NAMES = {"gpt", "claude", "gemini", "model", ""}
 
@@ -61,11 +64,13 @@ LLM_NODE_TYPES = {"model", "router", "parallel-controller", "evaluator", "aggreg
 
 INTERMEDIATE_NOTE = (
     "You are one step in a multi-agent pipeline. Your output is passed to the next agent, "
-    "not shown to the user. Do your part thoroughly and state any figures you rely on."
+    "not shown to the user. Do your part thoroughly and state any figures you rely on. "
+    "Write your working as short numbered steps, each on its own line."
 )
 WORKER_NOTE = (
     "You are one of several parallel workers. Your output will be combined with the other "
-    "workers' outputs by an aggregator. Focus on your assignment."
+    "workers' outputs by an aggregator. Focus on your assignment and write your "
+    "working as short numbered steps, each on its own line."
 )
 
 ROUTER_SYSTEM = (
@@ -222,14 +227,14 @@ class PipelineRun:
         default = self.default_model_node.modelSettings if self.default_model_node else None
         control = node.type != "model"
         provider = (ms.provider if ms and ms.provider else None) or (
-            default.provider if default and default.provider else "openai"
+            default.provider if default and default.provider else default_provider()
         )
         model = (ms.model if ms and ms.model else None)
         if ms is None or not ms.provider:
             # Control node without its own settings inherits the first agent's model
             model = default.model if default else None
         if not model or model.strip().lower() in _GENERIC_MODEL_NAMES:
-            model = DEFAULT_MODELS.get(provider, self.s["openai_model"])
+            model = default_model_for(provider)
         if self.override:
             model = self.override
             provider = infer_provider(model)
@@ -645,6 +650,7 @@ def run_pipeline(
         scored_answer=scored.scored_answer,
         reasoning=scored.reasoning,
         reasoning_comparison=scored.comparison,
+        label_disputed=scored.label_disputed,
         answer=final.text,
         success=scored.success,
         latency_sec=round(latency, 3),

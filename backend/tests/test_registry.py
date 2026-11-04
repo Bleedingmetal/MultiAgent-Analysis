@@ -99,6 +99,96 @@ class FinQATaskTests(unittest.TestCase):
             score_answer("0.14464", "15%", expected_is_percent=True)
         )
 
+    def test_percentage_rounding_slip_within_tolerance_passes(self) -> None:
+        # FinQA 0.09302 = 9.302%; 9.31% is a last-digit rounding slip, not a wrong answer
+        self.assertTrue(
+            score_answer("0.09302", "9.31%", expected_is_percent=True)
+        )
+        self.assertFalse(
+            score_answer("0.09302", "9.5%", expected_is_percent=True)
+        )
+
+    def test_percent_unit_programs_compare_as_percentages(self) -> None:
+        # Program multiplied by const_100: gold -26.06635 already means -26.07%
+        self.assertTrue(
+            score_answer("-26.06635", "-26.1%", expected_is_percent=True, expected_in_percent_units=True)
+        )
+        self.assertTrue(
+            score_answer("2.5", "2.5", expected_is_percent=True, expected_in_percent_units=True)
+        )
+        self.assertFalse(
+            score_answer("-26.06635", "-2606.6%", expected_is_percent=True, expected_in_percent_units=True)
+        )
+
+    def test_self_contradicting_label_accepts_annotation_and_is_flagged(self) -> None:
+        from app.runners.execute import score_task_output
+
+        task = _finqa_task(
+            {
+                "id": "disputed",
+                "pre_text": [],
+                "table": [],
+                "post_text": [],
+                "qa": {
+                    "question": "by what percent did net cash increase?",
+                    "answer": "",
+                    "exe_ans": -1047.5,
+                    "program": "subtract(1410.5, 1229.0), subtract(#0, 1229.0)",
+                    "steps": [{"op": "minus", "res": ".1477"}],
+                },
+            },
+            0,
+        )
+        self.assertEqual(task.metadata["alternate_answers"], [".1477"])
+        scored = score_task_output(task, "Final answer: 14.77%")
+        self.assertTrue(scored.success)
+        self.assertTrue(scored.label_disputed)
+        self.assertFalse(score_task_output(task, "Final answer: 20%").success)
+
+    def test_written_answer_contradicting_program_is_accepted(self) -> None:
+        from app.runners.execute import score_task_output
+
+        # FinQA: "sales growth rate" with a gold program missing its divide
+        task = _finqa_task(
+            {
+                "id": "growth",
+                "pre_text": [],
+                "table": [],
+                "post_text": [],
+                "qa": {
+                    "question": "what is the sales growth rate from 2017 to 2018?",
+                    "answer": "1.70%",
+                    "exe_ans": 284.5,
+                    "program": "subtract(17057.4, 16772.9)",
+                    "steps": [{"op": "minus", "res": "284.5"}],
+                },
+            },
+            0,
+        )
+        self.assertEqual(task.metadata["alternate_answers"], ["1.70%"])
+        self.assertTrue(score_task_output(task, "Final answer: 1.70%").success)
+        self.assertTrue(score_task_output(task, "Final answer: 284.5").success)
+        self.assertFalse(score_task_output(task, "Final answer: 2.5%").success)
+
+    def test_consistent_label_is_not_disputed(self) -> None:
+        task = _finqa_task(
+            {
+                "id": "clean",
+                "pre_text": [],
+                "table": [],
+                "post_text": [],
+                "qa": {
+                    "question": "what percentage?",
+                    "answer": "14%",
+                    "exe_ans": 0.14464,
+                    "program": "divide(8.1, 56.0)",
+                    "steps": [{"op": "divide", "res": "14%"}],
+                },
+            },
+            0,
+        )
+        self.assertEqual(task.metadata["alternate_answers"], [])
+
     def test_percentage_not_accepted_for_non_percentage_answer(self) -> None:
         self.assertFalse(
             score_answer("6.76", "6.76%", expected_is_percent=False)

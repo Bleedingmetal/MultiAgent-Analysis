@@ -1,5 +1,6 @@
 import type { ChainStepTrace } from "@/lib/api"
 import { roleLabel } from "@/lib/prompt-chain"
+import { AgentOutputView } from "@/components/product/reasoning-steps"
 import { cn } from "@/lib/utils"
 
 function statusTone(status: ChainStepTrace["status"]) {
@@ -46,7 +47,7 @@ function structuredPreview(value: Record<string, unknown> | null | undefined) {
         if (!Array.isArray(items) || items.length === 0) return null
         return (
           <div key={key}>
-            <p className="font-data text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <p className="text-[12px] font-medium text-muted-foreground">
               {key}
             </p>
             <ul className="mt-1 space-y-1">
@@ -80,9 +81,6 @@ export function ChainTraceView({ steps }: { steps: ChainStepTrace[] }) {
       <div className="border-b border-border/70 px-4 py-3.5">
         <p className="text-[13px] font-semibold text-mm-dark">
           Execution trace
-        </p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
-          {steps.length} {steps.length === 1 ? "step" : "steps"} in order
         </p>
       </div>
       <ol>
@@ -153,9 +151,11 @@ export function ChainTraceView({ steps }: { steps: ChainStepTrace[] }) {
 
               {structuredPreview(step.structured_output) ??
                 (step.response ? (
-                  <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed text-mm-dark/90">
-                    {step.response}
-                  </p>
+                  <AgentOutputView
+                    raw={step.response}
+                    answerLabel={step.step_kind === "router" ? "Decision" : "Conclusion"}
+                    className="mt-3"
+                  />
                 ) : null)}
 
               {step.error ? (

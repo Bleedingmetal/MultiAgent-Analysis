@@ -88,6 +88,43 @@ def end_run(*, cost_usd: float, ok: bool) -> None:
         _state.run_count += 1
 
 
+_spend_lock = threading.Lock()
+
+
+def begin_batch() -> None:
+    """An end-to-end batch counts as one run against the daily cap.
+
+    It skips the single-run lock and spacing (it runs many questions on purpose);
+    spend is checked before every question instead.
+    """
+    _roll_day()
+    s = settings()
+    with _spend_lock:
+        if _state.run_count >= s["max_runs_per_day"]:
+            raise RuntimeError(
+                f"Daily run cap hit ({s['max_runs_per_day']} runs). "
+                "Raise MAX_RUNS_PER_DAY in backend/.env if you need more."
+            )
+        if _state.spend_usd >= s["daily_budget_usd"]:
+            raise RuntimeError(
+                f"Daily spend cap hit (${s['daily_budget_usd']:.2f}). "
+                "Raise DAILY_BUDGET_USD in backend/.env if you need more."
+            )
+        _state.run_count += 1
+
+
+def record_spend(cost_usd: float) -> None:
+    """Add one batch question's cost to today's spend (thread-safe)."""
+    _roll_day()
+    with _spend_lock:
+        _state.spend_usd += max(0.0, cost_usd)
+
+
+def remaining_budget_usd() -> float:
+    _roll_day()
+    return max(0.0, settings()["daily_budget_usd"] - _state.spend_usd)
+
+
 @dataclass
 class RunMeter:
     """Per-run LLM call / cost accounting, checked before every API round trip."""

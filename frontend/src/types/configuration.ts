@@ -47,7 +47,8 @@ export interface ModelSettings {
   systemPrompt?: string
 }
 
-export type PromptChainRole = "researcher" | "analyst" | "verifier" | "custom"
+// Built-in roles plus any custom preset id from the Agent prompts page
+export type PromptChainRole = "researcher" | "analyst" | "verifier" | "custom" | (string & {})
 export type PromptChainPreviousOutputs = "none" | "last" | "all"
 export type PromptChainOutputFormat = "text" | "structured"
 

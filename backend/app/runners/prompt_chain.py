@@ -23,7 +23,7 @@ from typing import Any
 
 from app.config import settings
 from app.datasets.registry import Task, response_format_for, system_prompt_for
-from app.llm import infer_provider, provider_configured
+from app.llm import default_model_for, default_provider, infer_provider, provider_configured
 from app.openai_client import chat_completion, estimate_cost, get_client, truncate_prompt
 from app.runners.execute import score_task_output, task_user_prompt
 from app.schemas import (
@@ -38,8 +38,6 @@ from app.schemas import (
 # Providers with an execution integration (see app.llm). Mirrors EXECUTABLE_PROVIDERS
 # in the frontend (src/lib/provider-models.ts).
 SUPPORTED_PROVIDERS = {"openai", "anthropic", "google"}
-# Used when a node names a provider but only a placeholder model ("claude", "gpt").
-_DEFAULT_MODELS = {"anthropic": "claude-sonnet-5-5", "google": "gemini-2.5-flash"}
 _PLACEHOLDER_MODELS = {"gpt", "claude", "gemini", "model"}
 
 KNOWN_ROLE_LABELS = {
@@ -79,7 +77,7 @@ _LIST_KEYS = ("facts", "calculations", "evidence")
 
 _TEXT_INTERMEDIATE = (
     "Respond in plain text. Keep it concise and self-contained, because the next "
-    "agent will read it."
+    "agent will read it. Write your working as short numbered steps, each on its own line."
 )
 _TEXT_FINAL = "Your response is the final output of the chain."
 _STRUCTURED = (
@@ -140,14 +138,14 @@ class StepOutput:
 
 
 def _model_id(
-    settings_model: str | None, override: str | None, provider: str = "openai"
+    settings_model: str | None, override: str | None, provider: str | None = None
 ) -> str:
     if override and override.strip():
         return override.strip()
     candidate = (settings_model or "").strip()
     if candidate and candidate.lower() not in _PLACEHOLDER_MODELS:
         return candidate
-    return _DEFAULT_MODELS.get(provider, settings()["openai_model"])
+    return default_model_for(provider or default_provider())
 
 
 def check_provider(
@@ -198,7 +196,7 @@ def resolve_chain(
         provider = (
             infer_provider(model_override.strip())
             if model_override and model_override.strip()
-            else (ms.provider or "openai").strip().lower()
+            else (ms.provider or default_provider()).strip().lower()
         )
         check_provider(provider, f"Step {i + 1} ({node.name})", ChainConfigError, require_keys)
         ps = node.promptStep or _legacy_prompt_step(node, ms)
@@ -566,6 +564,7 @@ def _assemble_result(
         scored_answer=scored.scored_answer if scored else None,
         reasoning=scored.reasoning if scored else None,
         reasoning_comparison=scored.comparison if scored else None,
+        label_disputed=bool(scored and scored.label_disputed),
         answer=answer,
         success=scored.success if scored else None,
         latency_sec=round(latency, 3),

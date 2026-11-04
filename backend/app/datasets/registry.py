@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import random
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -126,6 +127,32 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
         unit_scale=unit_scale,
     )
 
+    # Programs ending in multiply(..., const_100) produce a percentage (26.07), not a ratio.
+    program = str(qa.get("program") or "")
+    percent_units = bool(
+        re.search(r"multiply\([^)]*const_100|divide\(const_100", program)
+    )
+    # FinQA sometimes contradicts itself: its written answer or its annotated final step
+    # disagrees with the executed gold program (e.g. a "subtract" where "divide" was
+    # meant). Keep those as accepted alternate answers and flag the label as disputed.
+    alternate_answers: list[str] = []
+    for candidate in (str(answer_text or "").strip(), final_step_result.strip()):
+        if not candidate or expected_s is None or candidate in alternate_answers:
+            continue
+        if parse_final_quantity(candidate) is None:
+            continue
+        consistent = score_answer(
+            expected_s,
+            f"Final answer: {candidate}",
+            expected_is_percent=expected_is_percent,
+            expected_in_percent_units=percent_units,
+        )
+        if consistent is False:
+            alternate_answers.append(candidate)
+    if alternate_answers:
+        shown = [expected_display or ""] + [a for a in alternate_answers if a != expected_display]
+        expected_display = " or ".join(x for x in shown if x)
+
     pre = _truncate_middle(pre_join, 1400)
     post = _truncate_middle(" ".join(item.get("post_text") or []), 1400)
     table = _truncate_middle(_table_to_text(item.get("table") or []), 2500)
@@ -149,6 +176,8 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
             "table": item.get("table") or [],
             "answer_text": answer_text,
             "expected_is_percent": expected_is_percent,
+            "expected_in_percent_units": percent_units,
+            "alternate_answers": alternate_answers,
             "unit_scale": unit_scale,
             "expected_display": expected_display,
         },
@@ -220,7 +249,8 @@ DATASET_SYSTEM_PROMPTS: dict[str, str] = {
         "table_sum, table_average, table_max, and table_min. "
         "Use #0, #1, and so on to reference earlier operation results, and constants "
         "such as const_100 when needed. Respond in three parts:\n"
-        "Reasoning: briefly identify the evidence and formula.\n"
+        "Reasoning: 2-5 short numbered steps, each on its own line — the evidence, "
+        "the formula, the arithmetic.\n"
         "Program: one line of comma-separated FinQA operations.\n"
         "Final answer: one quantity alone — bare number (e.g. 94), percentage (e.g. 6.76%), "
         "or currency with scale (e.g. $94 million). "
@@ -250,15 +280,23 @@ def system_prompt_for(benchmark_id: str) -> str:
     )
 
 
+# Reasoning as numbered steps so the UI can show the train of thought step by step.
 _FINQA_RESPONSE_FORMAT = (
     "Reply in this format:\n"
-    "Reasoning: <brief evidence and formula>\n"
+    "Reasoning:\n"
+    "1. <the figures you took from the evidence, with their units>\n"
+    "2. <the formula, in plain words>\n"
+    "3. <the arithmetic, e.g. (101.88 - 93.21) / 93.21 = 0.093>\n"
+    "(2-5 short numbered steps, each on its own line)\n"
     "Program: <one line of comma-separated FinQA operations>\n"
     "Final answer: <bare number, percentage like 6.76%, or $94 million>"
 )
 _DEFAULT_RESPONSE_FORMAT = (
     "Reply in this format:\n"
-    "Reasoning: <your concise rationale>\n"
+    "Reasoning:\n"
+    "1. <first step of your thinking>\n"
+    "2. <next step>\n"
+    "(2-5 short numbered steps, each on its own line)\n"
     "Final answer: <your answer>"
 )
 
@@ -319,6 +357,36 @@ def list_tasks(benchmark_id: str, limit: int = 20) -> list[Task]:
     if benchmark_id == "fab":
         return [_fab_task(x, i) for i, x in enumerate(_load_fab_raw()[:limit])]
     raise KeyError(f"Unknown benchmark: {benchmark_id}")
+
+
+# Fixed so every configuration is evaluated on the same questions.
+SAMPLE_SEED = 20260
+# Benchmarks with an automatic pass/fail scorer (end-to-end runs need one).
+SCORED_BENCHMARKS = {"finqa"}
+
+
+def task_count(benchmark_id: str) -> int:
+    if benchmark_id == "finqa":
+        return len(_load_finqa_raw())
+    if benchmark_id == "tau-retail":
+        return len(_load_tau_raw())
+    if benchmark_id == "fab":
+        return len(_load_fab_raw())
+    raise KeyError(f"Unknown benchmark: {benchmark_id}")
+
+
+def sample_tasks(benchmark_id: str, size: int | None = None) -> list[Task]:
+    """A deterministic sample: one fixed shuffle of the whole dataset, first `size` items.
+
+    Samples are nested (the first 25 of a 50-question run are the 25-question run), and
+    identical across configurations, so results are directly comparable.
+    """
+    total = task_count(benchmark_id)
+    order = list(range(total))
+    random.Random(f"{benchmark_id}:{SAMPLE_SEED}").shuffle(order)
+    picked = order if size is None else order[: max(0, min(size, total))]
+    tasks = list_tasks(benchmark_id, limit=total)
+    return [tasks[i] for i in picked]
 
 
 def get_task(benchmark_id: str, task_id: str | None = None) -> Task:
@@ -548,17 +616,34 @@ def _candidate_values(parsed: ParsedQuantity) -> list[float]:
     return uniq
 
 
-def _percentage_match(expected_ratio: float, got: ParsedQuantity) -> bool:
+def _percentage_match(
+    expected_value: float, got: ParsedQuantity, *, percent_units: bool = False
+) -> bool:
+    """`expected_value` is a ratio (0.0676), or already a percent (6.76) with percent_units."""
+    expected_ratio = expected_value / 100 if percent_units else expected_value
     if got.is_percent:
         # Respect the precision the agent committed to. For example, FinQA's
         # 0.14464 is equivalent to 14%, 14.5%, or 14.464% at those precisions.
         expected_percent = expected_ratio * 100
         rounded_expected = round(expected_percent, got.decimal_places)
         rounding_slack = 10 ** (-(got.decimal_places + 4))
-        return abs(rounded_expected - got.value) <= rounding_slack
+        if abs(rounded_expected - got.value) <= rounding_slack:
+            return True
+        # Same relative tolerance as every other numeric answer, so a last-digit
+        # rounding slip (9.31% for 9.302%) is not scored as a wrong answer.
+        return _numeric_match(expected_percent, got.value)
     if got.scale != 1.0:
         return False
-    return _numeric_match(expected_ratio, got.value)
+    if _numeric_match(expected_ratio, got.value):
+        return True
+    # A bare number in the program's own percent units ("2.5" for 2.5 percent).
+    if percent_units and _numeric_match(expected_value, got.value):
+        return True
+    # A ratio rounded to the precision given ("0.41" for 0.41467).
+    if got.decimal_places >= 2:
+        rounded = round(expected_ratio, got.decimal_places)
+        return abs(rounded - got.value) <= 10 ** (-(got.decimal_places + 4))
+    return False
 
 
 def score_answer(
@@ -566,6 +651,7 @@ def score_answer(
     actual: str,
     *,
     expected_is_percent: bool | None = None,
+    expected_in_percent_units: bool = False,
 ) -> bool | None:
     """
     Honest FinQA compare:
@@ -594,7 +680,9 @@ def score_answer(
 
     expected_number = expected_parsed.value
     if expected_is_percent is True:
-        return _percentage_match(expected_number, got)
+        return _percentage_match(
+            expected_number, got, percent_units=expected_in_percent_units
+        )
     if expected_is_percent is False and got.is_percent:
         return False
     return any(

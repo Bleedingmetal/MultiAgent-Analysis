@@ -2,6 +2,7 @@
 
 import {
   ChartBar,
+  ChatText,
   Database,
   ClockCounterClockwise,
   GitDiff,
@@ -15,8 +16,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -28,6 +27,7 @@ const navigation = [
   { title: "Compare", url: "/compare", icon: GitDiff },
   { title: "Benchmarks", url: "/benchmarks", icon: Database },
   { title: "Configurations", url: "/configurations", icon: SlidersHorizontal },
+  { title: "Agent prompts", url: "/agent-prompts", icon: ChatText },
   { title: "Runs", url: "/runs", icon: ClockCounterClockwise },
 ]
 
@@ -40,68 +40,44 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar
-      collapsible="offcanvas"
-      className="border-r border-sidebar-border"
-    >
-      <SidebarHeader className="gap-0 border-b border-sidebar-border px-5 py-7">
-        <Link href="/" className="flex flex-col gap-5">
+    <Sidebar collapsible="offcanvas" className="border-r-0">
+      <SidebarHeader className="gap-0 px-6 pt-8 pb-9">
+        <Link href="/" className="block" aria-label="Agent Evaluation home">
+          {/* The brand mark in white so it reads on the navy ground */}
           <img
             src="/massmutual-logo.webp"
             alt="MassMutual"
-            className="h-8 w-auto max-w-[170px] object-contain object-left"
+            className="h-7 w-auto max-w-[160px] object-contain object-left brightness-0 invert"
           />
-          <div>
-            <p className="text-[16px] font-semibold tracking-tight text-white">
-              Agent Evaluation
-            </p>
-            <p className="mt-1.5 text-[12px] leading-snug text-mm-light/75">
-              Single vs multi-agent tradeoffs
-            </p>
-          </div>
+          <p className="mt-4 text-[15px] font-semibold tracking-tight text-white">
+            Agent Evaluation
+          </p>
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="px-3 py-5">
-        <SidebarGroup className="p-0">
-          <p className="mb-2.5 px-3 text-[11px] font-medium tracking-wide text-white/35">
-            Workspace
-          </p>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1.5">
-              {navigation.map((item) => {
-                const Icon = item.icon
-                const active = isActive(item.url)
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      render={(props) => (
-                        <Link href={item.url} {...props} />
-                      )}
-                      isActive={active}
-                      className="h-11 w-full rounded-xl px-3 text-[13.5px] data-active:bg-white/8 data-active:text-white data-active:shadow-[inset_3px_0_0_0_#4dc7eb]"
-                    >
-                      <Icon
-                        weight={active ? "fill" : "light"}
-                        className="size-[18px] shrink-0 opacity-90"
-                      />
-                      <span className="truncate font-medium">{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <SidebarContent className="px-3">
+        <SidebarMenu className="gap-0.5">
+          {navigation.map((item) => {
+            const Icon = item.icon
+            const active = isActive(item.url)
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  render={(props) => <Link href={item.url} {...props} />}
+                  isActive={active}
+                  className="h-9 w-full rounded-lg px-3 text-[14px] text-white/60 hover:bg-white/[0.04] hover:text-white data-active:bg-white/[0.08] data-active:text-white"
+                >
+                  <Icon weight="regular" className="size-[17px] shrink-0" />
+                  <span className="truncate">{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border px-5 py-5">
-        <p className="text-[11px] font-medium text-mm-light/70">
-          WPI MQP · MassMutual
-        </p>
-        <p className="mt-1 text-[11px] leading-relaxed text-white/35">
-          Architecture comparison harness
-        </p>
+      <SidebarFooter className="px-6 pb-6">
+        <p className="text-[12px] text-white/45">WPI MQP × MassMutual</p>
       </SidebarFooter>
     </Sidebar>
   )

@@ -1,5 +1,5 @@
 import { Boxes, ChevronDown, LockKeyhole, Trash2 } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  CHAIN_ROLES,
   defaultPromptStep,
   PROMPT_TEMPLATE_VARIABLES,
 } from "@/lib/prompt-chain"
@@ -24,11 +23,14 @@ import {
   routeAgents,
 } from "@/lib/routing"
 import {
+  DEFAULT_PROVIDER,
   defaultModelForProvider,
   isExecutableProvider,
   modelsForProvider,
 } from "@/lib/provider-models"
 import { cn } from "@/lib/utils"
+import { useAgentPresets } from "@/hooks/use-agent-presets"
+import { roleOptions } from "@/lib/prompt-chain"
 import type {
   AgentConfiguration,
   ArchitectureType,
@@ -114,6 +116,11 @@ export default function PropertiesPanel({
   onUpdateRouterSettings,
 }: Props) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const presets = useAgentPresets()
+  const roles = useMemo(() => roleOptions(presets), [presets])
+  // A generic agent whose role matches a preset label shows that preset as chosen
+  const presetValue =
+    presets.find((p) => p.label === node?.metadata?.role)?.id ?? null
   const isChainAgent =
     architecture === "prompt-chaining" && node?.type === "model"
   const isRouteAgent = architecture === "routing" && node?.type === "model"
@@ -122,7 +129,7 @@ export default function PropertiesPanel({
   const runsLlm = !!node && LLM_NODE_TYPES.includes(node.type)
   // Control nodes without settings inherit the first agent's model in the backend
   const inherits = runsLlm && node?.type !== "model" && !node?.modelSettings
-  const provider = node?.modelSettings?.provider ?? "openai"
+  const provider = node?.modelSettings?.provider ?? DEFAULT_PROVIDER
   const modelOptions = modelsForProvider(provider)
   const currentModel = node?.modelSettings?.model ?? ""
   const modelValue = modelOptions.some((option) => option.id === currentModel)
@@ -292,6 +299,7 @@ export default function PropertiesPanel({
             <div>
               <Label>Role</Label>
               <Select
+                items={Object.fromEntries(roles.map((r) => [r.id, r.label]))}
                 value={String(step.role)}
                 onValueChange={(value) => {
                   if (!value) return
@@ -306,7 +314,7 @@ export default function PropertiesPanel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CHAIN_ROLES.map((role) => (
+                  {roles.map((role) => (
                     <SelectItem key={role.id} value={role.id}>
                       {role.label}
                     </SelectItem>
@@ -314,9 +322,9 @@ export default function PropertiesPanel({
                 </SelectContent>
               </Select>
               <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                {CHAIN_ROLES.find((role) => role.id === step.role)?.description}
+                {roles.find((role) => role.id === step.role)?.description}
                 {" "}
-                Role defaults are editable.
+                Edit presets on the Agent prompts page.
               </p>
             </div>
           ) : null}
@@ -658,17 +666,50 @@ export default function PropertiesPanel({
               ) : null}
             </>
           ) : (
-            <div>
-              <Label>Instructions</Label>
-              <Textarea
-                className="mt-2 min-h-24"
-                value={node.metadata?.instructions ?? ""}
-                onChange={(event) =>
-                  onUpdateInstructions(node.id, event.target.value)
-                }
-                placeholder="Instructions"
-              />
-            </div>
+            <>
+              {node.type === "model" ? (
+                <div>
+                  <Label>Start from a preset</Label>
+                  <Select
+                    items={Object.fromEntries(presets.map((p) => [p.id, p.label]))}
+                    value={presetValue}
+                    onValueChange={(value) => {
+                      const preset = presets.find((p) => p.id === value)
+                      if (!preset) return
+                      onUpdateMetadata(node.id, {
+                        role: preset.label,
+                        instructions: [preset.objective, preset.instructions].filter(Boolean).join("\n\n"),
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="mt-2 w-full">
+                      <SelectValue placeholder="Choose an agent preset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {presets.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                    Fills the role and instructions below; edit them freely after.
+                  </p>
+                </div>
+              ) : null}
+              <div>
+                <Label>Instructions</Label>
+                <Textarea
+                  className="mt-2 min-h-24"
+                  value={node.metadata?.instructions ?? ""}
+                  onChange={(event) =>
+                    onUpdateInstructions(node.id, event.target.value)
+                  }
+                  placeholder="Instructions"
+                />
+              </div>
+            </>
           )}
 
           <div className="border-t border-border pt-4">

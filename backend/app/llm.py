@@ -55,6 +55,21 @@ def infer_provider(model: str) -> str:
     return "openai"
 
 
+def default_provider() -> str:
+    return infer_provider(settings()["default_model"])
+
+
+def default_model_for(provider: str) -> str:
+    """Model to use when a node names a provider but no (real) model."""
+    if provider == default_provider():
+        return settings()["default_model"]
+    if provider == "anthropic":
+        return "claude-opus-5-5"
+    if provider == "google":
+        return "gemini-2.5-flash"
+    return settings()["openai_model"]
+
+
 def provider_configured(provider: str) -> bool:
     s = settings()
     if provider == "openai":

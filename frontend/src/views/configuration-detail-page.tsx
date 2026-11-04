@@ -108,9 +108,9 @@ export default function ConfigurationDetailPage() {
             className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-mm-dark"
           >
             <ArrowLeft className="size-3.5" weight="bold" />
-            Configurations
+            Back
           </Link>
-          <h2 className="mt-4 text-[34px] font-semibold leading-[1.05] tracking-[-0.03em] text-mm-dark md:text-[42px]">
+          <h2 className="mt-4 text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] text-mm-dark md:text-[32px]">
             {configuration.name}
           </h2>
           {configuration.description ? (

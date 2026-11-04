@@ -10,6 +10,7 @@ import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoni
 import { Bezel, Reveal } from "@/components/product/ui-bits"
 import { Button } from "@/components/ui/button"
 import { RunTrace } from "@/components/product/run-trace"
+import { ReasoningSteps } from "@/components/product/reasoning-steps"
 import {
   chainSteps,
   createRun,
@@ -24,8 +25,8 @@ import type { AgentConfiguration } from "@/types/configuration"
 // "" = keep each node's configured model
 const KEEP_MODELS = ""
 const MODEL_OPTIONS = [
-  ...PROVIDER_MODELS.openai,
   ...PROVIDER_MODELS.anthropic,
+  ...PROVIDER_MODELS.openai,
   ...PROVIDER_MODELS.google,
 ].map((m) => m.id)
 
@@ -145,7 +146,7 @@ export default function RunDetailPage() {
           className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground hover:text-mm-dark"
         >
           <ArrowLeft className="size-3.5" weight="bold" />
-          Runs
+          Back
         </Link>
         <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -159,9 +160,13 @@ export default function RunDetailPage() {
               {run.parent_run_id ? (
                 <>
                   <span className="mx-2 text-border">/</span>
-                  from{" "}
+                  {run.parent_run_id.startsWith("E2E-") ? "question in end-to-end run" : "from"}{" "}
                   <Link
-                    href={`/runs/${run.parent_run_id}`}
+                    href={
+                      run.parent_run_id.startsWith("E2E-")
+                        ? `/runs/e2e/${run.parent_run_id}`
+                        : `/runs/${run.parent_run_id}`
+                    }
                     className="text-mm-blue hover:underline"
                   >
                     {run.parent_run_id}
@@ -244,9 +249,7 @@ export default function RunDetailPage() {
               <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
                 Reasoning
               </h3>
-              <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark/90">
-                {run.reasoning}
-              </p>
+              <ReasoningSteps text={run.reasoning} className="mt-3" />
             </>
           ) : null}
           <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
@@ -313,9 +316,6 @@ export default function RunDetailPage() {
           <h3 className="text-[15px] font-semibold text-mm-dark">
             Clone & rerun
           </h3>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            Rerun the same task, optionally forcing every node onto one model.
-          </p>
 
           <label className="mt-4 block max-w-sm space-y-1.5">
             <span className="text-[12px] font-medium text-muted-foreground">

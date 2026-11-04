@@ -1,0 +1,1773 @@
+{
+ "url": "http://localhost:3000/runs/e2e/E2E-2091E783",
+ "at": "2026-11-04T15:49:56.749Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 3,
+   "filled": [
+    0.66,
+    0.89,
+    0.84
+   ],
+   "motion": {
+    "elements": 4,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 4,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 1863,
+     "screens": 2.1,
+     "words": 469,
+     "img": 1,
+     "video": 0,
+     "canvas": 0,
+     "svg": 30,
+     "sections": 0,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "chars": 16,
+     "lines": 1,
+     "size": 15,
+     "vw": 1,
+     "font": "IBM Plex Sans Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.5,
+     "top": 34,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "lines": 1,
+     "size": 15,
+     "font": "IBM Plex Sans Variable"
+    },
+    "headings": [
+     {
+      "text": "E2E test (Haiku 5.5)",
+      "words": 4,
+      "chars": 20,
+      "lines": 1,
+      "size": 36,
+      "vw": 2.5,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.33,
+      "top": 183,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "60.0%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 44,
+      "vw": 3.1,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.09,
+      "top": 771,
+      "tag": "p",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 2,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans Variable",
+       "share": 0.75,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.25,
+       "mono": true
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      36,
+      44
+     ],
+     "sizeCount": 9,
+     "notLoaded": [],
+     "body": {
+      "font": "IBM Plex Sans Variable",
+      "size": 13.5,
+      "leading": 1.38,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 17.9
+     },
+     "measureChars": 121,
+     "max": {
+      "size": 44,
+      "vw": 3.1,
+      "font": "IBM Plex Sans Variable",
+      "text": "60.0%"
+     },
+     "monoShare": 0.25,
+     "monoProseShare": 0.25,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "E2E-2091E783FinQA · 10 questionsNov 4, 1",
+      "/",
+      "/",
+      "/",
+      "6 · 60%",
+      "4 · 40%"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.02,
+     "centerShare": 0.01,
+     "smallText": 37
+    },
+    "eyebrows": [
+     {
+      "text": "End-to-end",
+      "above": "E2E test (Haiku 5.5)",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": true,
+      "size": 11,
+      "top": 154
+     },
+     {
+      "text": "Questions",
+      "above": "60.0%",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 15,
+      "top": 724
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#eef2f7",
+     "bodyBgHsl": {
+      "h": 213,
+      "s": 0.36,
+      "l": 0.95
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 703,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#001735",
+       "share": 0.59
+      },
+      {
+       "color": "#5a6b84",
+       "share": 0.3
+      },
+      {
+       "color": "#b34800",
+       "share": 0.04
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.03
+      },
+      {
+       "color": "#4dc7eb",
+       "share": 0.02
+      }
+     ],
+     "button": {
+      "bg": "#eef2f7",
+      "hsl": {
+       "h": 213,
+       "s": 0.36,
+       "l": 0.95
+      },
+      "fg": "#001735"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 2,
+     "inHero": 2,
+     "radius": "pill",
+     "height": 40,
+     "withShadow": 1,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "CSV",
+      "Run again"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 4,
+     "shadowOverlay": 1,
+     "shadowSamples": [
+      "button.island-cta.disabled:pointer-events-none → rgba(2, 101, 255, 0.18) 0px 6px 18px 0px",
+      "div.bezel.lg:col-span-2 → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, ",
+      "div.bezel → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, ",
+      "div.bezel → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, "
+     ],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 3,
+     "hairlineSamples": [
+      "div.fixed.inset-y-0 256px",
+      "div.flex.flex-col 255px",
+      "div.flex.flex-col 255px"
+     ],
+     "outlinedBoxes": 11,
+     "dashed": 0,
+     "blurred": 1,
+     "roundedBoxes": 11,
+     "boxRadius": 29,
+     "squareMedia": 1,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 893
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "bg-image",
+      "ratio": 1
+     }
+    ],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 74,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex sans variable",
+     "ibm plex mono"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 1863,
+    "margins": {
+     "left": 298,
+     "right": 60
+    },
+    "sections": [
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 110,
+      "height": 153,
+      "words": 19,
+      "media": 0,
+      "middle": 428,
+      "heading": {
+       "text": "E2E test (Haiku 5.5)",
+       "size": 36,
+       "tag": "h2"
+      },
+      "left": 288,
+      "right": 32,
+      "textLeft": 288,
+      "textRight": 82,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid.gap-5",
+      "tag": "div",
+      "top": 295,
+      "height": 370,
+      "words": 139,
+      "media": 0,
+      "middle": 180,
+      "heading": {
+       "text": "Overview",
+       "size": 15,
+       "tag": "h3"
+      },
+      "left": 316,
+      "right": 60,
+      "textLeft": 316,
+      "textRight": 60,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 696,
+      "height": 1131,
+      "words": 274,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "60.0%",
+       "size": 44,
+       "tag": "p"
+      },
+      "left": 316,
+      "right": 61,
+      "textLeft": 316,
+      "textRight": 105,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Agent Evaluation",
+      "size": 15,
+      "top": 34,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 316,
+      "n": 2
+     },
+     {
+      "x": 288,
+      "n": 1
+     },
+     {
+      "x": 337,
+      "n": 1
+     },
+     {
+      "x": 1076,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 5,
+    "bodySize": 14,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.14,
+    "voidBox": {
+     "x": 660,
+     "y": 660,
+     "w": 780,
+     "h": 240
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#eef2f7",
+    "sidebar": {
+     "w": 256,
+     "tag": "div",
+     "links": 6,
+     "share": 0.18
+    },
+    "topbar": {
+     "h": 74
+    },
+    "canvas": {
+     "left": 41,
+     "right": -112
+    },
+    "hero": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "chars": 16,
+     "lines": 1,
+     "size": 15,
+     "vw": 1,
+     "font": "IBM Plex Sans Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.5,
+     "top": 34,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 4,
+     "firstScreen": 4,
+     "ragged": [],
+     "voids": [
+      {
+       "gap": 64,
+       "at": 593,
+       "panel": "Overview"
+      }
+     ]
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 13,
+     "radii": [
+      [
+       29,
+       5
+      ],
+      [
+       24,
+       3
+      ],
+      [
+       20,
+       3
+      ],
+      [
+       0,
+       2
+      ]
+     ],
+     "heavyBorders": 12,
+     "borderSamples": [
+      "#4ec6ea on #001735 (9.02:1)",
+      "#002a71 on #eef2f7 (11.9:1)",
+      "#003366 on #ffffff (12.61:1)"
+     ],
+     "heavyShadows": 6,
+     "softShadows": 3,
+     "shadowSamples": [
+      "rgba(0, 23, 53, 0.05) 0px 8px 24px 0px",
+      "rgba(0, 23, 53, 0.04) 0px 24px 48px 0px",
+      "rgba(0, 23, 53, 0.05) 0px 8px 24px 0px"
+     ],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 0,
+       "size": 30,
+       "radius": "9999px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 21,
+     "tabularShare": 0.81,
+     "kpiMax": 44
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.36,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      36,
+      44
+     ]
+    },
+    "title": {
+     "text": "Agent Evaluation",
+     "size": 15,
+     "top": 34
+    },
+    "colourShare": 0.013
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 3,
+   "filled": [
+    0.77,
+    0.91,
+    0.87
+   ],
+   "motion": {
+    "elements": 4,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 4,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 2575,
+     "screens": 2.5,
+     "words": 469,
+     "img": 1,
+     "video": 0,
+     "canvas": 0,
+     "svg": 30,
+     "sections": 0,
+     "horizontalOverflow": 155,
+     "overflowCulprits": [
+      "h1.min-w-0.flex-1 (+114px)",
+      "div.mt-4.flex (+123px)",
+      "h3.text-[15px].font-semibold (+95px)"
+     ],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "chars": 16,
+     "lines": 1,
+     "size": 15,
+     "vw": 2,
+     "font": "IBM Plex Sans Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.5,
+     "top": 34,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "lines": 1,
+     "size": 15,
+     "font": "IBM Plex Sans Variable"
+    },
+    "headings": [
+     {
+      "text": "E2E test (Haiku 5.5)",
+      "words": 4,
+      "chars": 20,
+      "lines": 1,
+      "size": 36,
+      "vw": 4.7,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.62,
+      "top": 183,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "60.0%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 44,
+      "vw": 5.7,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.17,
+      "top": 1162,
+      "tag": "p",
+      "kind": "statement"
+     }
+    ],
+    "headingSummary": {
+     "count": 2,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 1,
+     "centered": 0,
+     "medianWords": 1,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans Variable",
+       "share": 0.75,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.25,
+       "mono": true
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      36,
+      44
+     ],
+     "sizeCount": 9,
+     "notLoaded": [],
+     "body": {
+      "font": "IBM Plex Sans Variable",
+      "size": 13.5,
+      "leading": 1.38,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 17.9
+     },
+     "measureChars": 45,
+     "max": {
+      "size": 44,
+      "vw": 5.7,
+      "font": "IBM Plex Sans Variable",
+      "text": "60.0%"
+     },
+     "monoShare": 0.25,
+     "monoProseShare": 0.25,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "E2E-2091E783FinQA · 10 questionsNov 4, 1",
+      "/",
+      "/",
+      "/",
+      "6 · 60%",
+      "4 · 40%"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.02,
+     "centerShare": 0.01,
+     "smallText": 37
+    },
+    "eyebrows": [
+     {
+      "text": "End-to-end",
+      "above": "E2E test (Haiku 5.5)",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": true,
+      "size": 11,
+      "top": 154
+     },
+     {
+      "text": "Questions",
+      "above": "60.0%",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 15,
+      "top": 1116
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#eef2f7",
+     "bodyBgHsl": {
+      "h": 213,
+      "s": 0.36,
+      "l": 0.95
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#001735",
+       "top": 0,
+       "hsl": {
+        "h": 214,
+        "s": 1,
+        "l": 0.1
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 1095,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#001735",
+       "share": 0.59
+      },
+      {
+       "color": "#5a6b84",
+       "share": 0.3
+      },
+      {
+       "color": "#b34800",
+       "share": 0.04
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.03
+      },
+      {
+       "color": "#4dc7eb",
+       "share": 0.02
+      }
+     ],
+     "button": {
+      "bg": "#eef2f7",
+      "hsl": {
+       "h": 213,
+       "s": 0.36,
+       "l": 0.95
+      },
+      "fg": "#001735"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 2,
+     "inHero": 2,
+     "radius": "pill",
+     "height": 40,
+     "withShadow": 1,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "CSV",
+      "Run again"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 4,
+     "shadowOverlay": 1,
+     "shadowSamples": [
+      "button.island-cta.disabled:pointer-events-none → rgba(2, 101, 255, 0.18) 0px 6px 18px 0px",
+      "div.bezel.lg:col-span-2 → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, ",
+      "div.bezel → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, ",
+      "div.bezel → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, "
+     ],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 3,
+     "hairlineSamples": [
+      "div.fixed.inset-y-0 256px",
+      "div.flex.flex-col 255px",
+      "div.flex.flex-col 255px"
+     ],
+     "outlinedBoxes": 20,
+     "dashed": 0,
+     "blurred": 1,
+     "roundedBoxes": 20,
+     "boxRadius": 29,
+     "squareMedia": 1,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 1285
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "bg-image",
+      "ratio": 1
+     }
+    ],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 74,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex sans variable",
+     "ibm plex mono"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 2575,
+    "margins": {
+     "left": 288,
+     "right": 35
+    },
+    "sections": [
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 110,
+      "height": 219,
+      "words": 19,
+      "media": 0,
+      "middle": 23,
+      "heading": {
+       "text": "E2E test (Haiku 5.5)",
+       "size": 36,
+       "tag": "h2"
+      },
+      "left": 288,
+      "right": 7,
+      "textLeft": 288,
+      "textRight": 7,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid.gap-5",
+      "tag": "div",
+      "top": 361,
+      "height": 695,
+      "words": 139,
+      "media": 0,
+      "middle": 69,
+      "heading": {
+       "text": "Overview",
+       "size": 15,
+       "tag": "h3"
+      },
+      "left": 316,
+      "right": 0,
+      "textLeft": 316,
+      "textRight": -95,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 1088,
+      "height": 1452,
+      "words": 274,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "60.0%",
+       "size": 44,
+       "tag": "p"
+      },
+      "left": 316,
+      "right": 0,
+      "textLeft": 316,
+      "textRight": -50,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Agent Evaluation",
+      "size": 15,
+      "top": 34,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [
+     {
+      "text": "Completed",
+      "side": "right",
+      "px": 7
+     }
+    ],
+    "edges": [
+     {
+      "x": 316,
+      "n": 3
+     },
+     {
+      "x": 288,
+      "n": 1
+     },
+     {
+      "x": 337,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 5,
+    "bodySize": 14,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": false,
+    "ground": "#eef2f7",
+    "sidebar": {
+     "w": 256,
+     "tag": "div",
+     "links": 6,
+     "share": 0.33
+    },
+    "topbar": {
+     "h": 74
+    },
+    "canvas": {
+     "left": 32,
+     "right": -95
+    },
+    "hero": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "chars": 16,
+     "lines": 1,
+     "size": 15,
+     "vw": 2,
+     "font": "IBM Plex Sans Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.5,
+     "top": 34,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 4,
+     "firstScreen": 3,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 22,
+     "radii": [
+      [
+       29,
+       14
+      ],
+      [
+       24,
+       3
+      ],
+      [
+       20,
+       3
+      ],
+      [
+       0,
+       2
+      ]
+     ],
+     "heavyBorders": 21,
+     "borderSamples": [
+      "#4ec6ea on #001735 (9.02:1)",
+      "#002a71 on #eef2f7 (11.9:1)",
+      "#003366 on #ffffff (12.61:1)"
+     ],
+     "heavyShadows": 6,
+     "softShadows": 3,
+     "shadowSamples": [
+      "rgba(0, 23, 53, 0.05) 0px 8px 24px 0px",
+      "rgba(0, 23, 53, 0.04) 0px 24px 48px 0px",
+      "rgba(0, 23, 53, 0.05) 0px 8px 24px 0px"
+     ],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 0,
+       "size": 30,
+       "radius": "9999px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 21,
+     "tabularShare": 0.81,
+     "kpiMax": 44
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.36,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      36,
+      44
+     ]
+    },
+    "title": {
+     "text": "Agent Evaluation",
+     "size": 15,
+     "top": 34
+    },
+    "colourShare": 0.021
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 4,
+   "filled": [
+    0.79,
+    0.72,
+    0.58,
+    0.58
+   ],
+   "motion": {
+    "elements": 4,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 4,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 619,
+     "h": 1340
+    },
+    "page": {
+     "height": 3371,
+     "screens": 2.5,
+     "words": 420,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 25,
+     "sections": 0,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "chars": 16,
+     "lines": 1,
+     "size": 15,
+     "vw": 2.4,
+     "font": "IBM Plex Sans Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.5,
+     "top": 30,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "lines": 1,
+     "size": 15,
+     "font": "IBM Plex Sans Variable"
+    },
+    "headings": [
+     {
+      "text": "E2E test (Haiku 5.5)",
+      "words": 4,
+      "chars": 20,
+      "lines": 1,
+      "size": 30,
+      "vw": 4.8,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.58,
+      "top": 171,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "60.0%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 44,
+      "vw": 7.1,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.21,
+      "top": 1613,
+      "tag": "p",
+      "kind": "statement"
+     }
+    ],
+    "headingSummary": {
+     "count": 2,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 1,
+     "centered": 0,
+     "medianWords": 1,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans Variable",
+       "share": 0.78,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.22,
+       "mono": true
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      18,
+      30,
+      44
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": {
+      "font": "IBM Plex Sans Variable",
+      "size": 13.5,
+      "leading": 1.38,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 17.9
+     },
+     "measureChars": 24,
+     "max": {
+      "size": 44,
+      "vw": 7.1,
+      "font": "IBM Plex Sans Variable",
+      "text": "60.0%"
+     },
+     "monoShare": 0.22,
+     "monoProseShare": 0.22,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "E2E-2091E783FinQA · 10 questionsNov 4, 1",
+      "/",
+      "/",
+      "/",
+      "6 · 60%",
+      "4 · 40%"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.02,
+     "centerShare": 0.02,
+     "smallText": 24
+    },
+    "eyebrows": [
+     {
+      "text": "End-to-end",
+      "above": "E2E test (Haiku 5.5)",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": true,
+      "size": 11,
+      "top": 142
+     },
+     {
+      "text": "Questions",
+      "above": "60.0%",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 15,
+      "top": 1567
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#eef2f7",
+     "bodyBgHsl": {
+      "h": 213,
+      "s": 0.36,
+      "l": 0.95
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 365,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#001735",
+       "share": 0.66
+      },
+      {
+       "color": "#5a6b84",
+       "share": 0.27
+      },
+      {
+       "color": "#b34800",
+       "share": 0.04
+      },
+      {
+       "color": "#2f7a1f",
+       "share": 0.02
+      },
+      {
+       "color": "#0265ff",
+       "share": 0
+      }
+     ],
+     "button": {
+      "bg": "#eef2f7",
+      "hsl": {
+       "h": 213,
+       "s": 0.36,
+       "l": 0.95
+      },
+      "fg": "#001735"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 2,
+     "inHero": 2,
+     "radius": "pill",
+     "height": 40,
+     "withShadow": 1,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "CSV",
+      "Run again"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 4,
+     "shadowOverlay": 1,
+     "shadowSamples": [
+      "button.island-cta.disabled:pointer-events-none → rgba(2, 101, 255, 0.18) 0px 6px 18px 0px",
+      "div.bezel.lg:col-span-2 → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, ",
+      "div.bezel → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, ",
+      "div.bezel → rgba(0, 46, 107, 0.03) 0px 1px 1px 0px, rgba(0, 23, 53, 0.05) 0px 8px 24px 0px, "
+     ],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 19,
+     "dashed": 0,
+     "blurred": 1,
+     "roundedBoxes": 19,
+     "boxRadius": 29,
+     "squareMedia": 1,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 1736
+      },
+      {
+       "count": 7,
+       "iconTopped": true,
+       "rounded": true,
+       "top": 2242
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "bg-image",
+      "ratio": 1
+     }
+    ],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 70,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex sans variable",
+     "ibm plex mono"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 619,
+     "h": 1340
+    },
+    "pageH": 3371,
+    "margins": {
+     "left": 16,
+     "right": 28
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Agent Evaluation",
+      "size": 15,
+      "top": 30,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 44,
+      "n": 3
+     },
+     {
+      "x": 16,
+      "n": 1
+     },
+     {
+      "x": 69,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 5,
+    "bodySize": 14,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 619,
+     "h": 1340
+    },
+    "dark": false,
+    "ground": "#eef2f7",
+    "sidebar": null,
+    "topbar": {
+     "h": 70
+    },
+    "canvas": {
+     "left": 16,
+     "right": 28
+    },
+    "hero": {
+     "text": "Agent Evaluation",
+     "words": 2,
+     "chars": 16,
+     "lines": 1,
+     "size": 15,
+     "vw": 2.4,
+     "font": "IBM Plex Sans Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.5,
+     "top": 30,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 3,
+     "firstScreen": 2,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 20,
+     "radii": [
+      [
+       29,
+       14
+      ],
+      [
+       24,
+       3
+      ],
+      [
+       20,
+       3
+      ]
+     ],
+     "heavyBorders": 20,
+     "borderSamples": [
+      "#002a71 on #eef2f7 (11.9:1)",
+      "#003366 on #ffffff (12.61:1)",
+      "#002a71 on #eef2f7 (11.9:1)"
+     ],
+     "heavyShadows": 6,
+     "softShadows": 3,
+     "shadowSamples": [
+      "rgba(0, 23, 53, 0.05) 0px 8px 24px 0px",
+      "rgba(0, 23, 53, 0.04) 0px 24px 48px 0px",
+      "rgba(0, 23, 53, 0.05) 0px 8px 24px 0px"
+     ],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 0,
+       "size": 30,
+       "radius": "9999px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 21,
+     "tabularShare": 0.81,
+     "kpiMax": 44
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.3,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      18,
+      30,
+      44
+     ]
+    },
+    "title": {
+     "text": "Agent Evaluation",
+     "size": 15,
+     "top": 30
+    },
+    "colourShare": 0.018
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "FAIL",
+   "id": "button-fx",
+   "width": 1440,
+   "message": "Buttons with shadow/glow.",
+   "fix": "Flat fill, one colour.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "heavy-shadow",
+   "width": 1440,
+   "message": "6 panel shadow(s) heavy enough to read as floating: rgba(0, 23, 53, 0.05) 0px 8px 24px 0px | rgba(0, 23, 53, 0.04) 0px 24px 48px 0px | rgba(0, 23, 53, 0.05) 0px 8px 24px 0px",
+   "fix": "Panels sit on the ground: separate them with a fill one step from the ground or a quiet 1px border. A shadow, if any, is under 8% black with a small blur. Real overlays (menus, dialogs, popovers) may float.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "heavy-borders",
+   "width": 1440,
+   "message": "12 panel borders are dark against their ground: #4ec6ea on #001735 (9.02:1) | #002a71 on #eef2f7 (11.9:1) | #003366 on #ffffff (12.61:1)",
+   "fix": "A panel border is a whisper: about 1.1–1.3:1 against its ground on a light screen (#e5e7eb–#ededed on white), and about 1.2–1.5:1 on a dark one (#1a1a1a on #000, #2e2e2e on #111). Darker lines turn the screen into a grid of boxes; keep the stronger line for controls.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "radius-mix",
+   "width": 1440,
+   "message": "Panels use 4 corner radii (29, 24, 20, 0px).",
+   "fix": "One radius for panels, one for controls, full round only for pills and avatars.",
+   "alsoAt": [
+    768
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "panel-void",
+   "width": 1440,
+   "message": "1 card(s) hold a blank band inside: 64px in \"Overview\".",
+   "fix": "A card stretches to its neighbour only when it has content to fill. Keep a legend or a note directly under its chart (only an action or a total may sit at a stretched card's foot), let a short card keep its own height (align-items: start), and let a filtered block shrink to its rows."
+  },
+  {
+   "level": "FAIL",
+   "id": "covered-text",
+   "width": 1440,
+   "message": "Large text lies under another element at some scroll position: \"E2E test (Haiku 5.5)\" (screen 1, 100% hidden); \"60.0%\" (screen 1, 100% hidden)",
+   "fix": "Nothing may sit on top of a headline or statement. Move the picture, shorten the pinned run, or raise the text above it (z-index) and give it a ground.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "overflow",
+   "width": 768,
+   "message": "Page scrolls sideways by 155px at 768px. Widest offenders: h1.min-w-0.flex-1 (+114px), div.mt-4.flex (+123px), h3.text-[15px].font-semibold (+95px).",
+   "fix": "Constrain the element that is wider than the viewport (max-width: 100%, or overflow: clip on its section)."
+  },
+  {
+   "level": "FAIL",
+   "id": "edge-text",
+   "width": 768,
+   "message": "1 text block(s) sit within 16px of the screen edge: \"Completed\" (7px from the right)",
+   "fix": "Keep text inside the page margin (16–32px or more). Only display type deliberately bled past the edge may touch it."
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\before\\runs_e2e_E2E-2091E783\\desktop-fold.jpg",
+   "pages": [
+    "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\before\\runs_e2e_E2E-2091E783\\desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\before\\runs_e2e_E2E-2091E783\\tablet-fold.jpg",
+   "pages": [
+    "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\before\\runs_e2e_E2E-2091E783\\tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\before\\runs_e2e_E2E-2091E783\\mobile-fold.jpg",
+   "pages": [
+    "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\before\\runs_e2e_E2E-2091E783\\mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

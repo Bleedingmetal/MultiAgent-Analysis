@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { CaretDown, MagnifyingGlass, Play, Sparkle } from "@phosphor-icons/react"
 
 import {
@@ -16,8 +16,10 @@ import {
   getHealth,
 } from "@/lib/api"
 import type { AgentConfiguration } from "@/types/configuration"
+import { BatchRunPanel } from "@/components/product/batch-run-panel"
 import { ChainTraceView } from "@/components/product/chain-trace"
 import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
+import { ReasoningSteps } from "@/components/product/reasoning-steps"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -49,6 +51,7 @@ export function ConfigRunPanel({
     null,
   )
   const [spend, setSpend] = useState<SpendInfo | null>(null)
+  const [view, setView] = useState<"single" | "batch">("single")
 
   const activeBenchmark = benchmarks.find((b) => b.id === benchmarkId)
   const systemPrompt = activeBenchmark?.default_system_prompt ?? ""
@@ -167,6 +170,10 @@ export function ConfigRunPanel({
     }
   }
 
+  const onSpendChanged = useCallback(() => {
+    refreshHealth().catch(() => undefined)
+  }, [])
+
   const anyProvider = providers != null && Object.values(providers).some(Boolean)
 
   const blocked =
@@ -181,9 +188,29 @@ export function ConfigRunPanel({
     <section className="bezel">
       <div className="bezel-core overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-5 py-4">
-          <h3 className="text-[16px] font-semibold tracking-tight text-mm-dark">
-            Run
-          </h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-[16px] font-semibold tracking-tight text-mm-dark">
+              Run
+            </h3>
+            <div className="seg-track">
+              {(
+                [
+                  ["single", "Single task"],
+                  ["batch", "End-to-end"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="seg-item"
+                  data-active={view === id}
+                  onClick={() => setView(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-3 font-data text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span
@@ -220,6 +247,18 @@ export function ConfigRunPanel({
           </div>
         </div>
 
+        {view === "batch" ? (
+          <BatchRunPanel
+            configuration={configuration}
+            runMode={runMode}
+            datasetTotal={
+              benchmarks.find((b) => b.id === "finqa")?.task_count ?? 0
+            }
+            remainingBudget={spend?.remaining_budget_usd ?? null}
+            canRun={!!apiOk && anyProvider}
+            onSpendChanged={onSpendChanged}
+          />
+        ) : (
         <div className="space-y-5 p-5">
           <div>
             <p className="mb-2 text-[12px] font-medium text-muted-foreground">
@@ -477,17 +516,15 @@ export function ConfigRunPanel({
                 />
               ) : result.reasoning ? (
                 <div className="mt-4 rounded-xl bg-[#f4f7fb] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
+                  <p className="text-[12px] font-medium text-muted-foreground">
                     Reasoning
                   </p>
-                  <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-mm-dark/90">
-                    {result.reasoning}
-                  </p>
+                  <ReasoningSteps text={result.reasoning} className="mt-3" />
                 </div>
               ) : null}
 
               <div className="mt-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
+                <p className="text-[12px] font-medium text-muted-foreground">
                   Final answer
                 </p>
                 <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark">
@@ -535,6 +572,7 @@ export function ConfigRunPanel({
             </p>
           ) : null}
         </div>
+        )}
       </div>
     </section>
   )

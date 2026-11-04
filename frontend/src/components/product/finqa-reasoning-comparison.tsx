@@ -1,5 +1,6 @@
 import type { FinQAReasoningComparison } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { ReasoningSteps } from "@/components/product/reasoning-steps"
 
 function StatusPill({
   value,
@@ -57,9 +58,6 @@ export function FinQAReasoningComparisonView({
           <p className="text-[13px] font-semibold text-mm-dark">
             Reasoning comparison
           </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Agent calculation versus FinQA ground truth
-          </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <StatusPill
@@ -87,13 +85,11 @@ export function FinQAReasoningComparisonView({
 
       <div className="grid md:grid-cols-2">
         <div className="border-b border-border/70 p-4 md:border-r md:border-b-0">
-          <p className="font-data text-[10px] font-semibold uppercase tracking-[0.08em] text-mm-blue">
-            Agent
+          <p className="text-[12px] font-medium text-muted-foreground">
+            What the agent did
           </p>
           {agentReasoning ? (
-            <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed text-mm-dark/90">
-              {agentReasoning}
-            </p>
+            <ReasoningSteps text={agentReasoning} className="mt-3" />
           ) : (
             <p className="mt-3 text-[12px] text-muted-foreground">
               No concise reasoning was returned.
@@ -103,7 +99,7 @@ export function FinQAReasoningComparisonView({
             {comparison.agent_program ?? "No FinQA program returned"}
           </pre>
           <p className="mt-2 font-data text-[11px] text-muted-foreground">
-            Executed result{" "}
+            Agent calculation evaluates to{" "}
             <span className="text-mm-dark">
               {comparison.agent_result ?? "unavailable"}
             </span>
@@ -116,8 +112,8 @@ export function FinQAReasoningComparisonView({
         </div>
 
         <div className="p-4">
-          <p className="font-data text-[10px] font-semibold uppercase tracking-[0.08em] text-mm-blue">
-            FinQA expected
+          <p className="text-[12px] font-medium text-muted-foreground">
+            FinQA reference calculation
           </p>
           {comparison.expected_steps.length ? (
             <ol className="mt-3 space-y-2">
@@ -149,7 +145,7 @@ export function FinQAReasoningComparisonView({
             {comparison.expected_program}
           </pre>
           <p className="mt-2 font-data text-[11px] text-muted-foreground">
-            Expected result{" "}
+            Reference result{" "}
             <span className="text-mm-dark">
               {comparison.expected_result ?? "unavailable"}
             </span>

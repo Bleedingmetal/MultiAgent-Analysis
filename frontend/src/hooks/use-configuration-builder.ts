@@ -24,6 +24,7 @@ import {
   rebuildRoutingEdges,
   routeAgents,
 } from "@/lib/routing"
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "@/lib/provider-models"
 import type {
   AgentConfiguration,
   ArchitectureType,
@@ -217,8 +218,8 @@ export function useConfigurationBuilder(
 
     if (item.type === "model") {
       newNode.modelSettings = {
-        provider: item.provider ?? "openai",
-        model: item.model ?? "gpt-4o-mini",
+        provider: item.provider ?? DEFAULT_PROVIDER,
+        model: item.model ?? DEFAULT_MODEL,
         temperature: 0.5,
       }
       if (configuration.architecture === "prompt-chaining") {
@@ -281,8 +282,8 @@ export function useConfigurationBuilder(
         return {
           ...node,
           modelSettings: {
-            provider: node.modelSettings?.provider ?? "openai",
-            model: node.modelSettings?.model ?? "gpt-4o-mini",
+            provider: node.modelSettings?.provider ?? DEFAULT_PROVIDER,
+            model: node.modelSettings?.model ?? DEFAULT_MODEL,
             ...node.modelSettings,
             ...updates,
           },

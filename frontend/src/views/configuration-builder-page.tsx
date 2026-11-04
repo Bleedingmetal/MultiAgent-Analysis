@@ -102,7 +102,7 @@ export default function ConfigurationBuilderPage() {
         <Button render={<Link href="/configurations" />}>
             <ArrowLeft data-icon="inline-start" />
 
-            Back to Configurations
+            Back
         </Button>
       </div>
     )

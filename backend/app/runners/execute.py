@@ -41,13 +41,13 @@ def _primary_model_node(config: AgentConfiguration):
 def _resolve_model(config: AgentConfiguration, model_override: str | None) -> str:
     if model_override and model_override.strip():
         return model_override.strip()
-    # Prefer explicit node model only if it looks like a real OpenAI id
+    # Prefer the node's model unless it is a placeholder name
     node = _primary_model_node(config)
     if node and node.modelSettings and node.modelSettings.model:
         candidate = node.modelSettings.model.strip()
         if candidate.lower() not in {"gpt", "claude", "gemini", "model"}:
             return candidate
-    return settings()["openai_model"]
+    return settings()["default_model"]
 
 
 def _apply_prompt_and_model(
@@ -129,6 +129,8 @@ class ScoredOutput:
     success: bool | None
     comparison: FinQAReasoningComparison | None
     note: str | None
+    # The dataset contradicts itself for this question (see registry._finqa_task).
+    label_disputed: bool = False
 
 
 def score_task_output(task: Task, answer: str) -> ScoredOutput:
@@ -146,17 +148,25 @@ def score_task_output(task: Task, answer: str) -> ScoredOutput:
         task.expected_answer,
         answer,
         expected_is_percent=task.metadata.get("expected_is_percent"),
+        expected_in_percent_units=bool(task.metadata.get("expected_in_percent_units")),
     )
+    alternates = list(task.metadata.get("alternate_answers") or [])
+    note = None if success is not None else "Open-ended task; success not auto-scored in MVP."
+    if alternates:
+        note = (
+            f"Disputed label: FinQA's gold program gives {task.expected_answer}, but the "
+            f"dataset also gives {' / '.join(alternates)}. Any of these is accepted."
+        )
+        # Lenient units here: annotations often drop the % sign.
+        if success is False and any(score_answer(a, answer) for a in alternates):
+            success = True
     return ScoredOutput(
         reasoning=reasoning,
         scored_answer=scored or None,
         success=success,
         comparison=comparison,
-        note=(
-            None
-            if success is not None
-            else "Open-ended task; success not auto-scored in MVP."
-        ),
+        note=note,
+        label_disputed=bool(alternates),
     )
 
 

@@ -17,7 +17,7 @@ from typing import Any
 
 from app.config import settings
 from app.datasets.registry import Task, response_format_for, system_prompt_for
-from app.llm import infer_provider
+from app.llm import default_provider, infer_provider
 from app.openai_client import chat_completion, estimate_cost, get_client, truncate_prompt
 from app.runners.execute import score_task_output, task_user_prompt
 from app.runners.prompt_chain import (
@@ -190,7 +190,7 @@ def resolve_routing(
         provider = (
             infer_provider(model_override.strip())
             if model_override and model_override.strip()
-            else (ms.provider or "openai").strip().lower()
+            else (ms.provider or default_provider()).strip().lower()
         )
         check_provider(provider, f"Route {index + 1} ({node.name})", RoutingConfigError, require_keys)
         ps = node.promptStep or _legacy_prompt_step(node, ms)
@@ -232,7 +232,7 @@ def resolve_routing(
     r_provider = (
         infer_provider(model_override.strip())
         if model_override and model_override.strip()
-        else (rms.provider or "openai").strip().lower()
+        else (rms.provider or default_provider()).strip().lower()
     )
     check_provider(r_provider, "The Router", RoutingConfigError, require_keys)
     rs = _router_settings(router_node)
@@ -652,6 +652,7 @@ def _assemble_result(
         scored_answer=scored.scored_answer if scored else None,
         reasoning=scored.reasoning if scored else None,
         reasoning_comparison=scored.comparison if scored else None,
+        label_disputed=bool(scored and scored.label_disputed),
         answer=answer,
         success=scored.success if scored else None,
         latency_sec=round(latency, 3),

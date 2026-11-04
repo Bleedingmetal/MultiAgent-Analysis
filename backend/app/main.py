@@ -6,12 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.datasets import registry
 from app.llm import providers_status
-from app.runners.execute import run_classifier_plan
-from app.runners.pipeline import run_pipeline
-from app.runners.prompt_chain import ChainConfigError, resolve_chain, run_prompt_chain
-from app.runners.routing import RoutingConfigError, resolve_routing, run_routing
-from app.schemas import RunRequest, RunResult
-from app import spend_guard, store
+from app.runners.dispatch import CONFIG_ERRORS, execute, preflight
+from app.schemas import BatchRequest, BatchRun, RunRequest, RunResult
+from app import batches, spend_guard, store
 
 app = FastAPI(title="Agent Evaluation API", version="0.1.0")
 
@@ -29,7 +26,7 @@ async def health_check():
     providers = providers_status()
     return {
         "status": "ok",
-        "model": settings()["openai_model"],
+        "model": settings()["default_model"],
         "openai_configured": providers["openai"],
         "providers": providers,
         "spend": spend_guard.status(),
@@ -93,18 +90,11 @@ def create_run(body: RunRequest):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if body.mode == "prompt-chain":
-        # Reject unrunnable chains before they consume a run slot.
-        try:
-            resolve_chain(body.configuration, body.model_override, require_keys=True)
-        except ChainConfigError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    if body.mode == "routing":
-        try:
-            resolve_routing(body.configuration, body.model_override, require_keys=True)
-        except RoutingConfigError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Reject unrunnable chain / routing configs before they consume a run slot.
+    try:
+        preflight(body.configuration, body.mode, body.model_override)
+    except CONFIG_ERRORS as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
         spend_guard.begin_run()
@@ -114,37 +104,18 @@ def create_run(body: RunRequest):
     ok = False
     meter = spend_guard.RunMeter()
     try:
-        if body.mode == "prompt-chain":
-            result = run_prompt_chain(
-                body.configuration,
-                task,
-                model_override=body.model_override,
-                parent_run_id=body.parent_run_id,
-                budget_usd=spend_guard.status()["remaining_budget_usd"],
-            )
-            meter.add_cost(result.cost_usd)
-        elif body.mode == "routing":
-            result = run_routing(
-                body.configuration,
-                task,
-                model_override=body.model_override,
-                parent_run_id=body.parent_run_id,
-            )
-            meter.add_cost(result.cost_usd)
-        else:
-            # classify-plan, or any configuration through the generic pipeline engine
-            runner = run_classifier_plan if body.mode == "classify-plan" else run_pipeline
-            result = runner(
-                body.configuration,
-                task,
-                meter=meter,
-                model_override=body.model_override,
-                parent_run_id=body.parent_run_id,
-            )
+        result = execute(
+            body.configuration,
+            task,
+            mode=body.mode,
+            meter=meter,
+            model_override=body.model_override,
+            parent_run_id=body.parent_run_id,
+        )
         # A chain that fails midway is still a run that spent money on earlier steps.
         ok = result.status == "completed" or result.cost_usd > 0
         return store.add_run(result)
-    except (RuntimeError, ChainConfigError, RoutingConfigError) as exc:
+    except (RuntimeError, *CONFIG_ERRORS) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"LLM provider error: {exc}") from exc
@@ -159,7 +130,43 @@ async def get_runs(limit: int = 50):
 
 @app.get("/api/runs/{run_id}")
 async def get_run(run_id: str):
-    run = store.get_run(run_id)
+    # Questions from end-to-end runs live with their batch, not in run history.
+    run = store.get_run(run_id) or batches.get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return run
+
+
+@app.post("/api/batches", response_model=BatchRun)
+def create_batch(body: BatchRequest):
+    if settings()["require_confirm"] and not body.confirm:
+        raise HTTPException(status_code=400, detail="Confirm required.")
+    try:
+        return batches.start(body)
+    except CONFIG_ERRORS as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/api/batches")
+def list_batches(configuration_id: str | None = None, limit: int = 20):
+    return {"batches": batches.list_batches(configuration_id, limit=limit)}
+
+
+@app.get("/api/batches/{batch_id}", response_model=BatchRun)
+def get_batch(batch_id: str):
+    batch = batches.get(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="End-to-end run not found")
+    return batch
+
+
+@app.post("/api/batches/{batch_id}/cancel", response_model=BatchRun)
+def cancel_batch(batch_id: str):
+    batch = batches.cancel(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="End-to-end run not found")
+    return batch

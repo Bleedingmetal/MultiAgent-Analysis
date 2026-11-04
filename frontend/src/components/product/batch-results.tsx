@@ -1,0 +1,525 @@
+"use client"
+
+import Link from "next/link"
+import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  ArrowSquareOut,
+  CaretDown,
+  CheckCircle,
+  CircleNotch,
+  MagnifyingGlass,
+  MinusCircle,
+  Stop,
+  WarningCircle,
+  XCircle,
+} from "@phosphor-icons/react"
+
+import {
+  type BatchItem,
+  type BatchItemStatus,
+  type BatchRun,
+  type RunResult,
+  chainSteps,
+  getRun,
+  pipelineSteps,
+} from "@/lib/api"
+import { ChainTraceView } from "@/components/product/chain-trace"
+import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
+import { RunTrace } from "@/components/product/run-trace"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+const PAGE = 40
+
+type Filter = "all" | "passed" | "failed" | "error"
+
+export const STATUS_STYLE: Record<
+  BatchItemStatus,
+  { label: string; cell: string; text: string }
+> = {
+  passed: { label: "Pass", cell: "bg-mm-green", text: "text-[#2f7a1f]" },
+  failed: { label: "Fail", cell: "bg-mm-orange", text: "text-[#b34800]" },
+  error: { label: "Error", cell: "bg-[#8a94a6]", text: "text-[#5b6577]" },
+  unscored: { label: "Unscored", cell: "bg-mm-light", text: "text-mm-blue" },
+  running: { label: "Running", cell: "bg-mm-charge animate-pulse", text: "text-mm-charge" },
+  pending: { label: "Pending", cell: "bg-[#dfe5ee]", text: "text-muted-foreground" },
+  skipped: { label: "Skipped", cell: "bg-[#eef1f6]", text: "text-muted-foreground" },
+}
+
+export const BATCH_STATUS_LABEL: Record<BatchRun["status"], string> = {
+  running: "Running",
+  completed: "Completed",
+  stopped: "Stopped early",
+  cancelled: "Cancelled",
+  interrupted: "Interrupted",
+  failed: "Failed",
+}
+
+export function usd(value?: number | null) {
+  if (value == null) return "—"
+  if (value === 0) return "$0"
+  return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(value < 1 ? 3 : 2)}`
+}
+
+export function pct(value?: number | null, digits = 1) {
+  return value == null ? "—" : `${(value * 100).toFixed(digits)}%`
+}
+
+export function secs(value?: number | null) {
+  if (value == null) return "—"
+  return value < 60
+    ? `${value.toFixed(1)}s`
+    : `${Math.floor(value / 60)}m ${Math.round(value % 60)}s`
+}
+
+export function when(iso: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(iso))
+}
+
+function StatusIcon({ status }: { status: BatchItemStatus }) {
+  const cls = cn("size-[18px] shrink-0", STATUS_STYLE[status].text)
+  switch (status) {
+    case "passed":
+      return <CheckCircle className={cls} weight="fill" />
+    case "failed":
+      return <XCircle className={cls} weight="fill" />
+    case "error":
+      return <WarningCircle className={cls} weight="fill" />
+    case "running":
+      return <CircleNotch className={cn(cls, "animate-spin")} weight="bold" />
+    default:
+      return <MinusCircle className={cls} />
+  }
+}
+
+export function Stat({
+  label,
+  value,
+  hint,
+}: {
+  label: string
+  value: string
+  hint?: string
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-white px-4 py-3">
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 font-data text-[18px] font-semibold tracking-tight text-mm-dark">
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-0.5 font-data text-[11px] text-muted-foreground">{hint}</p>
+      ) : null}
+    </div>
+  )
+}
+
+/** One square per question, coloured by outcome. Click a square to open that question. */
+function OutcomeStrip({
+  items,
+  onPick,
+}: {
+  items: BatchItem[]
+  onPick: (index: number) => void
+}) {
+  const dense = items.length > 300
+  return (
+    <div className={cn("flex flex-wrap", dense ? "gap-[2px]" : "gap-[3px]")}>
+      {items.map((item) => (
+        <button
+          key={item.index}
+          type="button"
+          title={`#${item.index + 1} · ${STATUS_STYLE[item.status].label}`}
+          aria-label={`Question ${item.index + 1}: ${STATUS_STYLE[item.status].label}`}
+          onClick={() => onPick(item.index)}
+          className={cn(
+            "rounded-[2px] transition-transform hover:scale-150",
+            dense ? "size-[7px]" : "size-[11px]",
+            STATUS_STYLE[item.status].cell,
+          )}
+        />
+      ))}
+    </div>
+  )
+}
+
+function ItemDetail({ item }: { item: BatchItem }) {
+  const [run, setRun] = useState<RunResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!item.run_id) return
+    let cancelled = false
+    getRun(item.run_id)
+      .then((r) => !cancelled && setRun(r))
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "Could not load run"))
+    return () => {
+      cancelled = true
+    }
+  }, [item.run_id])
+
+  if (!item.run_id) {
+    return (
+      <p className="text-[13px] text-[#5b6577]">
+        {item.error ??
+          (item.status === "skipped" ? "Not run: the batch stopped first." : "Not run yet.")}
+      </p>
+    )
+  }
+  if (error) return <p className="text-[13px] text-[#b34800]">{error}</p>
+  if (!run) {
+    return (
+      <p className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
+        <CircleNotch className="size-4 animate-spin" /> Loading trace…
+      </p>
+    )
+  }
+
+  const chain = chainSteps(run)
+  const pipeline = pipelineSteps(run)
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl bg-[#f4f7fb] px-4 py-3">
+          <p className="text-[12px] font-medium text-muted-foreground">Agent answer</p>
+          <p className="mt-1.5 text-[14px] text-mm-dark">
+            {run.scored_answer || "No final answer"}
+          </p>
+        </div>
+        <div className="rounded-xl bg-[#f4f7fb] px-4 py-3">
+          <p className="text-[12px] font-medium text-muted-foreground">Expected</p>
+          <p className="mt-1.5 text-[14px] text-mm-dark">
+            {run.expected_display ?? run.expected_answer ?? "—"}
+            {run.expected_display &&
+            run.expected_answer &&
+            run.expected_display !== run.expected_answer ? (
+              <span className="mt-1 block text-[12px] text-muted-foreground">
+                FinQA program result {run.expected_answer}
+              </span>
+            ) : null}
+          </p>
+        </div>
+      </div>
+
+      {run.label_disputed && run.note ? (
+        <p className="rounded-xl border border-mm-yellow/40 bg-mm-yellow/10 px-4 py-3 text-[13px] text-[#5c4600]">
+          {run.note}
+        </p>
+      ) : null}
+
+      {run.error ? (
+        <p className="rounded-xl border border-mm-orange/25 bg-mm-orange/8 px-4 py-3 text-[13px] text-[#b34800]">
+          {run.error}
+        </p>
+      ) : null}
+
+      {chain.length ? <ChainTraceView steps={chain} /> : null}
+      {pipeline.length ? <RunTrace steps={pipeline} /> : null}
+
+      {run.reasoning_comparison ? (
+        <FinQAReasoningComparisonView
+          comparison={run.reasoning_comparison}
+          agentReasoning={run.reasoning}
+        />
+      ) : null}
+
+      <Link
+        href={`/runs/${run.id}`}
+        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-mm-charge hover:underline"
+      >
+        Open full run <ArrowSquareOut className="size-3.5" weight="bold" />
+      </Link>
+    </div>
+  )
+}
+
+function ItemRow({
+  item,
+  open,
+  onToggle,
+}: {
+  item: BatchItem
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <li
+      id={`batch-item-${item.index}`}
+      className={cn(
+        "rounded-2xl border bg-white transition-colors",
+        open ? "border-mm-charge/30" : "border-border/70",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-start gap-3 px-4 py-3 text-left"
+        aria-expanded={open}
+      >
+        <StatusIcon status={item.status} />
+        <span className="w-9 shrink-0 font-data text-[11px] leading-[18px] text-muted-foreground">
+          #{item.index + 1}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 text-[13.5px] leading-snug text-mm-dark">
+            {item.question}
+          </span>
+          <span className="mt-1 flex flex-wrap gap-x-3 font-data text-[11px] text-muted-foreground">
+            <span>
+              got{" "}
+              <span className={STATUS_STYLE[item.status].text}>
+                {item.scored_answer ?? "—"}
+              </span>
+            </span>
+            <span>expected {item.expected_display ?? "—"}</span>
+            {item.label_disputed ? (
+              <span
+                className="rounded-full bg-mm-yellow/20 px-1.5 text-[#7a5d00]"
+                title="FinQA's gold program and its own step annotation disagree; either answer is accepted"
+              >
+                disputed label
+              </span>
+            ) : null}
+          </span>
+        </span>
+        <span className="hidden shrink-0 text-right font-data text-[11px] leading-[18px] text-muted-foreground sm:block">
+          {item.run_id ? `${usd(item.cost_usd)} · ${secs(item.latency_sec)}` : ""}
+        </span>
+        <CaretDown
+          className={cn(
+            "mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+          weight="bold"
+        />
+      </button>
+      {open ? (
+        <div className="border-t border-border/70 px-4 py-4">
+          <ItemDetail item={item} />
+        </div>
+      ) : null}
+    </li>
+  )
+}
+
+/** Headline, outcome strip, metrics, and the per-question list for one end-to-end run. */
+export function BatchResults({
+  batch,
+  onStop,
+  showMeta = true,
+  children,
+}: {
+  batch: BatchRun
+  onStop?: () => void
+  showMeta?: boolean
+  /** Rendered between the headline metrics and the question list. */
+  children?: React.ReactNode
+}) {
+  const [filter, setFilter] = useState<Filter>("all")
+  const [query, setQuery] = useState("")
+  const [shown, setShown] = useState(PAGE)
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+  const pendingScroll = useRef<number | null>(null)
+
+  // Reset the list when a different batch is shown.
+  useEffect(() => {
+    setFilter("all")
+    setQuery("")
+    setShown(PAGE)
+    setOpenIndex(null)
+  }, [batch.id])
+
+  const counts = useMemo(
+    () => ({
+      all: batch.items.length,
+      passed: batch.items.filter((i) => i.status === "passed").length,
+      failed: batch.items.filter((i) => i.status === "failed").length,
+      error: batch.items.filter((i) => i.status === "error").length,
+    }),
+    [batch],
+  )
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return batch.items.filter(
+      (i) =>
+        (filter === "all" || i.status === filter) &&
+        (!q || i.question.toLowerCase().includes(q) || i.task_id.toLowerCase().includes(q)),
+    )
+  }, [batch, filter, query])
+
+  // Clicking a square: switch to "All", page far enough, open it, then scroll to it.
+  function pick(index: number) {
+    setFilter("all")
+    setQuery("")
+    setShown((s) => Math.max(s, index + 1))
+    setOpenIndex(index)
+    pendingScroll.current = index
+  }
+
+  useEffect(() => {
+    if (pendingScroll.current == null) return
+    const el = document.getElementById(`batch-item-${pendingScroll.current}`)
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" })
+      pendingScroll.current = null
+    }
+  })
+
+  const s = batch.summary
+  const running = batch.status === "running"
+  const progress = s.total ? s.done / s.total : 0
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          {showMeta ? (
+            <p className="font-data text-[11px] tracking-wide text-mm-blue">
+              <Link href={`/runs/e2e/${batch.id}`} className="hover:underline">
+                {batch.id}
+              </Link>{" "}
+              · {when(batch.created_at)} · {batch.models.join(", ") || batch.mode}
+            </p>
+          ) : null}
+          <div className="mt-2 flex items-baseline gap-3">
+            <p className="text-[44px] font-semibold leading-none tracking-[-0.03em] text-mm-dark">
+              {pct(s.pass_rate, 1)}
+            </p>
+            <p className="text-[13px] text-muted-foreground">
+              pass rate · {s.passed} of {s.passed + s.failed} correct
+            </p>
+          </div>
+          <p className="mt-2 text-[13px] text-muted-foreground">
+            <span className={cn("font-medium", running ? "text-mm-charge" : "text-mm-dark")}>
+              {BATCH_STATUS_LABEL[batch.status]}
+            </span>
+            {" · "}
+            {s.done} / {s.total} questions · {secs(s.elapsed_sec)}
+            {batch.stop_reason ? ` · ${batch.stop_reason}` : ""}
+          </p>
+        </div>
+        {running && onStop ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onStop}
+            className="h-10 rounded-full px-4 text-sm"
+          >
+            <Stop className="size-4" weight="fill" />
+            Stop
+          </Button>
+        ) : null}
+      </div>
+
+      {running ? (
+        <div className="h-1.5 overflow-hidden rounded-full bg-[#e8edf4]">
+          <div
+            className="h-full rounded-full bg-mm-charge transition-[width] duration-500"
+            style={{ width: `${Math.max(2, progress * 100)}%` }}
+          />
+        </div>
+      ) : null}
+
+      <OutcomeStrip items={batch.items} onPick={pick} />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat
+          label="Cost"
+          value={usd(s.cost_usd)}
+          hint={
+            running && s.projected_cost_usd != null
+              ? `~${usd(s.projected_cost_usd)} projected`
+              : `${usd(s.avg_cost_usd)} / question`
+          }
+        />
+        <Stat label="Cost per correct answer" value={usd(s.cost_per_pass_usd)} />
+        <Stat
+          label="Latency"
+          value={secs(s.avg_latency_sec)}
+          hint={s.p95_latency_sec != null ? `p95 ${secs(s.p95_latency_sec)}` : undefined}
+        />
+        <Stat
+          label="Program matches"
+          value={pct(s.program_match_rate, 0)}
+          hint={s.errors ? `${s.errors} errored` : undefined}
+        />
+      </div>
+
+      {children}
+
+      <div>
+        <h2 className="mb-3 text-[16px] font-semibold text-mm-dark">Questions</h2>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="seg-track">
+            {(
+              [
+                ["all", "All"],
+                ["passed", "Passed"],
+                ["failed", "Failed"],
+                ["error", "Errors"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className="seg-item"
+                data-active={filter === id}
+                onClick={() => {
+                  setFilter(id)
+                  setShown(PAGE)
+                }}
+              >
+                {label}
+                <span className="ml-1 opacity-50">{counts[id]}</span>
+              </button>
+            ))}
+          </div>
+          <label className="flex h-9 min-w-[180px] flex-1 items-center gap-2 rounded-full border border-border/80 bg-white px-3">
+            <MagnifyingGlass className="size-4 text-muted-foreground" weight="bold" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search questions"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
+            />
+          </label>
+        </div>
+
+        {visible.length ? (
+          <ul className="space-y-2">
+            {visible.slice(0, shown).map((item) => (
+              <ItemRow
+                key={item.index}
+                item={item}
+                open={openIndex === item.index}
+                onToggle={() =>
+                  setOpenIndex((current) => (current === item.index ? null : item.index))
+                }
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            No questions match.
+          </p>
+        )}
+        {visible.length > shown ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShown((v) => v + PAGE)}
+            className="mt-3 h-9 w-full rounded-full text-sm"
+          >
+            Show {Math.min(PAGE, visible.length - shown)} more of {visible.length - shown}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}

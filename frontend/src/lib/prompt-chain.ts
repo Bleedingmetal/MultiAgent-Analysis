@@ -4,7 +4,6 @@ import type {
   ConfigurationNode,
   PromptChainOutputFormat,
   PromptChainPreviousOutputs,
-  PromptChainRole,
   PromptStepSettings,
 } from "@/types/configuration"
 
@@ -12,98 +11,60 @@ export const MAX_CHAIN_STEPS = 6
 
 export const EXECUTABLE_PROVIDERS = new Set(["openai", "anthropic", "google"])
 
-export const DEFAULT_PROMPT_TEMPLATE = [
-  "Your role in this sequential chain of agents: {{role}}.",
-  "",
-  "Objective: {{objective}}",
-  "",
-  "{{instructions}}",
-  "",
-  "{{output_requirements}}",
-].join("\n")
+import {
+  type AgentPreset,
+  DEFAULT_PROMPT_TEMPLATE,
+  PROMPT_TEMPLATE_VARIABLES,
+  getPresets,
+} from "@/lib/agent-presets"
 
-export const PROMPT_TEMPLATE_VARIABLES = [
-  "role",
-  "objective",
-  "instructions",
-  "output_requirements",
-  "dataset_instructions",
-] as const
+export { DEFAULT_PROMPT_TEMPLATE, PROMPT_TEMPLATE_VARIABLES }
 
-export const CHAIN_ROLES: {
-  id: PromptChainRole
+export type RoleOption = {
+  id: string
   label: string
   description: string
-  defaults: PromptStepSettings
-}[] = [
-  {
-    id: "researcher",
-    label: "Researcher",
-    description: "Extract facts and evidence from the original task.",
-    defaults: {
-      role: "researcher",
-      objective:
-        "Extract the facts, figures, and evidence needed to answer the task. Do not invent values.",
-      instructions:
-        "Work only from the provided inputs. Quote quantities with their units. Note anything that is missing or ambiguous.",
-      promptTemplate: DEFAULT_PROMPT_TEMPLATE,
-      inputs: { task: true, previousOutputs: "last" },
-      outputFormat: "structured",
-    },
-  },
-  {
-    id: "analyst",
-    label: "Analyst",
-    description: "Derive an answer from the available evidence.",
-    defaults: {
-      role: "analyst",
-      objective:
-        "Use the extracted evidence to compute or derive the answer required by the task.",
-      instructions:
-        "Show each calculation as `expression = result`. Do not introduce facts that were not in the inputs.",
-      promptTemplate: DEFAULT_PROMPT_TEMPLATE,
-      inputs: { task: true, previousOutputs: "last" },
-      outputFormat: "structured",
-    },
-  },
-  {
-    id: "verifier",
-    label: "Verifier",
-    description: "Check prior work and produce the final answer.",
-    defaults: {
-      role: "verifier",
-      objective:
-        "Check the previous agent's work and produce the final answer to the original task.",
-      instructions:
-        "Confirm or correct the calculations. If something is unsupported, say so. Keep the final answer concise.",
-      promptTemplate: DEFAULT_PROMPT_TEMPLATE,
-      inputs: { task: true, previousOutputs: "last" },
-      outputFormat: "text",
-    },
-  },
-  {
-    id: "custom",
-    label: "Custom",
-    description: "Write your own objective and instructions.",
-    defaults: {
-      role: "custom",
-      objective: "",
-      instructions: "",
-      promptTemplate: DEFAULT_PROMPT_TEMPLATE,
-      inputs: { task: true, previousOutputs: "last" },
-      outputFormat: "text",
-    },
-  },
-]
+  builtIn: boolean
+}
 
-const ROLE_DEFAULTS = Object.fromEntries(
-  CHAIN_ROLES.map((role) => [role.id, role.defaults]),
-) as Record<PromptChainRole, PromptStepSettings>
+const CUSTOM_OPTION: RoleOption = {
+  id: "custom",
+  label: "Custom",
+  description: "Write your own objective and instructions.",
+  builtIn: true,
+}
 
-export function promptStepForRole(
-  role: PromptChainRole = "custom",
-): PromptStepSettings {
-  return structuredClone(ROLE_DEFAULTS[role] ?? ROLE_DEFAULTS.custom)
+/** Every role a specialist can take: the preset library plus "Custom". */
+export function roleOptions(presets: AgentPreset[] = getPresets()): RoleOption[] {
+  return [
+    ...presets.map((p) => ({ id: p.id, label: p.label, description: p.description, builtIn: p.builtIn })),
+    CUSTOM_OPTION,
+  ]
+}
+
+function stepFromPreset(preset: AgentPreset): PromptStepSettings {
+  return {
+    role: preset.id,
+    objective: preset.objective,
+    instructions: preset.instructions,
+    promptTemplate: preset.promptTemplate || DEFAULT_PROMPT_TEMPLATE,
+    inputs: { task: true, previousOutputs: "last" },
+    outputFormat: preset.outputFormat,
+  }
+}
+
+const CUSTOM_STEP: PromptStepSettings = {
+  role: "custom",
+  objective: "",
+  instructions: "",
+  promptTemplate: DEFAULT_PROMPT_TEMPLATE,
+  inputs: { task: true, previousOutputs: "last" },
+  outputFormat: "text",
+}
+
+export function promptStepForRole(role: string = "custom"): PromptStepSettings {
+  const preset = getPresets().find((p) => p.id === role)
+  return preset ? stepFromPreset(preset) : structuredClone(CUSTOM_STEP)
 }
 
 export function defaultPromptStep(
@@ -122,8 +83,8 @@ export function defaultPromptStep(
   const legacyRole = String(node?.metadata?.role ?? "")
     .trim()
     .toLowerCase()
-  if (legacyRole in ROLE_DEFAULTS) {
-    const defaults = promptStepForRole(legacyRole as PromptChainRole)
+  if (getPresets().some((p) => p.id === legacyRole)) {
+    const defaults = promptStepForRole(legacyRole)
     const instructions = String(node?.metadata?.instructions ?? "").trim()
     return {
       ...defaults,
@@ -171,7 +132,7 @@ export function hydratePromptChain(
 ): AgentConfiguration {
   if (configuration.architecture !== "prompt-chaining") return configuration
 
-  const fallbackRoles: PromptChainRole[] = [
+  const fallbackRoles: string[] = [
     "researcher",
     "analyst",
     "verifier",
@@ -195,9 +156,9 @@ export function hydratePromptChain(
 }
 
 export function roleLabel(role?: string | null) {
-  const match = CHAIN_ROLES.find((entry) => entry.id === role)
+  const match = getPresets().find((entry) => entry.id === role)
   if (match) return match.label
-  if (!role) return "Custom"
+  if (!role || role === "custom") return "Custom"
   return role
 }
 

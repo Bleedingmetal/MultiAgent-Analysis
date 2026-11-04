@@ -1,0 +1,1448 @@
+{
+ "url": "http://localhost:3000/benchmarks",
+ "at": "2026-11-04T16:04:53.434Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.74
+   ],
+   "motion": {
+    "elements": 5,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 5,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 900,
+     "screens": 1,
+     "words": 127,
+     "img": 1,
+     "video": 0,
+     "canvas": 0,
+     "svg": 10,
+     "sections": 0,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Benchmarks",
+     "words": 1,
+     "chars": 10,
+     "lines": 1,
+     "size": 14,
+     "vw": 1,
+     "font": "IBM Plex Sans Variable",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 18,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Benchmarks",
+     "words": 1,
+     "lines": 1,
+     "size": 14,
+     "font": "IBM Plex Sans Variable"
+    },
+    "headings": [
+     {
+      "text": "Benchmarks",
+      "words": 1,
+      "chars": 10,
+      "lines": 1,
+      "size": 38,
+      "vw": 2.6,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.15,
+      "top": 64,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans Variable",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      18,
+      22,
+      38
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 38,
+      "vw": 2.6,
+      "font": "IBM Plex Sans Variable",
+      "text": "Benchmarks"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0,
+     "smallText": 12
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#eef2f7",
+     "bodyBgHsl": {
+      "h": 213,
+      "s": 0.36,
+      "l": 0.95
+     },
+     "dark": false,
+     "sectionBgs": [],
+     "textColors": [
+      {
+       "color": "#ffffff",
+       "share": 0.41
+      },
+      {
+       "color": "#5a6b84",
+       "share": 0.25
+      },
+      {
+       "color": "#001735",
+       "share": 0.18
+      },
+      {
+       "color": "#4dc7eb",
+       "share": 0.12
+      },
+      {
+       "color": "#0265ff",
+       "share": 0.04
+      }
+     ],
+     "button": {
+      "bg": "#0265ff",
+      "hsl": {
+       "h": 217,
+       "s": 1,
+       "l": 0.5
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": "pill",
+     "height": 50,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Compare"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 3,
+     "shadowOverlay": 0,
+     "shadowSamples": [
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px",
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px",
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px"
+     ],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "div.fixed.inset-y-0 256px"
+     ],
+     "outlinedBoxes": 3,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 3,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 56,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex sans variable"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 900,
+    "margins": {
+     "left": 288,
+     "right": 141
+    },
+    "sections": [
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 153,
+      "height": 212,
+      "words": 33,
+      "media": 0,
+      "middle": 356,
+      "heading": {
+       "text": "τ-bench Retail",
+       "size": 22,
+       "tag": "h3"
+      },
+      "left": 313,
+      "right": 208,
+      "textLeft": 313,
+      "textRight": 208,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 381,
+      "height": 212,
+      "words": 39,
+      "media": 0,
+      "middle": 384,
+      "heading": {
+       "text": "FinQA / TAT-QA",
+       "size": 22,
+       "tag": "h3"
+      },
+      "left": 313,
+      "right": 177,
+      "textLeft": 313,
+      "textRight": 177,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 610,
+      "height": 212,
+      "words": 39,
+      "media": 0,
+      "middle": 425,
+      "heading": {
+       "text": "Finance Agent Benchmark",
+       "size": 22,
+       "tag": "h3"
+      },
+      "left": 313,
+      "right": 141,
+      "textLeft": 313,
+      "textRight": 141,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Benchmarks",
+      "size": 14,
+      "top": 18,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 313,
+      "n": 4
+     },
+     {
+      "x": 288,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 5,
+    "bodySize": 14,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0.18,
+    "voidBox": {
+     "x": 660,
+     "y": 120,
+     "w": 300,
+     "h": 780
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#eef2f7",
+    "sidebar": {
+     "w": 256,
+     "tag": "div",
+     "links": 6,
+     "share": 0.18
+    },
+    "topbar": {
+     "h": 56
+    },
+    "canvas": {
+     "left": 26,
+     "right": 50
+    },
+    "hero": {
+     "text": "Benchmarks",
+     "words": 1,
+     "chars": 10,
+     "lines": 1,
+     "size": 14,
+     "vw": 1,
+     "font": "IBM Plex Sans Variable",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 18,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 4,
+     "firstScreen": 4,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 7,
+     "radii": [
+      [
+       0,
+       4
+      ],
+      [
+       20,
+       3
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 3,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 0,
+       "size": 30,
+       "radius": "9999px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.32,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      18,
+      22,
+      38
+     ]
+    },
+    "title": {
+     "text": "Benchmarks",
+     "size": 14,
+     "top": 18
+    },
+    "colourShare": 0.016
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.84,
+    0.84
+   ],
+   "motion": {
+    "elements": 5,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 5,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 1154,
+     "screens": 1.1,
+     "words": 127,
+     "img": 1,
+     "video": 0,
+     "canvas": 0,
+     "svg": 10,
+     "sections": 0,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Benchmarks",
+     "words": 1,
+     "chars": 10,
+     "lines": 1,
+     "size": 14,
+     "vw": 1.8,
+     "font": "IBM Plex Sans Variable",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 18,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Benchmarks",
+     "words": 1,
+     "lines": 1,
+     "size": 14,
+     "font": "IBM Plex Sans Variable"
+    },
+    "headings": [
+     {
+      "text": "Benchmarks",
+      "words": 1,
+      "chars": 10,
+      "lines": 1,
+      "size": 38,
+      "vw": 4.9,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.27,
+      "top": 64,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans Variable",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      18,
+      22,
+      38
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 38,
+      "vw": 4.9,
+      "font": "IBM Plex Sans Variable",
+      "text": "Benchmarks"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0,
+     "smallText": 12
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#eef2f7",
+     "bodyBgHsl": {
+      "h": 213,
+      "s": 0.36,
+      "l": 0.95
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#001735",
+       "top": 0,
+       "hsl": {
+        "h": 214,
+        "s": 1,
+        "l": 0.1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#ffffff",
+       "share": 0.41
+      },
+      {
+       "color": "#5a6b84",
+       "share": 0.25
+      },
+      {
+       "color": "#001735",
+       "share": 0.18
+      },
+      {
+       "color": "#4dc7eb",
+       "share": 0.12
+      },
+      {
+       "color": "#0265ff",
+       "share": 0.04
+      }
+     ],
+     "button": {
+      "bg": "#0265ff",
+      "hsl": {
+       "h": 217,
+       "s": 1,
+       "l": 0.5
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": "pill",
+     "height": 50,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Compare"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 3,
+     "shadowOverlay": 0,
+     "shadowSamples": [
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px",
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px",
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px"
+     ],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 4,
+     "hairlineSamples": [
+      "div.fixed.inset-y-0 256px",
+      "div.border-b.border-border/70 271px",
+      "div.border-b.border-border/70 271px",
+      "div.border-b.border-border/70 271px"
+     ],
+     "outlinedBoxes": 3,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 3,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 56,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex sans variable"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 1154,
+    "margins": {
+     "left": 288,
+     "right": 60
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Benchmarks",
+      "size": 14,
+      "top": 18,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 313,
+      "n": 4
+     },
+     {
+      "x": 288,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 5,
+    "bodySize": 14,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": false,
+    "ground": "#eef2f7",
+    "sidebar": {
+     "w": 256,
+     "tag": "div",
+     "links": 6,
+     "share": 0.33
+    },
+    "topbar": {
+     "h": 56
+    },
+    "canvas": {
+     "left": 26,
+     "right": 50
+    },
+    "hero": {
+     "text": "Benchmarks",
+     "words": 1,
+     "chars": 10,
+     "lines": 1,
+     "size": 14,
+     "vw": 1.8,
+     "font": "IBM Plex Sans Variable",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 18,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 4,
+     "firstScreen": 4,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 7,
+     "radii": [
+      [
+       0,
+       4
+      ],
+      [
+       20,
+       3
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 3,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 0,
+       "size": 30,
+       "radius": "9999px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.32,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      18,
+      22,
+      38
+     ]
+    },
+    "title": {
+     "text": "Benchmarks",
+     "size": 14,
+     "top": 18
+    },
+    "colourShare": 0.018
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.8,
+    0.86
+   ],
+   "motion": {
+    "elements": 5,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 5,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 1454,
+     "screens": 1.7,
+     "words": 116,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 5,
+     "sections": 0,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Benchmarks",
+     "words": 1,
+     "chars": 10,
+     "lines": 1,
+     "size": 14,
+     "vw": 3.6,
+     "font": "IBM Plex Sans Variable",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 18,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Benchmarks",
+     "words": 1,
+     "lines": 1,
+     "size": 14,
+     "font": "IBM Plex Sans Variable"
+    },
+    "headings": [
+     {
+      "text": "Benchmarks",
+      "words": 1,
+      "chars": 10,
+      "lines": 1,
+      "size": 32,
+      "vw": 8.2,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.03,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.45,
+      "top": 66,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "τ-bench Retail",
+      "words": 2,
+      "chars": 14,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.025,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.79,
+      "top": 208,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "FinQA / TAT-QA",
+      "words": 3,
+      "chars": 14,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.025,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.79,
+      "top": 648,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Finance Agent Benchmark",
+      "words": 3,
+      "chars": 23,
+      "lines": 1,
+      "size": 22,
+      "vw": 5.6,
+      "font": "IBM Plex Sans Variable",
+      "weight": 600,
+      "tracking": -0.025,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.79,
+      "top": 1066,
+      "tag": "h3",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 4,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 3,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans Variable",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      18,
+      22,
+      32
+     ],
+     "sizeCount": 7,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 32,
+      "vw": 8.2,
+      "font": "IBM Plex Sans Variable",
+      "text": "Benchmarks"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0,
+     "smallText": 11
+    },
+    "eyebrows": [
+     {
+      "text": "Fidelity anchor",
+      "above": "τ-bench Retail",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": true,
+      "size": 11,
+      "top": 171
+     },
+     {
+      "text": "Cheap cell",
+      "above": "FinQA / TAT-QA",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": true,
+      "size": 11,
+      "top": 612
+     },
+     {
+      "text": "Research cell",
+      "above": "Finance Agent Benchmark",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": true,
+      "size": 11,
+      "top": 1029
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#eef2f7",
+     "bodyBgHsl": {
+      "h": 213,
+      "s": 0.36,
+      "l": 0.95
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 146,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#ffffff",
+       "share": 0.35
+      },
+      {
+       "color": "#5a6b84",
+       "share": 0.28
+      },
+      {
+       "color": "#001735",
+       "share": 0.19
+      },
+      {
+       "color": "#4dc7eb",
+       "share": 0.13
+      },
+      {
+       "color": "#0265ff",
+       "share": 0.05
+      }
+     ],
+     "button": {
+      "bg": "#0265ff",
+      "hsl": {
+       "h": 217,
+       "s": 1,
+       "l": 0.5
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": "pill",
+     "height": 50,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Compare"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 3,
+     "shadowOverlay": 0,
+     "shadowSamples": [
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px",
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px",
+      "article.surface-interactive.grid → rgba(0, 23, 53, 0.04) 0px 1px 2px 0px"
+     ],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 3,
+     "hairlineSamples": [
+      "div.border-b.border-border/70 356px",
+      "div.border-b.border-border/70 356px",
+      "div.border-b.border-border/70 356px"
+     ],
+     "outlinedBoxes": 3,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 3,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 56,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex sans variable"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 1454,
+    "margins": {
+     "left": 16,
+     "right": 52
+    },
+    "sections": [
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 146,
+      "height": 424,
+      "words": 33,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "τ-bench Retail",
+       "size": 22,
+       "tag": "h3"
+      },
+      "left": 41,
+      "right": 58,
+      "textLeft": 41,
+      "textRight": 58,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 587,
+      "height": 402,
+      "words": 39,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "FinQA / TAT-QA",
+       "size": 22,
+       "tag": "h3"
+      },
+      "left": 41,
+      "right": 52,
+      "textLeft": 41,
+      "textRight": 52,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div",
+      "tag": "div",
+      "top": 1004,
+      "height": 402,
+      "words": 39,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Finance Agent Benchmark",
+       "size": 22,
+       "tag": "h3"
+      },
+      "left": 41,
+      "right": 43,
+      "textLeft": 41,
+      "textRight": 43,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Benchmarks",
+      "size": 14,
+      "top": 18,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 41,
+      "n": 4
+     },
+     {
+      "x": 16,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 5,
+    "bodySize": 14,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "dark": false,
+    "ground": "#eef2f7",
+    "sidebar": null,
+    "topbar": {
+     "h": 56
+    },
+    "canvas": {
+     "left": 10,
+     "right": 34
+    },
+    "hero": {
+     "text": "Benchmarks",
+     "words": 1,
+     "chars": 10,
+     "lines": 1,
+     "size": 14,
+     "vw": 3.6,
+     "font": "IBM Plex Sans Variable",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 18,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 3,
+     "firstScreen": 2,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 6,
+     "radii": [
+      [
+       20,
+       3
+      ],
+      [
+       0,
+       3
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 3,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 0,
+       "size": 30,
+       "radius": "9999px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.33,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      18,
+      22,
+      32
+     ]
+    },
+    "title": {
+     "text": "Benchmarks",
+     "size": 14,
+     "top": 18
+    },
+    "colourShare": 0.023
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\after\\benchmarks\\desktop-fold.jpg",
+   "pages": [
+    "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\after\\benchmarks\\desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\after\\benchmarks\\tablet-fold.jpg",
+   "pages": [
+    "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\after\\benchmarks\\tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\after\\benchmarks\\mobile-fold.jpg",
+   "pages": [
+    "C:\\Users\\adity\\Desktop\\MultiAgent-Analysis\\.taste-skill\\after\\benchmarks\\mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}
