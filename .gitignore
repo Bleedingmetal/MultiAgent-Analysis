@@ -48,6 +48,15 @@ Thumbs.db
 *.sw?
 *.local
 
+# Claude Code (local tooling, not part of the project)
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.md
+**/CLAUDE.local.md
+.mcp.json
+skills-lock.json
+
 # Misc
 *.pem
 coverage/
