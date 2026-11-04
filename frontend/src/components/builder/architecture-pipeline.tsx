@@ -3,17 +3,23 @@
 import {
   ArrowRight,
   Bot,
+  ChevronDown,
+  ChevronUp,
   Combine,
   GitBranch,
   GitFork,
   Inbox,
+  Plus,
   Repeat2,
   Send,
   Wrench,
 } from "lucide-react"
 
+import { defaultPromptStep, roleLabel } from "@/lib/prompt-chain"
+import { defaultRouteId } from "@/lib/routing"
 import { cn } from "@/lib/utils"
 import type {
+  ArchitectureType,
   ConfigurationLayer,
   ConfigurationNode,
   ConfigurationNodeType,
@@ -42,9 +48,26 @@ function iconFor(type: ConfigurationNodeType) {
   }
 }
 
-function nodeMeta(node: ConfigurationNode) {
+function nodeMeta(
+  node: ConfigurationNode,
+  isPromptChain: boolean,
+  isRouting: boolean,
+  routeIndex?: number,
+) {
   if (node.type === "model" && node.modelSettings) {
-    return node.modelSettings.model
+    const role = isPromptChain || isRouting
+      ? roleLabel(defaultPromptStep(node).role)
+      : null
+    const routeId =
+      isRouting && routeIndex != null
+        ? defaultRouteId(node, String(defaultPromptStep(node).role), routeIndex)
+        : null
+    return [routeId ? `route: ${routeId}` : null, role, node.modelSettings.model]
+      .filter(Boolean)
+      .join(" · ")
+  }
+  if (node.type === "router" && isRouting) {
+    return "Selects one specialist"
   }
   return null
 }
@@ -53,21 +76,44 @@ interface Props {
   layers: ConfigurationLayer[]
   nodes: ConfigurationNode[]
   selectedNodeId: string | null
+  architecture?: ArchitectureType
   onSelect: (nodeId: string | null) => void
+  onMoveNode?: (nodeId: string, direction: -1 | 1) => void
+  onAddAgent?: () => void
+  canAddAgent?: boolean
+  onAddRoute?: () => void
+  canAddRoute?: boolean
 }
 
 export default function ArchitecturePipeline({
   layers,
   nodes,
   selectedNodeId,
+  architecture,
   onSelect,
+  onMoveNode,
+  onAddAgent,
+  canAddAgent,
+  onAddRoute,
+  canAddRoute,
 }: Props) {
+  const isPromptChain = architecture === "prompt-chaining"
+  const isRouting = architecture === "routing"
   const orderedLayers = layers.slice().sort((a, b) => a.order - b.order)
 
   return (
     <div className="rounded-2xl border border-border/80 bg-white">
       <div className="border-b border-border/70 px-5 py-3.5">
         <p className="text-[13px] font-semibold text-mm-dark">Pipeline</p>
+        {isPromptChain ? (
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Agents run top to bottom. Click one to edit it.
+          </p>
+        ) : isRouting ? (
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Router picks one specialist. Edges are rebuilt from your routes.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex items-stretch justify-center gap-2 p-5 sm:gap-3">
@@ -94,24 +140,39 @@ export default function ArchitecturePipeline({
                       Empty
                     </li>
                   ) : (
-                    layerNodes.map((node) => {
+                    layerNodes.map((node, nodeIndex) => {
                       const Icon = iconFor(node.type)
                       const active = node.id === selectedNodeId
-                      const meta = nodeMeta(node)
+                      const meta = nodeMeta(
+                        node,
+                        isPromptChain,
+                        isRouting,
+                        isRouting && node.type === "model"
+                          ? layerNodes
+                              .filter((n) => n.type === "model")
+                              .findIndex((n) => n.id === node.id)
+                          : undefined,
+                      )
+                      const showReorder =
+                        isPromptChain && node.type === "model" && onMoveNode
                       return (
-                        <li key={node.id}>
+                        <li key={node.id} className="flex items-stretch gap-1">
                           <button
                             type="button"
                             onClick={() => onSelect(active ? null : node.id)}
                             className={cn(
-                              "flex w-full items-start gap-2.5 rounded-lg border px-2.5 py-2.5 text-left transition-colors",
+                              "flex min-w-0 flex-1 items-start gap-2.5 rounded-lg border px-2.5 py-2.5 text-left transition-colors",
                               active
                                 ? "border-mm-charge/40 bg-white ring-2 ring-mm-charge/15"
                                 : "border-transparent bg-white hover:border-mm-charge/25",
                             )}
                           >
-                            <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-mm-blue/6 text-mm-blue">
-                              <Icon className="size-3.5" />
+                            <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-mm-blue/6 font-data text-[11px] font-semibold text-mm-blue">
+                              {isPromptChain && node.type === "model" ? (
+                                nodeIndex + 1
+                              ) : (
+                                <Icon className="size-3.5" />
+                              )}
                             </span>
                             <span className="min-w-0">
                               <span className="block truncate text-[13px] font-medium text-mm-dark">
@@ -124,10 +185,58 @@ export default function ArchitecturePipeline({
                               ) : null}
                             </span>
                           </button>
+                          {showReorder ? (
+                            <div className="flex flex-col justify-center gap-0.5">
+                              <button
+                                type="button"
+                                aria-label="Move up"
+                                disabled={nodeIndex === 0}
+                                onClick={() => onMoveNode(node.id, -1)}
+                                className="rounded-md p-1 text-muted-foreground hover:bg-white hover:text-mm-dark disabled:opacity-30"
+                              >
+                                <ChevronUp className="size-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Move down"
+                                disabled={nodeIndex === layerNodes.length - 1}
+                                onClick={() => onMoveNode(node.id, 1)}
+                                className="rounded-md p-1 text-muted-foreground hover:bg-white hover:text-mm-dark disabled:opacity-30"
+                              >
+                                <ChevronDown className="size-3.5" />
+                              </button>
+                            </div>
+                          ) : null}
                         </li>
                       )
                     })
                   )}
+                  {isRouting && layer.type === "agents" && onAddRoute ? (
+                    <li>
+                      <button
+                        type="button"
+                        disabled={!canAddRoute}
+                        onClick={onAddRoute}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 py-2.5 text-[12px] font-medium text-mm-dark hover:border-mm-charge/35 hover:bg-white disabled:opacity-40"
+                      >
+                        <Plus className="size-3.5" />
+                        Add route
+                      </button>
+                    </li>
+                  ) : null}
+                  {isPromptChain && layer.type === "agents" && onAddAgent ? (
+                    <li>
+                      <button
+                        type="button"
+                        disabled={!canAddAgent}
+                        onClick={onAddAgent}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 py-2.5 text-[12px] font-medium text-mm-dark hover:border-mm-charge/35 hover:bg-white disabled:opacity-40"
+                      >
+                        <Plus className="size-3.5" />
+                        Add agent
+                      </button>
+                    </li>
+                  ) : null}
                 </ul>
               </section>
 

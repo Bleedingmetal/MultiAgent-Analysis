@@ -8,6 +8,8 @@ from app.datasets import registry
 from app.llm import providers_status
 from app.runners.execute import run_classifier_plan
 from app.runners.pipeline import run_pipeline
+from app.runners.prompt_chain import ChainConfigError, resolve_chain, run_prompt_chain
+from app.runners.routing import RoutingConfigError, resolve_routing, run_routing
 from app.schemas import RunRequest, RunResult
 from app import spend_guard, store
 
@@ -56,7 +58,20 @@ async def get_tasks(benchmark_id: str, limit: int = 20):
                 "expected_display": t.expected_display,
                 "scored": t.expected_answer is not None
                 and benchmark_id == "finqa",
-                "metadata": t.metadata,
+                # Ground-truth programs/evidence are evaluation-only and must
+                # not be exposed to the client before a run.
+                "metadata": {
+                    key: value
+                    for key, value in t.metadata.items()
+                    if key
+                    not in {
+                        "program",
+                        "program_re",
+                        "steps",
+                        "expected_evidence",
+                        "table",
+                    }
+                },
             }
             for t in tasks
         ],
@@ -78,6 +93,19 @@ def create_run(body: RunRequest):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    if body.mode == "prompt-chain":
+        # Reject unrunnable chains before they consume a run slot.
+        try:
+            resolve_chain(body.configuration, body.model_override, require_keys=True)
+        except ChainConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if body.mode == "routing":
+        try:
+            resolve_routing(body.configuration, body.model_override, require_keys=True)
+        except RoutingConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     try:
         spend_guard.begin_run()
     except RuntimeError as exc:
@@ -86,17 +114,37 @@ def create_run(body: RunRequest):
     ok = False
     meter = spend_guard.RunMeter()
     try:
-        runner = run_classifier_plan if body.mode == "classify-plan" else run_pipeline
-        result = runner(
-            body.configuration,
-            task,
-            meter=meter,
-            model_override=body.model_override,
-            parent_run_id=body.parent_run_id,
-        )
-        ok = True
+        if body.mode == "prompt-chain":
+            result = run_prompt_chain(
+                body.configuration,
+                task,
+                model_override=body.model_override,
+                parent_run_id=body.parent_run_id,
+                budget_usd=spend_guard.status()["remaining_budget_usd"],
+            )
+            meter.add_cost(result.cost_usd)
+        elif body.mode == "routing":
+            result = run_routing(
+                body.configuration,
+                task,
+                model_override=body.model_override,
+                parent_run_id=body.parent_run_id,
+            )
+            meter.add_cost(result.cost_usd)
+        else:
+            # classify-plan, or any configuration through the generic pipeline engine
+            runner = run_classifier_plan if body.mode == "classify-plan" else run_pipeline
+            result = runner(
+                body.configuration,
+                task,
+                meter=meter,
+                model_override=body.model_override,
+                parent_run_id=body.parent_run_id,
+            )
+        # A chain that fails midway is still a run that spent money on earlier steps.
+        ok = result.status == "completed" or result.cost_usd > 0
         return store.add_run(result)
-    except RuntimeError as exc:
+    except (RuntimeError, ChainConfigError, RoutingConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"LLM provider error: {exc}") from exc

@@ -3,12 +3,31 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.config import settings
-from app.datasets.registry import Task, system_prompt_for
+from app.datasets.finqa_program import (
+    execute_program,
+    extract_program,
+    format_result,
+    normalize_program,
+    operation_sequence,
+    strip_program_from_reasoning,
+)
+from app.datasets.registry import (
+    Task,
+    score_answer,
+    split_reasoning_and_answer,
+    system_prompt_for,
+)
 from app.llm import complete, infer_provider
-from app.schemas import AgentConfiguration, ClassifierPlan, RunResult
+from app.schemas import (
+    AgentConfiguration,
+    ClassifierPlan,
+    FinQAReasoningComparison,
+    RunResult,
+)
 from app.spend_guard import RunMeter
 
 
@@ -53,6 +72,96 @@ def _apply_prompt_and_model(
             break
     return AgentConfiguration.model_validate(data)
 
+
+def _finqa_reasoning_comparison(
+    task: Task,
+    raw_answer: str,
+) -> FinQAReasoningComparison | None:
+    if task.benchmark_id != "finqa":
+        return None
+    expected_program = str(task.metadata.get("program") or "").strip()
+    if not expected_program:
+        return None
+
+    agent_program = extract_program(raw_answer)
+    comparison = FinQAReasoningComparison(
+        expected_program=expected_program,
+        agent_program=agent_program,
+        expected_steps=list(task.metadata.get("steps") or []),
+        expected_evidence=list(task.metadata.get("expected_evidence") or []),
+        expected_result=task.expected_answer,
+    )
+    if not agent_program:
+        comparison.parse_error = "The response did not include a Program line."
+        return comparison
+
+    execution = execute_program(
+        agent_program,
+        table=list(task.metadata.get("table") or []),
+    )
+    comparison.agent_result = format_result(execution.result)
+    comparison.parse_error = execution.error
+    try:
+        comparison.program_exact_match = (
+            normalize_program(agent_program) == normalize_program(expected_program)
+        )
+        comparison.operator_sequence_match = (
+            operation_sequence(agent_program) == operation_sequence(expected_program)
+        )
+    except ValueError as exc:
+        comparison.parse_error = str(exc)
+
+    if comparison.agent_result is not None:
+        comparison.execution_matches_expected = bool(
+            score_answer(
+                task.expected_answer,
+                comparison.agent_result,
+                expected_is_percent=task.metadata.get("expected_is_percent"),
+            )
+        )
+    return comparison
+
+
+@dataclass
+class ScoredOutput:
+    reasoning: str | None
+    scored_answer: str | None
+    success: bool | None
+    comparison: FinQAReasoningComparison | None
+    note: str | None
+
+
+def score_task_output(task: Task, answer: str) -> ScoredOutput:
+    """Split a final answer into reasoning/answer and score it against the task.
+
+    Shared by every architecture so scoring never depends on how the answer was produced.
+    """
+    reasoning, scored = split_reasoning_and_answer(answer)
+    comparison = _finqa_reasoning_comparison(task, answer)
+    if comparison:
+        reasoning = strip_program_from_reasoning(reasoning)
+    if task.expected_answer is None and not scored:
+        scored = None
+    success = score_answer(
+        task.expected_answer,
+        answer,
+        expected_is_percent=task.metadata.get("expected_is_percent"),
+    )
+    return ScoredOutput(
+        reasoning=reasoning,
+        scored_answer=scored or None,
+        success=success,
+        comparison=comparison,
+        note=(
+            None
+            if success is not None
+            else "Open-ended task; success not auto-scored in MVP."
+        ),
+    )
+
+
+def task_user_prompt(task: Task) -> str:
+    return f"{task.context}\n\nQuestion:\n{task.question}"
 
 CLASSIFIER_SYSTEM = """You plan multi-agent layouts for enterprise tasks.
 Return ONLY valid JSON with keys:

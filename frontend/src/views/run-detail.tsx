@@ -5,10 +5,18 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { ArrowLeft, Copy, Play } from "@phosphor-icons/react"
 
+import { ChainTraceView } from "@/components/product/chain-trace"
+import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
 import { Bezel, Reveal } from "@/components/product/ui-bits"
 import { Button } from "@/components/ui/button"
 import { RunTrace } from "@/components/product/run-trace"
-import { createRun, getRun, type RunResult } from "@/lib/api"
+import {
+  chainSteps,
+  createRun,
+  getRun,
+  pipelineSteps,
+  type RunResult,
+} from "@/lib/api"
 import { cloneConfigurationFromSnapshot } from "@/lib/configuration-storage"
 import { PROVIDER_MODELS } from "@/lib/provider-models"
 import type { AgentConfiguration } from "@/types/configuration"
@@ -162,7 +170,11 @@ export default function RunDetailPage() {
               ) : null}
             </p>
           </div>
-          {run.success != null ? (
+          {run.status === "incomplete" ? (
+            <p className="text-[32px] font-semibold tracking-tight text-[#b34800]">
+              Incomplete
+            </p>
+          ) : run.success != null ? (
             <p
               className={`text-[32px] font-semibold tracking-tight ${
                 run.success ? "text-[#2f7a1f]" : "text-[#b34800]"
@@ -207,6 +219,12 @@ export default function RunDetailPage() {
           <p className="mt-2 text-[15px] leading-relaxed text-mm-dark">
             {run.question}
           </p>
+          {run.error || run.note ? (
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+              {run.error ?? run.note}
+            </p>
+          ) : null}
+          {chainSteps(run).length ? <ChainTraceView steps={chainSteps(run)} /> : null}
           {run.expected_answer != null ? (
             <p className="mt-2 font-data text-[12px] text-muted-foreground">
               Expected{" "}
@@ -216,7 +234,12 @@ export default function RunDetailPage() {
                 : run.expected_answer}
             </p>
           ) : null}
-          {run.reasoning ? (
+          {run.reasoning_comparison ? (
+            <FinQAReasoningComparisonView
+              comparison={run.reasoning_comparison}
+              agentReasoning={run.reasoning}
+            />
+          ) : run.reasoning ? (
             <>
               <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
                 Reasoning
@@ -254,9 +277,9 @@ export default function RunDetailPage() {
         </Bezel>
       </Reveal>
 
-      {run.steps && run.steps.length > 0 ? (
+      {pipelineSteps(run).length > 0 ? (
         <Reveal delay={0.09}>
-          <RunTrace steps={run.steps} />
+          <RunTrace steps={pipelineSteps(run)} />
         </Reveal>
       ) : null}
 

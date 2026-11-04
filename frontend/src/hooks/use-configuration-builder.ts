@@ -9,6 +9,21 @@ import {
   canDeleteConfigurationNode,
   isNodeCompatibleWithLayer,
 } from "@/lib/configuration-validation"
+import {
+  MAX_CHAIN_STEPS,
+  chainAgents,
+  hydratePromptChain,
+  promptStepForRole,
+  rebuildPromptChainEdges,
+  roleLabel,
+} from "@/lib/prompt-chain"
+import {
+  MAX_ROUTES,
+  hydrateRouting,
+  promptStepForRoute,
+  rebuildRoutingEdges,
+  routeAgents,
+} from "@/lib/routing"
 import type {
   AgentConfiguration,
   ArchitectureType,
@@ -16,6 +31,9 @@ import type {
   ConfigurationNode,
   LayerType,
   ModelProvider,
+  PromptChainRole,
+  PromptStepSettings,
+  RouterSettings,
 } from "@/types/configuration"
 
 const LAYER_DEFAULTS: Record<LayerType, string> = {
@@ -64,10 +82,50 @@ function reindexLayers(layers: ConfigurationLayer[]) {
     .map((layer, index) => ({ ...layer, order: index }))
 }
 
+function applyRoutingGraph(configuration: AgentConfiguration): AgentConfiguration {
+  if (configuration.architecture !== "routing") return configuration
+  const agentsLayer = configuration.layers.find((layer) => layer.type === "agents")
+  const nodes = normalizeLayerOrder(
+    configuration.nodes.map((node) =>
+      node.type === "model" && agentsLayer
+        ? { ...node, layerId: agentsLayer.id }
+        : node,
+    ),
+    agentsLayer?.id ?? "agents",
+  )
+  const next = { ...configuration, nodes }
+  return { ...next, edges: rebuildRoutingEdges(next) }
+}
+
+function applyChainGraph(configuration: AgentConfiguration): AgentConfiguration {
+  if (configuration.architecture !== "prompt-chaining") return configuration
+  const agentsLayer = configuration.layers.find((layer) => layer.type === "agents")
+  const nodes = normalizeLayerOrder(
+    configuration.nodes.map((node) =>
+      node.type === "model" && agentsLayer
+        ? { ...node, layerId: agentsLayer.id }
+        : node,
+    ),
+    agentsLayer?.id ?? "agents",
+  )
+  const next = { ...configuration, nodes }
+  return { ...next, edges: rebuildPromptChainEdges(next) }
+}
+
+function applyArchitectureGraph(configuration: AgentConfiguration) {
+  return applyRoutingGraph(applyChainGraph(configuration))
+}
+
+function hydrateConfiguration(configuration: AgentConfiguration) {
+  return hydrateRouting(hydratePromptChain(configuration))
+}
+
 export function useConfigurationBuilder(
   initialConfiguration?: AgentConfiguration,
 ) {
-  const initial = clone(initialConfiguration ?? singleAgentTemplate)
+  const initial = hydrateConfiguration(
+    clone(initialConfiguration ?? singleAgentTemplate),
+  )
 
   const [configuration, setConfiguration] =
     useState<AgentConfiguration>(initial)
@@ -82,11 +140,28 @@ export function useConfigurationBuilder(
   const selectedNode = configuration.nodes.find(
     (node) => node.id === selectedNodeId,
   )
-  const canDeleteSelectedNode = canDeleteConfigurationNode(selectedNode)
+  const canDeleteSelectedNode =
+    canDeleteConfigurationNode(selectedNode) &&
+    !(
+      configuration.architecture === "prompt-chaining" &&
+      selectedNode?.type === "model" &&
+      chainAgents(configuration).length <= 1
+    ) &&
+    !(
+      configuration.architecture === "routing" &&
+      selectedNode?.type === "model" &&
+      routeAgents(configuration).length <= 1
+    ) &&
+    !(
+      configuration.architecture === "routing" &&
+      selectedNode?.type === "router"
+    )
   const isCustom = configuration.architecture === "custom"
 
   function loadTemplate(architecture: ArchitectureType) {
-    const template = clone(configurationTemplates[architecture])
+    const template = hydrateConfiguration(
+      clone(configurationTemplates[architecture]),
+    )
     setConfiguration({
       ...template,
       id: configuration.id,
@@ -105,7 +180,17 @@ export function useConfigurationBuilder(
   }
 
   function addComponent(item: PaletteItem, layerId?: string) {
+    const chainLayerId =
+      configuration.architecture === "prompt-chaining" && item.type === "model"
+        ? configuration.layers.find((entry) => entry.type === "agents")?.id
+        : undefined
+    const routeLayerId =
+      configuration.architecture === "routing" && item.type === "model"
+        ? configuration.layers.find((entry) => entry.type === "agents")?.id
+        : undefined
     const targetId =
+      chainLayerId ??
+      routeLayerId ??
       layerId ??
       selectedLayerId ??
       configuration.layers
@@ -136,14 +221,25 @@ export function useConfigurationBuilder(
         model: item.model ?? "gpt-4o-mini",
         temperature: 0.5,
       }
+      if (configuration.architecture === "prompt-chaining") {
+        if (chainAgents(configuration).length >= MAX_CHAIN_STEPS) return
+        newNode.promptStep = promptStepForRole("custom")
+        newNode.name = `Agent ${siblingCount + 1}`
+      }
+      if (configuration.architecture === "routing") {
+        if (routeAgents(configuration).length >= MAX_ROUTES) return
+        newNode.promptStep = promptStepForRoute("custom")
+        newNode.name = `Route ${siblingCount + 1}`
+      }
     }
 
-    setConfiguration({
+    const next: AgentConfiguration = {
       ...configuration,
       architecture: isCustom ? "custom" : configuration.architecture,
       nodes: [...configuration.nodes, newNode],
       updatedAt: new Date().toISOString(),
-    })
+    }
+    setConfiguration(applyArchitectureGraph(next))
     setSelectedNodeId(newNode.id)
   }
 
@@ -152,7 +248,7 @@ export function useConfigurationBuilder(
     if (!canDeleteConfigurationNode(logicalNode)) return
 
     const layerId = logicalNode!.layerId
-    setConfiguration({
+    const next: AgentConfiguration = {
       ...configuration,
       nodes: normalizeLayerOrder(
         configuration.nodes.filter((node) => node.id !== nodeId),
@@ -162,7 +258,8 @@ export function useConfigurationBuilder(
         (edge) => edge.source !== nodeId && edge.target !== nodeId,
       ),
       updatedAt: new Date().toISOString(),
-    })
+    }
+    setConfiguration(applyArchitectureGraph(next))
     setSelectedNodeId(null)
     if (linkSourceId === nodeId) setLinkSourceId(null)
   }
@@ -194,8 +291,127 @@ export function useConfigurationBuilder(
     }))
   }
 
+  function updateNodeName(nodeId: string, name: string) {
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) =>
+        node.id === nodeId
+          ? { ...node, name: name.trim() || node.name }
+          : node,
+      ),
+    }))
+  }
+
+  function updatePromptStep(
+    nodeId: string,
+    updates: Partial<PromptStepSettings>,
+    options?: { applyRoleDefaults?: boolean },
+  ) {
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) => {
+        if (node.id !== nodeId) return node
+        const currentStep = node.promptStep ?? promptStepForRole("custom")
+        const nextRole = (updates.role ?? currentStep.role) as PromptChainRole
+        const isRouting = current.architecture === "routing"
+        const roleDefaults =
+          options?.applyRoleDefaults && nextRole
+            ? isRouting
+              ? promptStepForRoute(nextRole)
+              : promptStepForRole(nextRole)
+            : currentStep
+        return {
+          ...node,
+          name: options?.applyRoleDefaults
+            ? roleLabel(nextRole)
+            : node.name,
+          promptStep: {
+            ...roleDefaults,
+            ...updates,
+            role: updates.role ?? roleDefaults.role,
+            inputs: {
+              ...roleDefaults.inputs,
+              ...currentStep.inputs,
+              ...updates.inputs,
+            },
+          },
+          metadata: {
+            ...node.metadata,
+            role: String(updates.role ?? roleDefaults.role),
+            instructions:
+              updates.instructions ??
+              roleDefaults.instructions ??
+              node.metadata?.instructions,
+          },
+        }
+      }),
+    }))
+  }
+
+  function updateRouterSettings(
+    nodeId: string,
+    updates: Partial<RouterSettings>,
+  ) {
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) => {
+        if (node.id !== nodeId || node.type !== "router") return node
+        return {
+          ...node,
+          routerSettings: {
+            ...(node.routerSettings ?? {}),
+            ...updates,
+          },
+        }
+      }),
+    }))
+  }
+
+  function moveChainAgent(nodeId: string, direction: -1 | 1) {
+    setConfiguration((current) => {
+      if (current.architecture !== "prompt-chaining") return current
+      const agents = chainAgents(current)
+      const index = agents.findIndex((node) => node.id === nodeId)
+      const swap = index + direction
+      if (index < 0 || swap < 0 || swap >= agents.length) return current
+      const orderedIds = agents.map((node) => node.id)
+      ;[orderedIds[index], orderedIds[swap]] = [
+        orderedIds[swap],
+        orderedIds[index],
+      ]
+      const orderMap = new Map(orderedIds.map((id, order) => [id, order]))
+      const next: AgentConfiguration = {
+        ...current,
+        updatedAt: new Date().toISOString(),
+        nodes: current.nodes.map((node) =>
+          orderMap.has(node.id)
+            ? { ...node, order: orderMap.get(node.id) ?? node.order }
+            : node,
+        ),
+      }
+      return applyChainGraph(next)
+    })
+  }
+
   function updateInstructions(nodeId: string, instructions: string) {
-    updateMetadata(nodeId, { instructions })
+    setConfiguration((current) => ({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      nodes: current.nodes.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              promptStep: node.promptStep
+                ? { ...node.promptStep, instructions }
+                : node.promptStep,
+              metadata: { ...node.metadata, instructions },
+            }
+          : node,
+      ),
+    }))
   }
 
   function updateMetadata(
@@ -207,10 +423,7 @@ export function useConfigurationBuilder(
       updatedAt: new Date().toISOString(),
       nodes: current.nodes.map((node) =>
         node.id === nodeId
-          ? {
-              ...node,
-              metadata: { ...node.metadata, ...updates },
-            }
+          ? { ...node, metadata: { ...node.metadata, ...updates } }
           : node,
       ),
     }))
@@ -379,8 +592,15 @@ export function useConfigurationBuilder(
   }, [selectedNodeId, configuration, linkSourceId])
 
   function exportConfiguration(): AgentConfiguration {
+    const base = clone(configuration)
+    const exported =
+      configuration.architecture === "prompt-chaining"
+        ? applyChainGraph(hydratePromptChain(base))
+        : configuration.architecture === "routing"
+          ? applyRoutingGraph(hydrateRouting(base))
+          : base
     return {
-      ...clone(configuration),
+      ...exported,
       updatedAt: new Date().toISOString(),
     }
   }
@@ -400,6 +620,10 @@ export function useConfigurationBuilder(
     addComponent,
     deleteNode,
     updateModel,
+    updateNodeName,
+    updatePromptStep,
+    updateRouterSettings,
+    moveChainAgent,
     updateInstructions,
     updateMetadata,
     clearModel,

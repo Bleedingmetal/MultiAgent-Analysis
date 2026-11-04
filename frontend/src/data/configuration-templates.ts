@@ -1,3 +1,5 @@
+import { promptStepForRole } from "@/lib/prompt-chain"
+import { defaultRouterSettings, promptStepForRoute } from "@/lib/routing"
 import type {
   AgentConfiguration,
   ConfigurationEdge,
@@ -6,6 +8,7 @@ import type {
   ConfigurationNodeType,
   LayerType,
   ModelProvider,
+  PromptStepSettings,
 } from "@/types/configuration"
 
 const now = () => new Date().toISOString()
@@ -48,6 +51,7 @@ function model(
   provider: ModelProvider,
   modelName: string,
   role?: string,
+  promptStep?: PromptStepSettings,
 ): ConfigurationNode {
   return {
     ...node(
@@ -63,6 +67,8 @@ function model(
       model: modelName,
       temperature: 0.5,
     },
+
+    promptStep,
 
     metadata: {
       role,
@@ -166,32 +172,35 @@ export const promptChainingTemplate: AgentConfiguration = {
 
     model(
       "chain-1",
-      "Agent 1",
+      "Researcher",
       "agents",
       0,
       "openai",
       "gpt-4o-mini",
-      "Step 1",
+      "Researcher",
+      promptStepForRole("researcher"),
     ),
 
     model(
       "chain-2",
-      "Agent 2",
+      "Analyst",
       "agents",
       1,
       "openai",
       "gpt-4o-mini",
-      "Step 2",
+      "Analyst",
+      promptStepForRole("analyst"),
     ),
 
     model(
       "chain-3",
-      "Agent 3",
+      "Verifier",
       "agents",
       2,
       "openai",
       "gpt-4o-mini",
-      "Step 3",
+      "Verifier",
+      promptStepForRole("verifier"),
     ),
 
     node(
@@ -247,42 +256,53 @@ export const routingTemplate: AgentConfiguration = {
       0,
     ),
 
-    node(
-      "router",
-      "Router",
-      "router",
-      "orchestration",
-      0,
-    ),
+    {
+      ...node(
+        "router",
+        "Router",
+        "router",
+        "orchestration",
+        0,
+      ),
+      modelSettings: {
+        provider: "openai",
+        model: "gpt-4o-mini",
+        temperature: 0.2,
+      },
+      routerSettings: defaultRouterSettings(),
+    },
 
     model(
-      "route-a",
-      "Agent A",
+      "route-researcher",
+      "Researcher",
       "agents",
       0,
       "openai",
       "gpt-4o-mini",
-      "Route A",
+      "Researcher",
+      promptStepForRoute("researcher"),
     ),
 
     model(
-      "route-b",
-      "Agent B",
+      "route-analyst",
+      "Analyst",
       "agents",
       1,
-      "anthropic",
-      "claude-sonnet-5-5",
-      "Route B",
+      "openai",
+      "gpt-4o-mini",
+      "Analyst",
+      promptStepForRoute("analyst"),
     ),
 
     model(
-      "route-c",
-      "Agent C",
+      "route-verifier",
+      "Verifier",
       "agents",
       2,
-      "google",
-      "gemini-2.5-flash",
-      "Route C",
+      "openai",
+      "gpt-4o-mini",
+      "Verifier",
+      promptStepForRoute("verifier"),
     ),
 
     node(
@@ -296,28 +316,12 @@ export const routingTemplate: AgentConfiguration = {
 
   edges: [
     edge("prompt", "router"),
-
-    edge(
-      "router",
-      "route-a",
-      "Route A",
-    ),
-
-    edge(
-      "router",
-      "route-b",
-      "Route B",
-    ),
-
-    edge(
-      "router",
-      "route-c",
-      "Route C",
-    ),
-
-    edge("route-a", "final-answer"),
-    edge("route-b", "final-answer"),
-    edge("route-c", "final-answer"),
+    edge("router", "route-researcher", "Researcher"),
+    edge("router", "route-analyst", "Analyst"),
+    edge("router", "route-verifier", "Verifier"),
+    edge("route-researcher", "final-answer"),
+    edge("route-analyst", "final-answer"),
+    edge("route-verifier", "final-answer"),
   ],
 }
 

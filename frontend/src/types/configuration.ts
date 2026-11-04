@@ -47,6 +47,34 @@ export interface ModelSettings {
   systemPrompt?: string
 }
 
+export type PromptChainRole = "researcher" | "analyst" | "verifier" | "custom"
+export type PromptChainPreviousOutputs = "none" | "last" | "all"
+export type PromptChainOutputFormat = "text" | "structured"
+
+export interface PromptStepInputs {
+  task: boolean
+  previousOutputs: PromptChainPreviousOutputs
+}
+
+export interface PromptStepSettings {
+  role: PromptChainRole | string
+  objective: string
+  instructions: string
+  promptTemplate: string
+  inputs: PromptStepInputs
+  outputFormat: PromptChainOutputFormat
+  /** Stable id the router must return in `selected_route`. */
+  routeId?: string
+  /** When the router should pick this specialist. */
+  routeDescription?: string
+}
+
+export interface RouterSettings {
+  instructions?: string
+  promptTemplate?: string
+  fallbackRouteId?: string
+}
+
 export interface ConfigurationNode {
   id: string
   name: string
@@ -58,6 +86,8 @@ export interface ConfigurationNode {
   order: number
 
   modelSettings?: ModelSettings
+  promptStep?: PromptStepSettings
+  routerSettings?: RouterSettings
 
   metadata?: {
     role?: string

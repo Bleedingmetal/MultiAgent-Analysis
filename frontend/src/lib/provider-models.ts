@@ -39,3 +39,10 @@ export function modelsForProvider(provider: ModelProvider) {
 export function defaultModelForProvider(provider: ModelProvider) {
   return modelsForProvider(provider)[0]?.id ?? "gpt-4o-mini"
 }
+
+// Providers the backend can call (app/llm.py). Google also needs GOOGLE_API_KEY.
+export const EXECUTABLE_PROVIDERS: ModelProvider[] = ["openai", "anthropic", "google"]
+
+export function isExecutableProvider(provider?: ModelProvider | string | null) {
+  return EXECUTABLE_PROVIDERS.includes(provider as ModelProvider)
+}

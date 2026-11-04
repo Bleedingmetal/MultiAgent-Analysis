@@ -35,11 +35,12 @@ from app.datasets.registry import (
     Task,
     _truncate_middle,
     parse_final_quantity,
-    score_answer,
+    response_format_for,
     split_reasoning_and_answer,
     system_prompt_for,
 )
 from app.llm import LLMResult, complete, infer_provider, require_provider
+from app.runners.execute import score_task_output
 from app.runners.tools import build_toolset, tool_kind_for
 from app.schemas import (
     AgentConfiguration,
@@ -58,18 +59,6 @@ _GENERIC_MODEL_NAMES = {"gpt", "claude", "gemini", "model", ""}
 
 LLM_NODE_TYPES = {"model", "router", "parallel-controller", "evaluator", "aggregator"}
 
-FINAL_FORMAT = {
-    "finqa": (
-        "Reply in this format:\n"
-        "Reasoning: <your step-by-step thought process>\n"
-        "Final answer: <bare number, percentage like 6.76%, or $94 million>"
-    ),
-}
-DEFAULT_FINAL_FORMAT = (
-    "Reply in this format:\n"
-    "Reasoning: <your step-by-step thought process>\n"
-    "Final answer: <the concise final answer>"
-)
 INTERMEDIATE_NOTE = (
     "You are one step in a multi-agent pipeline. Your output is passed to the next agent, "
     "not shown to the user. Do your part thoroughly and state any figures you rely on."
@@ -167,7 +156,8 @@ class PipelineRun:
         self.override = (model_override or "").strip() or None
         self.s = settings()
         self.dataset_prompt = system_prompt_for(task.benchmark_id)
-        self.final_format = FINAL_FORMAT.get(task.benchmark_id, DEFAULT_FINAL_FORMAT)
+        # Same answer layout as every other runner (FinQA adds a Program line)
+        self.final_format = response_format_for(task.benchmark_id)
         self.steps: list[TraceStep] = []
         self._lock = threading.Lock()
 
@@ -629,8 +619,7 @@ def run_pipeline(
     final = run.run()
     latency = time.perf_counter() - t0
 
-    reasoning, scored = split_reasoning_and_answer(final.text)
-    success = score_answer(task.expected_answer, final.text)
+    scored = score_task_output(task, final.text)
     llm_steps = [s for s in run.steps if s.model]
     models = list(dict.fromkeys(s.model for s in llm_steps if s.model))
     final_step = next(
@@ -653,17 +642,18 @@ def run_pipeline(
         question=task.question,
         expected_answer=task.expected_answer,
         expected_display=task.expected_display,
-        scored_answer=scored or None,
-        reasoning=reasoning,
+        scored_answer=scored.scored_answer,
+        reasoning=scored.reasoning,
+        reasoning_comparison=scored.comparison,
         answer=final.text,
-        success=success,
+        success=scored.success,
         latency_sec=round(latency, 3),
         prompt_tokens=sum(s.prompt_tokens for s in run.steps),
         completion_tokens=sum(s.completion_tokens for s in run.steps),
         cost_usd=round(sum(s.cost_usd for s in run.steps), 6),
         note=(
             f"{meter.llm_calls} LLM calls across {len(agent_nodes)} nodes."
-            + ("" if success is not None else " Open-ended task; success not auto-scored.")
+            + (f" {scored.note}" if scored.note else "")
         ),
         created_at=datetime.now(timezone.utc).isoformat(),
         system_prompt=final_step.system_prompt if final_step else None,

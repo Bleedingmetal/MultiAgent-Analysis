@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 
 from app.schemas import RunResult
 
-DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "runs"
+# RUNS_DIR lets tests and throwaway servers keep their runs out of real history.
+DATA_DIR = (
+    Path(os.environ["RUNS_DIR"]).expanduser()
+    if os.environ.get("RUNS_DIR")
+    else Path(__file__).resolve().parents[1] / "data" / "runs"
+)
 RUNS_FILE = DATA_DIR / "history.jsonl"
 
 _lock = threading.Lock()

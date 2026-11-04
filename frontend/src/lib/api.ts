@@ -2,7 +2,12 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
 // "single-agent" appears on runs recorded before the pipeline engine.
-export type RunMode = "pipeline" | "single-agent" | "classify-plan"
+export type RunMode =
+  | "pipeline"
+  | "single-agent"
+  | "classify-plan"
+  | "prompt-chain"
+  | "routing"
 export type ProviderId = "openai" | "anthropic" | "google"
 export type BenchmarkId = "finqa" | "tau-retail" | "fab"
 
@@ -33,6 +38,54 @@ export type TraceStep = {
   latency_sec: number
 }
 
+export type ChainStepTrace = {
+  id: string
+  run_id: string
+  index: number
+  node_id: string
+  name: string
+  role: string
+  objective?: string
+  step_kind?: "agent" | "router"
+  selected_route?: string | null
+  available_routes?: string[]
+  routing_explanation?: string | null
+  provider: string
+  model: string
+  temperature: number
+  max_tokens: number
+  output_format?: "text" | "structured"
+  status: "completed" | "invalid_output" | "error" | "skipped"
+  include_task?: boolean
+  input_step_indexes?: number[]
+  system_prompt?: string
+  user_prompt?: string
+  prompt_truncated?: boolean
+  response?: string | null
+  structured_output?: Record<string, unknown> | null
+  parse_error?: string | null
+  error?: string | null
+  warnings?: string[]
+  prompt_tokens: number
+  completion_tokens: number
+  cost_usd: number
+  latency_sec: number
+  started_at?: string | null
+}
+
+export type FinQAReasoningComparison = {
+  expected_program: string
+  agent_program?: string | null
+  expected_steps: Record<string, unknown>[]
+  expected_evidence: string[]
+  expected_result?: string | null
+  agent_result?: string | null
+  program_exact_match?: boolean | null
+  operator_sequence_match?: boolean | null
+  execution_matches_expected?: boolean | null
+  parse_error?: string | null
+}
+
 export type RunConfiguration = {
   version?: number
   id: string
@@ -61,6 +114,7 @@ export type RunResult = {
   expected_display?: string | null
   scored_answer?: string | null
   reasoning?: string | null
+  reasoning_comparison?: FinQAReasoningComparison | null
   answer: string
   success: boolean | null
   latency_sec: number
@@ -75,8 +129,20 @@ export type RunResult = {
   configuration?: RunConfiguration | null
   parent_run_id?: string | null
   status?: string
-  steps?: TraceStep[]
+  error?: string | null
+  // ChainStepTrace for prompt-chain / routing runs, TraceStep for pipeline runs
+  steps?: (ChainStepTrace | TraceStep)[]
   llm_calls?: number
+}
+
+/** Prompt-chain / routing steps (ChainStepTrace carries a run_id; TraceStep does not). */
+export function chainSteps(run: Pick<RunResult, "steps">): ChainStepTrace[] {
+  return (run.steps ?? []).filter((s): s is ChainStepTrace => "run_id" in s)
+}
+
+/** Pipeline-engine steps. */
+export function pipelineSteps(run: Pick<RunResult, "steps">): TraceStep[] {
+  return (run.steps ?? []).filter((s): s is TraceStep => !("run_id" in s))
 }
 
 export type BenchmarkInfo = {

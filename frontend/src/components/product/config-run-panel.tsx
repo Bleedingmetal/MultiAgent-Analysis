@@ -9,12 +9,15 @@ import {
   type ProviderId,
   type RunMode,
   type RunResult,
+  chainSteps,
   createRun,
   getDatasetTasks,
   getDatasets,
   getHealth,
 } from "@/lib/api"
 import type { AgentConfiguration } from "@/types/configuration"
+import { ChainTraceView } from "@/components/product/chain-trace"
+import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -49,6 +52,13 @@ export function ConfigRunPanel({
 
   const activeBenchmark = benchmarks.find((b) => b.id === benchmarkId)
   const systemPrompt = activeBenchmark?.default_system_prompt ?? ""
+  const isPromptChain = configuration.architecture === "prompt-chaining"
+  const isRouting = configuration.architecture === "routing"
+  const runMode: RunMode = isPromptChain
+    ? "prompt-chain"
+    : isRouting
+      ? "routing"
+      : "pipeline"
 
   async function refreshHealth() {
     const health = await getHealth()
@@ -348,7 +358,7 @@ export function ConfigRunPanel({
             ) : null}
           </div>
 
-          {systemPrompt ? (
+          {systemPrompt && !isPromptChain && !isRouting ? (
             <div>
               <p className="mb-2 text-[12px] font-medium text-muted-foreground">
                 System prompt
@@ -365,14 +375,34 @@ export function ConfigRunPanel({
             </div>
           ) : null}
 
+          {isPromptChain ? (
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              Runs {configuration.nodes.filter((node) => node.type === "model").length}{" "}
+              agents in order. Dataset answer format is applied on the final step.
+            </p>
+          ) : isRouting ? (
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              Runs the Router, then one specialist. Dataset answer format is applied on
+              the selected agent only.
+            </p>
+          ) : null}
+
           <div className="flex flex-wrap gap-2.5">
             <button
               type="button"
               disabled={blocked}
-              onClick={() => run("pipeline")}
+              onClick={() => run(runMode)}
               className="island-cta disabled:pointer-events-none disabled:opacity-50"
             >
-              <span>{busy === "pipeline" ? "Running…" : "Run"}</span>
+              <span>
+                {busy === runMode
+                  ? "Running…"
+                  : isPromptChain
+                    ? "Run chain"
+                    : isRouting
+                      ? "Run routing"
+                      : "Run"}
+              </span>
               <span className="island-cta-icon" aria-hidden>
                 <Play className="size-3.5" weight="fill" />
               </span>
@@ -411,7 +441,11 @@ export function ConfigRunPanel({
                 </p>
               </div>
 
-              {result.success != null ? (
+              {result.status === "incomplete" ? (
+                <p className="mt-4 text-[28px] font-semibold tracking-tight text-[#b34800]">
+                  Incomplete
+                </p>
+              ) : result.success != null ? (
                 <p
                   className={cn(
                     "mt-4 text-[28px] font-semibold tracking-tight",
@@ -426,7 +460,22 @@ export function ConfigRunPanel({
                 </p>
               )}
 
-              {result.reasoning ? (
+              {result.error || result.note ? (
+                <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
+                  {result.error ?? result.note}
+                </p>
+              ) : null}
+
+              {chainSteps(result).length ? (
+                <ChainTraceView steps={chainSteps(result)} />
+              ) : null}
+
+              {result.reasoning_comparison ? (
+                <FinQAReasoningComparisonView
+                  comparison={result.reasoning_comparison}
+                  agentReasoning={result.reasoning}
+                />
+              ) : result.reasoning ? (
                 <div className="mt-4 rounded-xl bg-[#f4f7fb] px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-mm-blue">
                     Reasoning
