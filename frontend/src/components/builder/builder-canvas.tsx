@@ -7,6 +7,7 @@ import PropertiesPanel from "@/components/builder/properties-panel"
 import type { ConfigurationBuilderState } from "@/hooks/use-configuration-builder"
 import { isNodeCompatibleWithLayer } from "@/lib/configuration-validation"
 import { MAX_CHAIN_STEPS, chainAgents } from "@/lib/prompt-chain"
+import { MAX_ROUTES, routeAgents } from "@/lib/routing"
 
 interface Props {
   builder: ConfigurationBuilderState
@@ -18,7 +19,9 @@ export default function BuilderCanvas({ builder }: Props) {
   )
   const isPromptChain =
     builder.configuration.architecture === "prompt-chaining"
+  const isRouting = builder.configuration.architecture === "routing"
   const chainCount = chainAgents(builder.configuration).length
+  const routeCount = routeAgents(builder.configuration).length
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
@@ -62,6 +65,18 @@ export default function BuilderCanvas({ builder }: Props) {
                 : undefined
             }
             canAddAgent={chainCount < MAX_CHAIN_STEPS}
+            onAddRoute={
+              isRouting
+                ? () =>
+                    builder.addComponent({
+                      label: "GPT Agent",
+                      type: "model",
+                      provider: "openai",
+                      model: "gpt-4o-mini",
+                    })
+                : undefined
+            }
+            canAddRoute={routeCount < MAX_ROUTES}
           />
         )}
 
@@ -89,8 +104,10 @@ export default function BuilderCanvas({ builder }: Props) {
                   : undefined
                 : undefined
             }
-            allowedTypes={isPromptChain ? ["model"] : undefined}
-            executableProvidersOnly={isPromptChain}
+            allowedTypes={
+              isPromptChain || isRouting ? ["model"] : undefined
+            }
+            executableProvidersOnly={isPromptChain || isRouting}
           />
         </div>
       </div>
@@ -105,6 +122,8 @@ export default function BuilderCanvas({ builder }: Props) {
           onUpdateModel={builder.updateModel}
           onUpdateInstructions={builder.updateInstructions}
           onUpdatePromptStep={builder.updatePromptStep}
+          onUpdateRouterSettings={builder.updateRouterSettings}
+          configuration={builder.configuration}
         />
       </div>
     </div>

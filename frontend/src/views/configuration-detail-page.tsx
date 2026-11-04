@@ -44,12 +44,13 @@ function formatDate(date: string) {
 
 function NodeChip({ node }: { node: ConfigurationNode }) {
   const role = node.promptStep?.role ?? node.metadata?.role
+  const routeId = node.promptStep?.routeId
   return (
     <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5">
       <p className="text-[13px] font-medium text-mm-dark">{node.name}</p>
       {node.modelSettings ? (
         <p className="mt-0.5 font-data text-[11px] text-muted-foreground">
-          {role ? `${role} · ` : ""}
+          {routeId ? `${routeId} · ` : role ? `${role} · ` : ""}
           {node.modelSettings.provider} / {node.modelSettings.model}
         </p>
       ) : (

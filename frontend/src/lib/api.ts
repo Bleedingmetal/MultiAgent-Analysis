@@ -1,7 +1,11 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
-export type RunMode = "single-agent" | "classify-plan" | "prompt-chain"
+export type RunMode =
+  | "single-agent"
+  | "classify-plan"
+  | "prompt-chain"
+  | "routing"
 export type BenchmarkId = "finqa" | "tau-retail" | "fab"
 
 export type ClassifierPlan = {
@@ -18,6 +22,10 @@ export type ChainStepTrace = {
   name: string
   role: string
   objective?: string
+  step_kind?: "agent" | "router"
+  selected_route?: string | null
+  available_routes?: string[]
+  routing_explanation?: string | null
   provider: string
   model: string
   temperature: number

@@ -7,6 +7,7 @@ from app.config import settings
 from app.datasets import registry
 from app.runners.execute import run_classifier_plan, run_single_agent
 from app.runners.prompt_chain import ChainConfigError, resolve_chain, run_prompt_chain
+from app.runners.routing import RoutingConfigError, resolve_routing, run_routing
 from app.schemas import RunRequest, RunResult
 from app import spend_guard, store
 
@@ -94,6 +95,12 @@ async def create_run(body: RunRequest):
         except ChainConfigError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    if body.mode == "routing":
+        try:
+            resolve_routing(body.configuration, body.model_override)
+        except RoutingConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     try:
         spend_guard.begin_run()
     except RuntimeError as exc:
@@ -117,6 +124,13 @@ async def create_run(body: RunRequest):
                 parent_run_id=body.parent_run_id,
                 budget_usd=spend_guard.status()["remaining_budget_usd"],
             )
+        elif body.mode == "routing":
+            result = run_routing(
+                body.configuration,
+                task,
+                model_override=body.model_override,
+                parent_run_id=body.parent_run_id,
+            )
         else:
             result = run_single_agent(
                 body.configuration,
@@ -128,7 +142,7 @@ async def create_run(body: RunRequest):
         # A chain that fails midway still spent money on its earlier steps.
         ok = result.status == "completed" or cost > 0
         return store.add_run(result)
-    except (RuntimeError, ChainConfigError) as exc:
+    except (RuntimeError, ChainConfigError, RoutingConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"OpenAI error: {exc}") from exc

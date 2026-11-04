@@ -63,6 +63,16 @@ export interface PromptStepSettings {
   promptTemplate: string
   inputs: PromptStepInputs
   outputFormat: PromptChainOutputFormat
+  /** Stable id the router must return in `selected_route`. */
+  routeId?: string
+  /** When the router should pick this specialist. */
+  routeDescription?: string
+}
+
+export interface RouterSettings {
+  instructions?: string
+  promptTemplate?: string
+  fallbackRouteId?: string
 }
 
 export interface ConfigurationNode {
@@ -77,6 +87,7 @@ export interface ConfigurationNode {
 
   modelSettings?: ModelSettings
   promptStep?: PromptStepSettings
+  routerSettings?: RouterSettings
 
   metadata?: {
     role?: string

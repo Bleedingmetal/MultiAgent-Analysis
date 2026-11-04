@@ -23,7 +23,7 @@ class PromptStepInputs(BaseModel):
 
 
 class PromptStepSettings(BaseModel):
-    """Prompt-chaining settings stored on a model node.
+    """Agent step settings on a model node (prompt chain or routing specialist).
 
     `role` is a label only; behavior comes from the editable fields below.
     """
@@ -35,6 +35,19 @@ class PromptStepSettings(BaseModel):
     promptTemplate: str = ""
     inputs: PromptStepInputs = Field(default_factory=PromptStepInputs)
     outputFormat: Literal["text", "structured"] = "text"
+    # Routing: stable id returned by the router (`selected_route`).
+    routeId: str = ""
+    # Routing: when the router should pick this specialist.
+    routeDescription: str = ""
+
+
+class RouterSettings(BaseModel):
+    """LLM router node settings (orchestration layer)."""
+
+    instructions: str = ""
+    promptTemplate: str = ""
+    # Used when the router returns an unknown route id (must match a routeId).
+    fallbackRouteId: str = ""
 
 
 class ConfigurationNode(BaseModel):
@@ -45,6 +58,7 @@ class ConfigurationNode(BaseModel):
     order: int = 0
     modelSettings: ModelSettings | None = None
     promptStep: PromptStepSettings | None = None
+    routerSettings: RouterSettings | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -63,7 +77,9 @@ class AgentConfiguration(BaseModel):
 
 class RunRequest(BaseModel):
     configuration: AgentConfiguration
-    mode: Literal["single-agent", "classify-plan", "prompt-chain"] = "single-agent"
+    mode: Literal["single-agent", "classify-plan", "prompt-chain", "routing"] = (
+        "single-agent"
+    )
     benchmark_id: Literal["finqa", "tau-retail", "fab"] = "finqa"
     task_id: str | None = None
     confirm: bool = False
@@ -108,6 +124,12 @@ class ChainStepTrace(BaseModel):
     name: str
     role: str
     objective: str = ""
+    # "router" for the routing decision step; "agent" for chain/specialist steps.
+    step_kind: Literal["agent", "router"] = "agent"
+    # Routing audit fields (router step only unless noted).
+    selected_route: str | None = None
+    available_routes: list[str] = Field(default_factory=list)
+    routing_explanation: str | None = None
     provider: str
     model: str
     temperature: float

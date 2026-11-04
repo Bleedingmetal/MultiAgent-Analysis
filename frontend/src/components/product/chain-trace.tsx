@@ -99,11 +99,14 @@ export function ChainTraceView({ steps }: { steps: ChainStepTrace[] }) {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[13px] font-semibold text-mm-dark">
-                    Step {step.index + 1}
+                    {step.step_kind === "router" ? "Router" : `Step ${step.index + 1}`}
                     <span className="ml-2 font-medium">{step.name}</span>
                   </p>
                   <p className="mt-0.5 font-data text-[11px] text-muted-foreground">
-                    {roleLabel(step.role)} · {step.model}
+                    {step.step_kind === "router"
+                      ? "Routing decision"
+                      : roleLabel(step.role)}{" "}
+                    · {step.model}
                     {step.latency_sec
                       ? ` · ${step.latency_sec}s`
                       : ""}
@@ -126,6 +129,25 @@ export function ChainTraceView({ steps }: { steps: ChainStepTrace[] }) {
               {step.objective ? (
                 <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
                   {step.objective}
+                </p>
+              ) : null}
+
+              {step.step_kind === "router" && step.selected_route ? (
+                <p className="mt-3 font-data text-[12px] text-mm-dark">
+                  Selected route{" "}
+                  <span className="font-semibold">{step.selected_route}</span>
+                  {step.routing_explanation ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      — {step.routing_explanation}
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
+
+              {step.step_kind === "router" && step.available_routes?.length ? (
+                <p className="mt-2 font-data text-[11px] text-muted-foreground">
+                  Available: {step.available_routes.join(", ")}
                 </p>
               ) : null}
 

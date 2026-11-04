@@ -73,7 +73,12 @@ export function ConfigRunPanel({
   const activeBenchmark = benchmarks.find((b) => b.id === benchmarkId)
   const systemPrompt = activeBenchmark?.default_system_prompt ?? ""
   const isPromptChain = configuration.architecture === "prompt-chaining"
-  const runMode: RunMode = isPromptChain ? "prompt-chain" : "single-agent"
+  const isRouting = configuration.architecture === "routing"
+  const runMode: RunMode = isPromptChain
+    ? "prompt-chain"
+    : isRouting
+      ? "routing"
+      : "single-agent"
 
   async function refreshHealth() {
     const health = await getHealth()
@@ -157,7 +162,9 @@ export function ConfigRunPanel({
     setError(null)
     try {
       const configForRun =
-        mode === "prompt-chain" || !systemPrompt
+        mode === "prompt-chain" ||
+        mode === "routing" ||
+        !systemPrompt
           ? configuration
           : withDatasetPrompt(configuration, systemPrompt)
       const res = await createRun({
@@ -361,7 +368,7 @@ export function ConfigRunPanel({
             ) : null}
           </div>
 
-          {systemPrompt && !isPromptChain ? (
+          {systemPrompt && !isPromptChain && !isRouting ? (
             <div>
               <p className="mb-2 text-[12px] font-medium text-muted-foreground">
                 System prompt
@@ -382,6 +389,11 @@ export function ConfigRunPanel({
               Runs {configuration.nodes.filter((node) => node.type === "model").length}{" "}
               agents in order. Dataset answer format is applied on the final step.
             </p>
+          ) : isRouting ? (
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              Runs the Router, then one specialist. Dataset answer format is applied on
+              the selected agent only.
+            </p>
           ) : null}
 
           <div className="flex flex-wrap gap-2.5">
@@ -396,7 +408,9 @@ export function ConfigRunPanel({
                   ? "Running…"
                   : isPromptChain
                     ? "Run chain"
-                    : "Run single-agent"}
+                    : isRouting
+                      ? "Run routing"
+                      : "Run single-agent"}
               </span>
               <span className="island-cta-icon" aria-hidden>
                 <Play className="size-3.5" weight="fill" />

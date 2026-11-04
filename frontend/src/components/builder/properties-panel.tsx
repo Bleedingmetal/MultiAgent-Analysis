@@ -18,12 +18,19 @@ import {
   PROMPT_TEMPLATE_VARIABLES,
 } from "@/lib/prompt-chain"
 import {
+  defaultRouterSettings,
+  previewRouterPrompt,
+  previewSpecialistPrompt,
+  routeAgents,
+} from "@/lib/routing"
+import {
   defaultModelForProvider,
   isExecutableProvider,
   modelsForProvider,
 } from "@/lib/provider-models"
 import { cn } from "@/lib/utils"
 import type {
+  AgentConfiguration,
   ArchitectureType,
   ConfigurationNode,
   ModelProvider,
@@ -31,11 +38,13 @@ import type {
   PromptChainPreviousOutputs,
   PromptChainRole,
   PromptStepSettings,
+  RouterSettings,
 } from "@/types/configuration"
 
 interface Props {
   node?: ConfigurationNode
   architecture?: ArchitectureType
+  configuration?: AgentConfiguration
   canDelete: boolean
   onDelete: (nodeId: string) => void
   onUpdateName: (nodeId: string, name: string) => void
@@ -54,21 +63,30 @@ interface Props {
     updates: Partial<PromptStepSettings>,
     options?: { applyRoleDefaults?: boolean },
   ) => void
+  onUpdateRouterSettings?: (
+    nodeId: string,
+    updates: Partial<RouterSettings>,
+  ) => void
 }
 
 export default function PropertiesPanel({
   node,
   architecture,
+  configuration,
   canDelete,
   onDelete,
   onUpdateName,
   onUpdateModel,
   onUpdateInstructions,
   onUpdatePromptStep,
+  onUpdateRouterSettings,
 }: Props) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const isChainAgent =
     architecture === "prompt-chaining" && node?.type === "model"
+  const isRouteAgent = architecture === "routing" && node?.type === "model"
+  const isRouterNode = architecture === "routing" && node?.type === "router"
+  const isSpecialist = isChainAgent || isRouteAgent
   const provider = node?.modelSettings?.provider ?? "openai"
   const modelOptions = modelsForProvider(provider)
   const currentModel = node?.modelSettings?.model ?? ""
@@ -76,6 +94,16 @@ export default function PropertiesPanel({
     ? currentModel
     : (modelOptions[0]?.id ?? "")
   const step = node ? defaultPromptStep(node) : defaultPromptStep()
+  const routerSettings = {
+    ...defaultRouterSettings(),
+    ...node?.routerSettings,
+  }
+  const routePreview =
+    configuration && isRouterNode
+      ? previewRouterPrompt(configuration)
+      : null
+  const specialistPreview = node && isRouteAgent ? previewSpecialistPrompt(node) : null
+  const routeOptions = configuration ? routeAgents(configuration) : []
 
   return (
     <aside className="bg-white">
@@ -91,6 +119,10 @@ export default function PropertiesPanel({
             <p className="mt-1 max-w-[22ch] text-[12px] text-muted-foreground">
               Click an agent in the chain to edit its role, model, and inputs.
             </p>
+          ) : architecture === "routing" ? (
+            <p className="mt-1 max-w-[26ch] text-[12px] text-muted-foreground">
+              Click the Router or a specialist to edit routing and prompts.
+            </p>
           ) : null}
         </div>
       ) : (
@@ -101,12 +133,127 @@ export default function PropertiesPanel({
               id="node-name"
               className="mt-2"
               value={node.name}
-              readOnly={!isChainAgent}
+              readOnly={!isSpecialist}
               onChange={(event) => onUpdateName(node.id, event.target.value)}
             />
           </div>
 
-          {isChainAgent ? (
+          {isRouterNode ? (
+            <>
+              <p className="text-[12px] leading-relaxed text-muted-foreground">
+                The Router only chooses a specialist. It does not answer the task.
+              </p>
+              {node.modelSettings ? (
+                <>
+                  <div>
+                    <Label>Provider</Label>
+                    <Select
+                      value={provider}
+                      onValueChange={(value) => {
+                        const next = value as ModelProvider
+                        onUpdateModel(node.id, {
+                          provider: next,
+                          model: defaultModelForProvider(next),
+                        })
+                      }}
+                    >
+                      <SelectTrigger className="mt-2 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="anthropic">Anthropic</SelectItem>
+                        <SelectItem value="google">Google</SelectItem>
+                        <SelectItem value="local">Local</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {!isExecutableProvider(provider) ? (
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-[#b34800]">
+                        Execution currently supports OpenAI. The Router will not run.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <Label>Model</Label>
+                    <Select
+                      value={modelValue}
+                      onValueChange={(value) =>
+                        onUpdateModel(node.id, { model: value ?? undefined })
+                      }
+                    >
+                      <SelectTrigger className="mt-2 w-full">
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {modelOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ) : null}
+              <div>
+                <Label htmlFor="router-instructions">Routing instructions</Label>
+                <Textarea
+                  id="router-instructions"
+                  className="mt-2 min-h-20"
+                  value={routerSettings.instructions ?? ""}
+                  onChange={(event) =>
+                    onUpdateRouterSettings?.(node.id, {
+                      instructions: event.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Fallback route id</Label>
+                <Select
+                  value={routerSettings.fallbackRouteId || "__none__"}
+                  onValueChange={(value) => {
+                    if (!value) return
+                    onUpdateRouterSettings?.(node.id, {
+                      fallbackRouteId: value === "__none__" ? "" : value,
+                    })
+                  }}
+                >
+                  <SelectTrigger className="mt-2 w-full">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {routeOptions.map((route, index) => {
+                      const id =
+                        route.promptStep?.routeId?.trim() ||
+                        String(route.promptStep?.role ?? `route-${index + 1}`)
+                      return (
+                        <SelectItem key={route.id} value={id}>
+                          {id} ({route.name})
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              {routePreview ? (
+                <div className="rounded-xl border border-border/70 bg-[#fafbfd] p-3">
+                  <p className="text-[12px] font-medium text-mm-dark">
+                    Prompt preview
+                  </p>
+                  <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap font-data text-[11px] text-muted-foreground">
+                    {routePreview.system}
+                  </pre>
+                  <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap font-data text-[11px] text-muted-foreground">
+                    {routePreview.user}
+                  </pre>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {isSpecialist ? (
             <div>
               <Label>Role</Label>
               <Select
@@ -163,7 +310,7 @@ export default function PropertiesPanel({
                     <SelectItem value="local">Local</SelectItem>
                   </SelectContent>
                 </Select>
-                {isChainAgent && !isExecutableProvider(provider) ? (
+                {(isChainAgent || isRouteAgent) && !isExecutableProvider(provider) ? (
                   <p className="mt-1.5 text-[11px] leading-relaxed text-[#b34800]">
                     Execution currently supports OpenAI. This step will not run.
                   </p>
@@ -193,8 +340,40 @@ export default function PropertiesPanel({
             </>
           ) : null}
 
-          {isChainAgent ? (
+          {isSpecialist ? (
             <>
+              {isRouteAgent ? (
+                <>
+                  <div>
+                    <Label htmlFor="route-id">Route id</Label>
+                    <Input
+                      id="route-id"
+                      className="mt-2 font-data"
+                      value={step.routeId ?? ""}
+                      onChange={(event) =>
+                        onUpdatePromptStep(node.id, {
+                          routeId: event.target.value,
+                        })
+                      }
+                      placeholder="e.g. analyst"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="route-description">Routing description</Label>
+                    <Textarea
+                      id="route-description"
+                      className="mt-2 min-h-20"
+                      value={step.routeDescription ?? ""}
+                      onChange={(event) =>
+                        onUpdatePromptStep(node.id, {
+                          routeDescription: event.target.value,
+                        })
+                      }
+                      placeholder="When the Router should select this specialist"
+                    />
+                  </div>
+                </>
+              ) : null}
               <div>
                 <Label htmlFor="chain-objective">Objective</Label>
                 <Textarea
@@ -225,6 +404,7 @@ export default function PropertiesPanel({
                 />
               </div>
 
+              {isChainAgent ? (
               <div>
                 <p className="text-sm font-medium">Inputs</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
@@ -270,6 +450,18 @@ export default function PropertiesPanel({
                   </Select>
                 </div>
               </div>
+              ) : null}
+
+              {specialistPreview ? (
+                <div className="rounded-xl border border-border/70 bg-[#fafbfd] p-3">
+                  <p className="text-[12px] font-medium text-mm-dark">
+                    Prompt preview
+                  </p>
+                  <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap font-data text-[11px] text-muted-foreground">
+                    {specialistPreview.system}
+                  </pre>
+                </div>
+              ) : null}
 
               <button
                 type="button"
@@ -289,6 +481,7 @@ export default function PropertiesPanel({
 
               {advancedOpen ? (
                 <div className="space-y-4 rounded-xl border border-border/70 bg-[#fafbfd] p-3">
+                  {isChainAgent ? (
                   <div>
                     <Label>Output format</Label>
                     <Select
@@ -316,6 +509,7 @@ export default function PropertiesPanel({
                       it can be scored.
                     </p>
                   </div>
+                  ) : null}
 
                   <div>
                     <Label htmlFor="chain-template">Prompt template</Label>

@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 
 import { defaultPromptStep, roleLabel } from "@/lib/prompt-chain"
+import { defaultRouteId } from "@/lib/routing"
 import { cn } from "@/lib/utils"
 import type {
   ArchitectureType,
@@ -47,12 +48,26 @@ function iconFor(type: ConfigurationNodeType) {
   }
 }
 
-function nodeMeta(node: ConfigurationNode, isPromptChain: boolean) {
+function nodeMeta(
+  node: ConfigurationNode,
+  isPromptChain: boolean,
+  isRouting: boolean,
+  routeIndex?: number,
+) {
   if (node.type === "model" && node.modelSettings) {
-    const role = isPromptChain
+    const role = isPromptChain || isRouting
       ? roleLabel(defaultPromptStep(node).role)
       : null
-    return [role, node.modelSettings.model].filter(Boolean).join(" · ")
+    const routeId =
+      isRouting && routeIndex != null
+        ? defaultRouteId(node, String(defaultPromptStep(node).role), routeIndex)
+        : null
+    return [routeId ? `route: ${routeId}` : null, role, node.modelSettings.model]
+      .filter(Boolean)
+      .join(" · ")
+  }
+  if (node.type === "router" && isRouting) {
+    return "Selects one specialist"
   }
   return null
 }
@@ -66,6 +81,8 @@ interface Props {
   onMoveNode?: (nodeId: string, direction: -1 | 1) => void
   onAddAgent?: () => void
   canAddAgent?: boolean
+  onAddRoute?: () => void
+  canAddRoute?: boolean
 }
 
 export default function ArchitecturePipeline({
@@ -77,8 +94,11 @@ export default function ArchitecturePipeline({
   onMoveNode,
   onAddAgent,
   canAddAgent,
+  onAddRoute,
+  canAddRoute,
 }: Props) {
   const isPromptChain = architecture === "prompt-chaining"
+  const isRouting = architecture === "routing"
   const orderedLayers = layers.slice().sort((a, b) => a.order - b.order)
 
   return (
@@ -88,6 +108,10 @@ export default function ArchitecturePipeline({
         {isPromptChain ? (
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             Agents run top to bottom. Click one to edit it.
+          </p>
+        ) : isRouting ? (
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Router picks one specialist. Edges are rebuilt from your routes.
           </p>
         ) : null}
       </div>
@@ -119,7 +143,16 @@ export default function ArchitecturePipeline({
                     layerNodes.map((node, nodeIndex) => {
                       const Icon = iconFor(node.type)
                       const active = node.id === selectedNodeId
-                      const meta = nodeMeta(node, isPromptChain)
+                      const meta = nodeMeta(
+                        node,
+                        isPromptChain,
+                        isRouting,
+                        isRouting && node.type === "model"
+                          ? layerNodes
+                              .filter((n) => n.type === "model")
+                              .findIndex((n) => n.id === node.id)
+                          : undefined,
+                      )
                       const showReorder =
                         isPromptChain && node.type === "model" && onMoveNode
                       return (
@@ -178,6 +211,19 @@ export default function ArchitecturePipeline({
                       )
                     })
                   )}
+                  {isRouting && layer.type === "agents" && onAddRoute ? (
+                    <li>
+                      <button
+                        type="button"
+                        disabled={!canAddRoute}
+                        onClick={onAddRoute}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 py-2.5 text-[12px] font-medium text-mm-dark hover:border-mm-charge/35 hover:bg-white disabled:opacity-40"
+                      >
+                        <Plus className="size-3.5" />
+                        Add route
+                      </button>
+                    </li>
+                  ) : null}
                   {isPromptChain && layer.type === "agents" && onAddAgent ? (
                     <li>
                       <button
