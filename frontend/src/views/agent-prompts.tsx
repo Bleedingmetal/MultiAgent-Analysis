@@ -116,10 +116,6 @@ export default function AgentPromptsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-[24px] font-semibold tracking-[-0.01em] text-mm-dark">Agent prompts</h2>
-          <p className="mt-1.5 max-w-[64ch] text-[14px] text-muted-foreground">
-            The reusable agents behind every configuration. Edit a preset here and each new agent
-            built from it gets the new prompt; configurations already saved keep their own copy.
-          </p>
         </div>
         <button
           type="button"
@@ -155,14 +151,6 @@ export default function AgentPromptsPage() {
               New agent (unsaved)
             </div>
           ) : null}
-          <div className="border-t border-[#eef1f5] px-4 py-4 text-[13px] leading-relaxed text-muted-foreground">
-            <p className="font-medium text-mm-dark">Where presets are used</p>
-            <ul className="mt-2 space-y-1.5">
-              <li>Prompt chain steps and routing specialists take their role, objective, instructions and template from here.</li>
-              <li>Any other agent can start from a preset in its properties panel.</li>
-              <li>The Researcher → Analyst → Verifier templates are built from these three.</li>
-            </ul>
-          </div>
         </nav>
 
         {/* The editor */}
@@ -328,7 +316,6 @@ function PresetRow({
           {preset.label}
           {edited ? <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">edited</span> : null}
         </span>
-        <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-muted-foreground">{preset.description}</span>
       </button>
     </li>
   )

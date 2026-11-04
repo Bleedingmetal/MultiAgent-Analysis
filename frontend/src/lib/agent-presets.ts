@@ -77,6 +77,24 @@ export const BUILT_IN_PRESETS: AgentPreset[] = [
     outputFormat: "text",
     builtIn: true,
   },
+  {
+    id: "calculator",
+    label: "Calculator",
+    description: "Performs precise arithmetic from given figures.",
+    objective:
+      "Compute the numeric result the task asks for using only the provided figures. Prefer exact arithmetic over estimates.",
+    instructions: [
+      "Use only numbers present in the inputs. Do not invent or round early.",
+      "Show each step as `expression = result` (e.g. `5829 - 5735 = 94`).",
+      "Keep units consistent with the source (e.g. table amounts in millions stay in millions).",
+      "For percentages, state both the ratio and the percent form when useful (e.g. `0.06757` and `6.757%`).",
+      "If required inputs are missing, say what is missing instead of guessing.",
+      "End with a single final numeric answer on the last line.",
+    ].join(" "),
+    promptTemplate: DEFAULT_PROMPT_TEMPLATE,
+    outputFormat: "structured",
+    builtIn: true,
+  },
 ]
 
 const STORAGE_KEY = "massmutual-agent-presets-v1"

@@ -321,11 +321,6 @@ export default function PropertiesPanel({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                {roles.find((role) => role.id === step.role)?.description}
-                {" "}
-                Edit presets on the Agent prompts page.
-              </p>
             </div>
           ) : null}
 
