@@ -258,9 +258,22 @@ export type BatchItemStatus =
   | "running"
   | "passed"
   | "failed"
+  | "mixed"
   | "unscored"
   | "error"
   | "skipped"
+
+export type BatchAttempt = {
+  pass_index: number
+  status: "passed" | "failed" | "unscored" | "error"
+  run_id?: string | null
+  scored_answer?: string | null
+  success?: boolean | null
+  program_match?: boolean | null
+  cost_usd: number
+  latency_sec: number
+  error?: string | null
+}
 
 export type BatchItem = {
   index: number
@@ -276,16 +289,40 @@ export type BatchItem = {
   cost_usd: number
   latency_sec: number
   error?: string | null
+  attempts?: BatchAttempt[]
+  passes_passed?: number
+  passes_failed?: number
+}
+
+export type PassSummary = {
+  pass_index: number
+  done: number
+  passed: number
+  failed: number
+  errors: number
+  pass_rate?: number | null
+  cost_usd: number
+  avg_latency_sec?: number | null
 }
 
 export type BatchSummary = {
   total: number
   done: number
-  passed: number
-  failed: number
   errors: number
   skipped: number
+  passes?: number
+  attempts_total?: number
+  attempts_done?: number
+  // answers (question x pass); with one pass these are question counts
+  passed: number
+  failed: number
   pass_rate?: number | null
+  pass_all_rate?: number | null
+  pass_any_rate?: number | null
+  mixed?: number
+  per_pass?: PassSummary[]
+  pass_rate_min?: number | null
+  pass_rate_max?: number | null
   cost_usd: number
   avg_cost_usd?: number | null
   cost_per_pass_usd?: number | null
@@ -310,6 +347,7 @@ export type BatchRun = {
   size: number
   budget_usd: number
   concurrency: number
+  passes?: number
   status: BatchStatus
   stop_reason?: string | null
   created_at: string
@@ -328,6 +366,7 @@ export function createBatch(body: {
   size: number | null
   budget_usd: number
   concurrency?: number
+  passes?: number
 }) {
   return api<BatchRun>("/api/batches", {
     method: "POST",

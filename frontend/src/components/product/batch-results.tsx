@@ -6,6 +6,7 @@ import {
   ArrowSquareOut,
   CaretDown,
   CheckCircle,
+  CircleHalf,
   CircleNotch,
   MagnifyingGlass,
   MinusCircle,
@@ -31,7 +32,7 @@ import { cn } from "@/lib/utils"
 
 const PAGE = 40
 
-type Filter = "all" | "passed" | "failed" | "error"
+type Filter = "all" | "passed" | "failed" | "mixed" | "error"
 
 export const STATUS_STYLE: Record<
   BatchItemStatus,
@@ -39,6 +40,7 @@ export const STATUS_STYLE: Record<
 > = {
   passed: { label: "Pass", cell: "bg-mm-green", text: "text-[#2f7a1f]" },
   failed: { label: "Fail", cell: "bg-mm-orange", text: "text-[#b34800]" },
+  mixed: { label: "Mixed", cell: "bg-mm-yellow", text: "text-[#7a5d00]" },
   error: { label: "Error", cell: "bg-[#8a94a6]", text: "text-[#5b6577]" },
   unscored: { label: "Unscored", cell: "bg-mm-light", text: "text-mm-blue" },
   running: { label: "Running", cell: "bg-mm-charge animate-pulse", text: "text-mm-charge" },
@@ -90,6 +92,8 @@ function StatusIcon({ status }: { status: BatchItemStatus }) {
       return <XCircle className={cls} weight="fill" />
     case "error":
       return <WarningCircle className={cls} weight="fill" />
+    case "mixed":
+      return <CircleHalf className={cls} weight="fill" />
     case "running":
       return <CircleNotch className={cn(cls, "animate-spin")} weight="bold" />
     default:
@@ -107,14 +111,10 @@ export function Stat({
   hint?: string
 }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-white px-4 py-3">
-      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 font-data text-[18px] font-semibold tracking-tight text-mm-dark">
-        {value}
-      </p>
-      {hint ? (
-        <p className="mt-0.5 font-data text-[11px] text-muted-foreground">{hint}</p>
-      ) : null}
+    <div className="px-5 py-4">
+      <dt className="text-[12px] text-muted-foreground">{label}</dt>
+      <dd className="mt-1.5 font-data text-[22px] leading-none tracking-tight text-mm-dark">{value}</dd>
+      {hint ? <dd className="mt-1.5 text-[12px] text-muted-foreground">{hint}</dd> : null}
     </div>
   )
 }
@@ -148,22 +148,94 @@ function OutcomeStrip({
   )
 }
 
+/** One row per full pass, one square per question: flaky questions show as mixed columns. */
+function PassMatrix({ batch, onPick }: { batch: BatchRun; onPick: (index: number) => void }) {
+  const per = batch.summary.per_pass ?? []
+  const dense = batch.items.length > 120
+  return (
+    <div className="space-y-1.5">
+      {per.map((p) => (
+        <div key={p.pass_index} className="flex items-center gap-3">
+          <span className="w-12 shrink-0 text-[12px] text-muted-foreground">Pass {p.pass_index + 1}</span>
+          <div className={cn("flex min-w-0 flex-1 flex-wrap", dense ? "gap-[2px]" : "gap-[3px]")}>
+            {batch.items.map((item) => {
+              const a = item.attempts?.find((x) => x.pass_index === p.pass_index)
+              const status: BatchItemStatus = a
+                ? a.status
+                : item.status === "skipped"
+                  ? "skipped"
+                  : item.status === "running" && p.done < batch.items.length
+                    ? "pending"
+                    : "pending"
+              return (
+                <button
+                  key={item.index}
+                  type="button"
+                  title={`Pass ${p.pass_index + 1} · #${item.index + 1} · ${STATUS_STYLE[status].label}${a?.scored_answer ? ` · ${a.scored_answer}` : ""}`}
+                  aria-label={`Pass ${p.pass_index + 1}, question ${item.index + 1}: ${STATUS_STYLE[status].label}`}
+                  onClick={() => onPick(item.index)}
+                  className={cn(
+                    "rounded-[2px] transition-transform hover:scale-150",
+                    dense ? "size-[7px]" : "size-[11px]",
+                    STATUS_STYLE[status].cell,
+                  )}
+                />
+              )
+            })}
+          </div>
+          <span className="w-[13rem] shrink-0 text-right font-data text-[12px] text-muted-foreground">
+            {p.done ? `${pct(p.pass_rate, 0)} · ${usd(p.cost_usd)} · ${secs(p.avg_latency_sec)}` : "not started"}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ItemDetail({ item }: { item: BatchItem }) {
+  const attempts = item.attempts ?? []
+  const [which, setWhich] = useState(0)
+  const attempt = attempts[which]
+  const runId = attempts.length ? attempt?.run_id : item.run_id
   const [run, setRun] = useState<RunResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!item.run_id) return
+    setRun(null)
+    setError(null)
+    if (!runId) return
     let cancelled = false
-    getRun(item.run_id)
+    getRun(runId)
       .then((r) => !cancelled && setRun(r))
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "Could not load run"))
     return () => {
       cancelled = true
     }
-  }, [item.run_id])
+  }, [runId])
 
-  if (!item.run_id) {
+  const picker =
+    attempts.length > 1 ? (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[12px] text-muted-foreground">Pass</span>
+        {attempts.map((a, i) => (
+          <button
+            key={a.pass_index}
+            type="button"
+            onClick={() => setWhich(i)}
+            className={cn(
+              "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium",
+              i === which ? "border-mm-dark bg-mm-dark text-white" : "border-border/80 bg-white text-mm-dark hover:bg-[#f4f7fb]",
+            )}
+          >
+            {a.pass_index + 1}
+            <span className={cn("size-1.5 rounded-full", STATUS_STYLE[a.status].cell)} />
+            <span className="font-data">{a.scored_answer ?? STATUS_STYLE[a.status].label}</span>
+          </button>
+        ))}
+      </div>
+    ) : null
+
+  if (!runId) {
     return (
       <p className="text-[13px] text-[#5b6577]">
         {item.error ??
@@ -174,9 +246,12 @@ function ItemDetail({ item }: { item: BatchItem }) {
   if (error) return <p className="text-[13px] text-[#b34800]">{error}</p>
   if (!run) {
     return (
-      <p className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
-        <CircleNotch className="size-4 animate-spin" /> Loading trace…
-      </p>
+      <div className="space-y-3">
+        {picker}
+        <p className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
+          <CircleNotch className="size-4 animate-spin" /> Loading trace…
+        </p>
+      </div>
     )
   }
 
@@ -184,6 +259,7 @@ function ItemDetail({ item }: { item: BatchItem }) {
   const pipeline = pipelineSteps(run)
   return (
     <div className="space-y-4">
+      {picker}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl bg-[#f4f7fb] px-4 py-3">
           <p className="text-[12px] font-medium text-muted-foreground">Agent answer</p>
@@ -247,6 +323,8 @@ function ItemRow({
   open: boolean
   onToggle: () => void
 }) {
+  const attempts = item.attempts ?? []
+  const multi = attempts.length > 1 || (item.passes_passed ?? 0) + (item.passes_failed ?? 0) > 1
   return (
     <li
       id={`batch-item-${item.index}`}
@@ -277,6 +355,16 @@ function ItemRow({
               </span>
             </span>
             <span>expected {item.expected_display ?? "—"}</span>
+            {multi ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex gap-[2px]" aria-hidden>
+                  {attempts.map((a) => (
+                    <span key={a.pass_index} className={cn("size-[7px] rounded-[1px]", STATUS_STYLE[a.status].cell)} />
+                  ))}
+                </span>
+                right in {item.passes_passed ?? 0} of {attempts.length} passes
+              </span>
+            ) : null}
             {item.label_disputed ? (
               <span
                 className="rounded-full bg-mm-yellow/20 px-1.5 text-[#7a5d00]"
@@ -339,10 +427,12 @@ export function BatchResults({
       all: batch.items.length,
       passed: batch.items.filter((i) => i.status === "passed").length,
       failed: batch.items.filter((i) => i.status === "failed").length,
+      mixed: batch.items.filter((i) => i.status === "mixed").length,
       error: batch.items.filter((i) => i.status === "error").length,
     }),
     [batch],
   )
+  const passes = batch.passes ?? 1
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -373,7 +463,7 @@ export function BatchResults({
 
   const s = batch.summary
   const running = batch.status === "running"
-  const progress = s.total ? s.done / s.total : 0
+  const progress = (s.attempts_total ?? s.total) ? (s.attempts_done ?? s.done) / (s.attempts_total ?? s.total) : 0
 
   return (
     <div className="space-y-5">
@@ -392,15 +482,37 @@ export function BatchResults({
               {pct(s.pass_rate, 1)}
             </p>
             <p className="text-[13px] text-muted-foreground">
-              pass rate · {s.passed} of {s.passed + s.failed} correct
+              {passes > 1 ? `mean pass rate over ${passes} full passes` : "pass rate"} · {s.passed} of{" "}
+              {s.passed + s.failed} {passes > 1 ? "answers" : "questions"} correct
             </p>
           </div>
+          {passes > 1 ? (
+            <p className="mt-2 text-[13px] text-mm-dark">
+              {s.pass_rate_min != null && s.pass_rate_max != null ? (
+                <>
+                  Passes ranged{" "}
+                  <span className="font-data font-semibold">
+                    {pct(s.pass_rate_min, 0)}–{pct(s.pass_rate_max, 0)}
+                  </span>
+                  {" · "}
+                </>
+              ) : null}
+              right in every pass{" "}
+              <span className="font-data font-semibold">{pct(s.pass_all_rate, 0)}</span>
+              {" · "}in at least one{" "}
+              <span className="font-data font-semibold">{pct(s.pass_any_rate, 0)}</span>
+              {s.mixed ? ` · ${s.mixed} ${s.mixed === 1 ? "question" : "questions"} flipped between passes` : ""}
+            </p>
+          ) : null}
           <p className="mt-2 text-[13px] text-muted-foreground">
             <span className={cn("font-medium", running ? "text-mm-charge" : "text-mm-dark")}>
               {BATCH_STATUS_LABEL[batch.status]}
             </span>
             {" · "}
-            {s.done} / {s.total} questions · {secs(s.elapsed_sec)}
+            {passes > 1
+              ? `pass ${Math.min(passes, (s.per_pass ?? []).filter((p) => p.done > 0).length || 1)} of ${passes} · ${s.attempts_done ?? 0} / ${s.attempts_total ?? s.total * passes} answers`
+              : `${s.done} / ${s.total} questions`}{" "}
+            · {secs(s.elapsed_sec)}
             {batch.stop_reason ? ` · ${batch.stop_reason}` : ""}
           </p>
         </div>
@@ -426,30 +538,34 @@ export function BatchResults({
         </div>
       ) : null}
 
-      <OutcomeStrip items={batch.items} onPick={pick} />
+      {passes > 1 && s.per_pass?.length ? (
+        <PassMatrix batch={batch} onPick={pick} />
+      ) : (
+        <OutcomeStrip items={batch.items} onPick={pick} />
+      )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 divide-border/70 overflow-hidden rounded-2xl border border-border/70 bg-white lg:grid-cols-4 lg:divide-x">
         <Stat
           label="Cost"
           value={usd(s.cost_usd)}
           hint={
             running && s.projected_cost_usd != null
-              ? `~${usd(s.projected_cost_usd)} projected`
-              : `${usd(s.avg_cost_usd)} / question`
+              ? `about ${usd(s.projected_cost_usd)} when done`
+              : `${usd(s.avg_cost_usd)} per ${passes > 1 ? "answer" : "question"}`
           }
         />
-        <Stat label="Cost per correct answer" value={usd(s.cost_per_pass_usd)} />
+        <Stat label="Per correct answer" value={usd(s.cost_per_pass_usd)} hint="cost ÷ correct answers" />
         <Stat
-          label="Latency"
+          label="Time per question"
           value={secs(s.avg_latency_sec)}
-          hint={s.p95_latency_sec != null ? `p95 ${secs(s.p95_latency_sec)}` : undefined}
+          hint={s.p95_latency_sec != null ? `slowest tenth ${secs(s.p95_latency_sec)}` : undefined}
         />
         <Stat
-          label="Program matches"
+          label="Calculation matched FinQA"
           value={pct(s.program_match_rate, 0)}
-          hint={s.errors ? `${s.errors} errored` : undefined}
+          hint={s.errors ? `${s.errors} errored` : "of answers with a program"}
         />
-      </div>
+      </dl>
 
       {children}
 
@@ -462,9 +578,12 @@ export function BatchResults({
                 ["all", "All"],
                 ["passed", "Passed"],
                 ["failed", "Failed"],
+                ["mixed", "Mixed"],
                 ["error", "Errors"],
               ] as const
-            ).map(([id, label]) => (
+            )
+              .filter(([id]) => id !== "mixed" || passes > 1)
+              .map(([id, label]) => (
               <button
                 key={id}
                 type="button"

@@ -26,10 +26,12 @@ from app.datasets import registry
 from app.datasets.registry import Task
 from app.runners.dispatch import execute, preflight
 from app.schemas import (
+    BatchAttempt,
     BatchItem,
     BatchRequest,
     BatchRun,
     BatchSummary,
+    PassSummary,
     RunResult,
 )
 
@@ -85,6 +87,9 @@ def _ensure_loaded() -> None:
                     _save(batch)
                 _batches[batch.id] = batch
                 for item in batch.items:
+                    for attempt in item.attempts:
+                        if attempt.run_id:
+                            _run_index[attempt.run_id] = batch.id
                     if item.run_id:
                         _run_index[item.run_id] = batch.id
         _loaded = True
@@ -97,29 +102,66 @@ def _percentile(values: list[float], pct: float) -> float:
     return ordered[lo] + (ordered[hi] - ordered[lo]) * (k - lo)
 
 
+FINISHED_ITEM = {"passed", "failed", "mixed", "unscored", "error"}
+
+
 def summarize(batch: BatchRun, *, elapsed_sec: float, tokens: tuple[int, int]) -> BatchSummary:
     items = batch.items
-    finished = [i for i in items if i.status in {"passed", "failed", "unscored", "error"}]
-    passed = sum(1 for i in items if i.status == "passed")
-    failed = sum(1 for i in items if i.status == "failed")
+    k = batch.passes
+    finished = [i for i in items if i.status in FINISHED_ITEM]
+    attempts = [a for i in items for a in i.attempts]
+    passed = sum(1 for a in attempts if a.status == "passed")
+    failed = sum(1 for a in attempts if a.status == "failed")
     scored = passed + failed
     cost = sum(i.cost_usd for i in items)
-    latencies = [i.latency_sec for i in finished if i.status != "error"]
-    programs = [i.program_match for i in finished if i.program_match is not None]
+    latencies = [a.latency_sec for a in attempts if a.status != "error"]
+    programs = [a.program_match for a in attempts if a.program_match is not None]
+    # pass^k / pass@k over questions that got every pass and were scored at least once
+    complete = [i for i in finished if len(i.attempts) == k and i.passes_passed + i.passes_failed > 0]
+    all_right = sum(1 for i in complete if i.passes_failed == 0)
+    any_right = sum(1 for i in complete if i.passes_passed > 0)
+    per_pass: list[PassSummary] = []
+    for p in range(k):
+        rows = [a for a in attempts if a.pass_index == p]
+        p_passed = sum(1 for a in rows if a.status == "passed")
+        p_failed = sum(1 for a in rows if a.status == "failed")
+        p_timed = [a.latency_sec for a in rows if a.status != "error"]
+        per_pass.append(
+            PassSummary(
+                pass_index=p,
+                done=len(rows),
+                passed=p_passed,
+                failed=p_failed,
+                errors=sum(1 for a in rows if a.status == "error"),
+                pass_rate=p_passed / (p_passed + p_failed) if p_passed + p_failed else None,
+                cost_usd=round(sum(a.cost_usd for a in rows), 6),
+                avg_latency_sec=round(statistics.fmean(p_timed), 3) if p_timed else None,
+            )
+        )
+    rates = [p.pass_rate for p in per_pass if p.pass_rate is not None and p.done == len(items)]
     return BatchSummary(
         total=len(items),
         done=len(finished),
-        passed=passed,
-        failed=failed,
         errors=sum(1 for i in items if i.status == "error"),
         skipped=sum(1 for i in items if i.status == "skipped"),
+        passes=k,
+        attempts_total=len(items) * k,
+        attempts_done=len(attempts),
+        passed=passed,
+        failed=failed,
         pass_rate=passed / scored if scored else None,
+        pass_all_rate=all_right / len(complete) if complete else None,
+        pass_any_rate=any_right / len(complete) if complete else None,
+        mixed=sum(1 for i in items if i.status == "mixed"),
+        per_pass=per_pass,
+        pass_rate_min=min(rates) if rates else None,
+        pass_rate_max=max(rates) if rates else None,
         cost_usd=round(cost, 6),
-        avg_cost_usd=round(cost / len(finished), 6) if finished else None,
+        avg_cost_usd=round(cost / len(attempts), 6) if attempts else None,
         cost_per_pass_usd=round(cost / passed, 6) if passed else None,
         projected_cost_usd=(
-            round(cost / len(finished) * len(items), 4)
-            if finished and batch.status == "running"
+            round(cost / len(attempts) * len(items) * k, 4)
+            if attempts and batch.status == "running"
             else None
         ),
         avg_latency_sec=round(statistics.fmean(latencies), 3) if latencies else None,
@@ -136,7 +178,8 @@ def summarize(batch: BatchRun, *, elapsed_sec: float, tokens: tuple[int, int]) -
 def _finish(batch: BatchRun, status: str, reason: str | None) -> None:
     for item in batch.items:
         if item.status in {"pending", "running"}:
-            item.status = "skipped"
+            # A question that got some of its passes keeps them; one that got none is skipped
+            item.status = _aggregate_status(item) if item.attempts else "skipped"
     batch.status = status  # type: ignore[assignment]
     batch.stop_reason = reason
     batch.finished_at = _now()
@@ -144,24 +187,62 @@ def _finish(batch: BatchRun, status: str, reason: str | None) -> None:
     batch.summary.projected_cost_usd = None
 
 
-def _apply_result(item: BatchItem, result: RunResult) -> None:
-    item.run_id = result.id
-    item.scored_answer = result.scored_answer
-    item.success = result.success
-    item.cost_usd = result.cost_usd
-    item.latency_sec = result.latency_sec
+def _attempt_from_result(pass_index: int, result: RunResult) -> BatchAttempt:
     comparison = result.reasoning_comparison
-    item.program_match = comparison.execution_matches_expected if comparison else None
-    item.label_disputed = result.label_disputed
     if result.status != "completed":
-        item.status = "error"
-        item.error = result.error or "The run did not complete."
+        status, error = "error", result.error or "The run did not complete."
     elif result.success is True:
-        item.status = "passed"
+        status, error = "passed", None
     elif result.success is False:
-        item.status = "failed"
+        status, error = "failed", None
     else:
-        item.status = "unscored"
+        status, error = "unscored", None
+    return BatchAttempt(
+        pass_index=pass_index,
+        status=status,  # type: ignore[arg-type]
+        run_id=result.id,
+        scored_answer=result.scored_answer,
+        success=result.success,
+        program_match=comparison.execution_matches_expected if comparison else None,
+        cost_usd=result.cost_usd,
+        latency_sec=result.latency_sec,
+        error=error,
+    )
+
+
+def _aggregate_status(item: BatchItem) -> str:
+    """The question's status from its finished passes."""
+    statuses = {a.status for a in item.attempts}
+    if not statuses:
+        return "pending"
+    if statuses == {"error"}:
+        return "error"
+    scored = statuses & {"passed", "failed"}
+    if scored == {"passed", "failed"}:
+        return "mixed"
+    if scored == {"passed"}:
+        return "passed"
+    if scored == {"failed"}:
+        return "failed"
+    return "unscored"
+
+
+def _record_attempt(item: BatchItem, attempt: BatchAttempt, *, passes: int, label_disputed: bool = False) -> None:
+    item.attempts.append(attempt)
+    item.attempts.sort(key=lambda a: a.pass_index)
+    first = item.attempts[0]
+    item.run_id = first.run_id
+    item.scored_answer = first.scored_answer
+    item.success = first.success
+    item.program_match = first.program_match
+    item.label_disputed = item.label_disputed or label_disputed
+    item.cost_usd = round(sum(a.cost_usd for a in item.attempts), 6)
+    timed = [a.latency_sec for a in item.attempts if a.status != "error"]
+    item.latency_sec = round(sum(timed) / len(timed), 3) if timed else 0.0
+    item.passes_passed = sum(1 for a in item.attempts if a.status == "passed")
+    item.passes_failed = sum(1 for a in item.attempts if a.status == "failed")
+    item.error = next((a.error for a in item.attempts if a.error), None)
+    item.status = _aggregate_status(item) if len(item.attempts) >= passes else "running"  # type: ignore[assignment]
 
 
 def start(req: BatchRequest) -> BatchRun:
@@ -195,6 +276,7 @@ def start(req: BatchRequest) -> BatchRun:
         size=len(tasks),
         budget_usd=req.budget_usd,
         concurrency=req.concurrency,
+        passes=req.passes,
         created_at=_now(),
         models=list(dict.fromkeys(models)),
         configuration=req.configuration,
@@ -222,11 +304,13 @@ def start(req: BatchRequest) -> BatchRun:
 
 def _run(batch: BatchRun, tasks: list[Task], req: BatchRequest, cancel: threading.Event) -> None:
     t0 = time.perf_counter()
-    queue = iter(range(len(tasks)))
+    # Pass-major: the whole question set runs once, then runs again. A stopped run
+    # leaves complete passes behind, which is what makes passes comparable.
+    queue = iter((q, p) for p in range(req.passes) for q in range(len(tasks)))
     tokens = [0, 0]
     stop_reason: list[str] = []
 
-    def next_index() -> int | None:
+    def next_index() -> tuple[int, int] | None:
         with _lock:
             if cancel.is_set() or stop_reason:
                 return None
@@ -237,13 +321,14 @@ def _run(batch: BatchRun, tasks: list[Task], req: BatchRequest, cancel: threadin
             if spend_guard.remaining_budget_usd() <= 0:
                 stop_reason.append("Reached today's spend cap (DAILY_BUDGET_USD).")
                 return None
-            index = next(queue, None)
-            if index is not None:
-                batch.items[index].status = "running"
-            return index
+            job = next(queue, None)
+            if job is not None:
+                batch.items[job[0]].status = "running"
+            return job
 
     def worker() -> None:
-        while (index := next_index()) is not None:
+        while (job := next_index()) is not None:
+            index, pass_index = job
             item = batch.items[index]
             meter = spend_guard.RunMeter()
             result: RunResult | None = None
@@ -261,16 +346,28 @@ def _run(batch: BatchRun, tasks: list[Task], req: BatchRequest, cancel: threadin
             spend_guard.record_spend(meter.cost_usd)
             with _lock:
                 if result is not None:
-                    _apply_result(item, result)
+                    _record_attempt(
+                        item,
+                        _attempt_from_result(pass_index, result),
+                        passes=req.passes,
+                        label_disputed=result.label_disputed,
+                    )
                     tokens[0] += result.prompt_tokens
                     tokens[1] += result.completion_tokens
                     with _runs_path(batch.id).open("a", encoding="utf-8") as f:
                         f.write(result.model_dump_json() + "\n")
                     _run_index[result.id] = batch.id
                 else:
-                    item.status = "error"
-                    item.error = error
-                    item.cost_usd = round(meter.cost_usd, 6)
+                    _record_attempt(
+                        item,
+                        BatchAttempt(
+                            pass_index=pass_index,
+                            status="error",
+                            cost_usd=round(meter.cost_usd, 6),
+                            error=error,
+                        ),
+                        passes=req.passes,
+                    )
                 batch.summary = summarize(
                     batch, elapsed_sec=time.perf_counter() - t0, tokens=(tokens[0], tokens[1])
                 )

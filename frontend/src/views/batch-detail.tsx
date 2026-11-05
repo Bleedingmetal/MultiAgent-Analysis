@@ -42,10 +42,11 @@ function csvCell(value: unknown) {
 function downloadCsv(batch: BatchRun) {
   const header = [
     "index", "task_id", "status", "question", "expected", "answer",
-    "program_match", "cost_usd", "latency_sec", "run_id", "error",
+    "passes_passed", "passes_run", "program_match", "cost_usd", "latency_sec", "run_id", "error",
   ]
   const rows = batch.items.map((i) => [
     i.index + 1, i.task_id, i.status, i.question, i.expected_display, i.scored_answer,
+    i.passes_passed ?? (i.status === "passed" ? 1 : 0), i.attempts?.length ?? (i.run_id ? 1 : 0),
     i.program_match, i.cost_usd, i.latency_sec, i.run_id, i.error,
   ])
   const csv = [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\n")
@@ -201,6 +202,7 @@ export default function BatchDetailPage() {
         mode: batch.mode as RunMode,
         benchmark_id: "finqa",
         size: batch.size,
+        passes: batch.passes ?? 1,
         budget_usd: batch.budget_usd,
         concurrency: batch.concurrency,
       })
@@ -255,6 +257,7 @@ export default function BatchDetailPage() {
             </h2>
             <p className="mt-2 text-[13px] text-muted-foreground">
               End-to-end run on FinQA · {batch.size.toLocaleString()} questions
+              {(batch.passes ?? 1) > 1 ? ` × ${batch.passes} full passes` : ""}
               <span className="mx-2 text-border">/</span>
               <span className="font-data text-[12px]">{batch.id}</span>
               <span className="mx-2 text-border">/</span>
@@ -317,6 +320,14 @@ export default function BatchDetailPage() {
                   <Field label="Started" value={started.toLocaleString()} />
                   <Field label="Finished" value={finished ? finished.toLocaleString() : "—"} />
                   <Field label="Parallel workers" value={batch.concurrency} />
+                  <Field
+                    label="Full passes"
+                    value={
+                      (batch.passes ?? 1) > 1
+                        ? `${batch.passes} · every pass ${pct(s.pass_all_rate, 0)} · any pass ${pct(s.pass_any_rate, 0)}`
+                        : "1"
+                    }
+                  />
                   <Field
                     label="Tokens"
                     value={`${s.prompt_tokens.toLocaleString()} in → ${s.completion_tokens.toLocaleString()} out`}

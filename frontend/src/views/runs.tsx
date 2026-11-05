@@ -245,6 +245,7 @@ function BatchRow({
       <td className={cn(cell, "font-medium text-mm-dark")}>{batch.configuration_name}</td>
       <td className={cn(cell, "text-muted-foreground")}>
         {batch.benchmark_id} · {batch.size}
+        {(batch.passes ?? 1) > 1 ? ` × ${batch.passes}` : ""}
       </td>
       <td className={cn(cell, "font-data text-xs text-muted-foreground")}>{batch.models.join(", ")}</td>
       <td className={cell}>

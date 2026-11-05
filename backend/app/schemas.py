@@ -234,7 +234,10 @@ class RunResult(BaseModel):
 BatchStatus = Literal[
     "running", "completed", "stopped", "cancelled", "interrupted", "failed"
 ]
-BatchItemStatus = Literal["pending", "running", "passed", "failed", "unscored", "error", "skipped"]
+# "mixed": the question passed in some passes and failed in others
+BatchItemStatus = Literal[
+    "pending", "running", "passed", "failed", "mixed", "unscored", "error", "skipped"
+]
 
 
 class BatchRequest(BaseModel):
@@ -246,7 +249,24 @@ class BatchRequest(BaseModel):
     # Stop starting new questions once the batch has spent this much.
     budget_usd: float = Field(default=1.0, gt=0)
     concurrency: int = Field(default=4, ge=1, le=8)
+    # Full passes over the whole question set, one after another. One pass is not
+    # representative: the same model gives different answers on different runs.
+    passes: int = Field(default=1, ge=1, le=10)
     confirm: bool = False
+
+
+class BatchAttempt(BaseModel):
+    """One pass over one question."""
+
+    pass_index: int
+    status: Literal["passed", "failed", "unscored", "error"]
+    run_id: str | None = None
+    scored_answer: str | None = None
+    success: bool | None = None
+    program_match: bool | None = None
+    cost_usd: float = 0.0
+    latency_sec: float = 0.0
+    error: str | None = None
 
 
 class BatchItem(BaseModel):
@@ -261,20 +281,52 @@ class BatchItem(BaseModel):
     # FinQA: did the agent's Program line execute to the expected result?
     program_match: bool | None = None
     label_disputed: bool = False
+    # Summed over passes; latency is the mean per pass.
     cost_usd: float = 0.0
     latency_sec: float = 0.0
     error: str | None = None
+    # One entry per finished pass. run_id / scored_answer above are the first pass's.
+    attempts: list[BatchAttempt] = Field(default_factory=list)
+    passes_passed: int = 0
+    passes_failed: int = 0
 
 
-class BatchSummary(BaseModel):
-    total: int = 0
+class PassSummary(BaseModel):
+    """One full pass over the question set."""
+
+    pass_index: int
     done: int = 0
     passed: int = 0
     failed: int = 0
     errors: int = 0
-    skipped: int = 0
-    # passed / (passed + failed); errors are reported separately, not hidden in it.
     pass_rate: float | None = None
+    cost_usd: float = 0.0
+    avg_latency_sec: float | None = None
+
+
+class BatchSummary(BaseModel):
+    # Questions
+    total: int = 0
+    done: int = 0
+    errors: int = 0
+    skipped: int = 0
+    # Answers (question x pass). With one pass these equal the question counts.
+    passes: int = 1
+    attempts_total: int = 0
+    attempts_done: int = 0
+    passed: int = 0
+    failed: int = 0
+    # passed / (passed + failed) over all answers; errors are reported separately.
+    pass_rate: float | None = None
+    # Of the fully answered questions: correct in every pass (pass^k) / in at least one (pass@k)
+    pass_all_rate: float | None = None
+    pass_any_rate: float | None = None
+    # Questions whose passes disagreed with each other
+    mixed: int = 0
+    # Each full pass on its own, so the spread between passes is visible
+    per_pass: list[PassSummary] = Field(default_factory=list)
+    pass_rate_min: float | None = None
+    pass_rate_max: float | None = None
     cost_usd: float = 0.0
     avg_cost_usd: float | None = None
     # $ spent per correct answer (whole batch cost / passes).
@@ -302,6 +354,7 @@ class BatchRun(BaseModel):
     size: int
     budget_usd: float
     concurrency: int
+    passes: int = 1
     status: BatchStatus = "running"
     stop_reason: str | None = None
     created_at: str

@@ -23,6 +23,8 @@ import {
 import { cn } from "@/lib/utils"
 
 const SIZE_OPTIONS = [10, 25, 50, 100, 250] as const
+// One pass is not representative; up to ten passes per question
+const PASS_OPTIONS = [1, 2, 3, 5, 10] as const
 const POLL_MS = 1500
 
 export function BatchRunPanel({
@@ -41,6 +43,7 @@ export function BatchRunPanel({
   onSpendChanged: () => void
 }) {
   const [size, setSize] = useState<number | null>(25)
+  const [passes, setPasses] = useState<number>(1)
   const [budget, setBudget] = useState("1.00")
   const [history, setHistory] = useState<BatchRun[]>([])
   const [batch, setBatch] = useState<BatchRun | null>(null)
@@ -90,6 +93,9 @@ export function BatchRunPanel({
   }, [running, batchId, onSpendChanged, refreshHistory])
 
   const n = size ?? datasetTotal
+  // Cost guess from the most recent run of this configuration, when there is one
+  const estimate =
+    batch?.summary.avg_cost_usd != null ? batch.summary.avg_cost_usd * n * passes : null
   const budgetValue = Number(budget)
   const budgetOk = Number.isFinite(budgetValue) && budgetValue > 0
 
@@ -104,6 +110,7 @@ export function BatchRunPanel({
         benchmark_id: "finqa",
         size,
         budget_usd: budgetValue,
+        passes,
       })
       setBatch(created)
       refreshHistory().catch(() => undefined)
@@ -134,14 +141,12 @@ export function BatchRunPanel({
 
   return (
     <div className="space-y-6 p-5">
-      {/* Setup */}
-      <div className="rounded-2xl border border-border/70 bg-[#fafbfd] p-4">
-        <div className="flex flex-wrap items-end gap-5">
+      {/* Setup: one row of controls, one sentence that states what will run */}
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-white">
+        <div className="flex flex-wrap items-end gap-x-7 gap-y-4 p-5">
           <div>
-            <p className="mb-2 text-[12px] font-medium text-muted-foreground">
-              FinQA questions
-            </p>
-            <div className="seg-track flex-wrap">
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground">Questions</p>
+            <div className="seg-track whitespace-nowrap">
               {SIZE_OPTIONS.map((option) => (
                 <button
                   key={option}
@@ -161,43 +166,67 @@ export function BatchRunPanel({
                 onClick={() => setSize(null)}
                 disabled={running}
               >
-                All {datasetTotal ? datasetTotal.toLocaleString() : ""}
+                All
               </button>
             </div>
           </div>
+          <div>
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground">Full passes</p>
+            <div className="seg-track whitespace-nowrap">
+              {PASS_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="seg-item"
+                  data-active={passes === option}
+                  onClick={() => setPasses(option)}
+                  disabled={running}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
           <label className="block">
-            <span className="mb-2 block text-[12px] font-medium text-muted-foreground">
-              Spend cap
-            </span>
-            <span className="flex h-9 items-center rounded-full border border-border/80 bg-white px-3 font-data text-[13px]">
+            <span className="mb-2 block text-[12px] font-medium text-muted-foreground">Spend cap</span>
+            <span className="flex h-9 items-center rounded-full border border-border/80 bg-white px-3.5 font-data text-[13px]">
               $
               <input
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
                 inputMode="decimal"
-                className="ml-1 w-16 bg-transparent outline-none"
+                className="ml-1 w-14 bg-transparent outline-none"
                 aria-label="Spend cap in dollars"
                 disabled={running}
               />
             </span>
           </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 border-t border-border/70 bg-[#fafbfd] px-5 py-3">
+        <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-muted-foreground">
+          <span className="text-mm-dark">
+            {n.toLocaleString()} FinQA questions
+            {passes > 1 ? ` × ${passes} full passes = ${(n * passes).toLocaleString()} answers` : ""}
+          </span>
+          {estimate != null ? <> · about <span className="font-data text-mm-dark">{usd(estimate)}</span> at the last run&apos;s cost per answer</> : null}
+          {remainingBudget != null ? <> · <span className="font-data text-mm-dark">{usd(remainingBudget)}</span> left today</> : null}
+          .{" "}
+          {passes > 1
+            ? "The whole set runs once, then runs again: the pass rate is averaged over the passes and you see which questions flip."
+            : "Every configuration gets the same questions in the same order. Add passes to see how stable the answers are."}
+        </p>
           <button
             type="button"
             onClick={() => void start()}
             disabled={!canRun || running || starting || !budgetOk}
-            className="island-cta ml-auto disabled:pointer-events-none disabled:opacity-50"
+            className="island-cta shrink-0 disabled:pointer-events-none disabled:opacity-50"
           >
-            <span>{starting ? "Starting…" : "Run end-to-end"}</span>
+            <span>{starting ? "Starting…" : running ? "Running…" : "Run end-to-end"}</span>
             <span className="island-cta-icon" aria-hidden>
               <Play className="size-3.5" weight="fill" />
             </span>
           </button>
         </div>
-        <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
-          Every configuration gets the same {n.toLocaleString()} questions in the same order,
-          so pass rates are directly comparable.
-          {remainingBudget != null ? ` ${usd(remainingBudget)} left in today's budget.` : ""}
-        </p>
       </div>
 
       {error ? (
@@ -244,7 +273,8 @@ export function BatchRunPanel({
                   <span className="text-muted-foreground">{when(row.created_at)}</span>
                   <span className="text-mm-dark">{pct(row.summary.pass_rate, 1)}</span>
                   <span className="text-muted-foreground">
-                    {row.summary.done}/{row.size} · {usd(row.summary.cost_usd)}
+                    {row.summary.done}/{row.size}
+                    {(row.passes ?? 1) > 1 ? ` × ${row.passes}` : ""} · {usd(row.summary.cost_usd)}
                   </span>
                   <span className="ml-auto text-muted-foreground">
                     {BATCH_STATUS_LABEL[row.status]}

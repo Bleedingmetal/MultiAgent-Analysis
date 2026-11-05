@@ -170,7 +170,7 @@ export default function Dashboard() {
   const sizesDiffer = new Set(board.map((b) => b.size)).size > 1
   const lead = board[0]
   const finding = lead
-    ? `${lead.configuration_name} leads FinQA: ${pct(lead.summary.pass_rate, 1)} of ${lead.summary.passed + lead.summary.failed} questions correct at ${usd(lead.summary.cost_per_pass_usd)} per correct answer.`
+    ? `${lead.configuration_name} leads FinQA: ${pct(lead.summary.pass_rate, 1)} of ${lead.summary.passed + lead.summary.failed} answers correct${(lead.passes ?? 1) > 1 ? ` over ${lead.passes} passes` : ""}, at ${usd(lead.summary.cost_per_pass_usd)} per correct answer.`
     : loaded
       ? "Nothing has been evaluated end-to-end yet."
       : ""
@@ -196,7 +196,7 @@ export default function Dashboard() {
       <dl className={cn("mt-6 grid grid-cols-2 divide-[#e3e8ef] lg:grid-cols-4 lg:divide-x", card)}>
         <Kpi label="End-to-end runs" value={String(batches.length)} caption={`${runs.length} single-question ${runs.length === 1 ? "run" : "runs"} besides`} />
         <Kpi label="Questions evaluated" value={totals.questions.toLocaleString()} caption="FinQA, all runs" />
-        <Kpi label="Pass rate" value={pct(totals.passRate, 1)} caption={totals.scored ? `${totals.passed} of ${totals.scored} scored questions` : "nothing scored yet"} />
+        <Kpi label="Pass rate" value={pct(totals.passRate, 1)} caption={totals.scored ? `${totals.passed} of ${totals.scored} scored answers` : "nothing scored yet"} />
         <Kpi
           label="Spent"
           value={usd(totals.spend)}
@@ -233,6 +233,7 @@ export default function Dashboard() {
                           </Link>
                           <p className="mt-0.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
                             {archLabel(b.architecture)} · {b.models.join(", ") || b.mode}
+                            {(b.passes ?? 1) > 1 ? ` · ${b.passes} full passes` : ""}
                           </p>
                           {details[b.id]?.items.length ? (
                             <div className="mt-2 flex flex-wrap gap-[2px]" aria-label="Outcome per question">

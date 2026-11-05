@@ -160,11 +160,97 @@ class BatchTests(unittest.TestCase):
         batch = self.start(lambda i: "pass", size=2)
         stale = batch.model_copy(update={"status": "running"})
         stale.items[1].status = "pending"
+        stale.items[1].attempts = []
         batches._save(stale)
         with mock.patch.object(batches, "_batches", {}), mock.patch.object(batches, "_loaded", False):
             reloaded = batches.get(batch.id)
         self.assertEqual(reloaded.status, "interrupted")
         self.assertEqual(reloaded.items[1].status, "skipped")
+
+
+class MultiPassTests(BatchTests):
+    def test_each_question_runs_every_pass(self) -> None:
+        batch = self.start(lambda i: "pass", size=4, passes=3, concurrency=2)
+        self.assertEqual(batch.status, "completed")
+        self.assertTrue(all(len(i.attempts) == 3 for i in batch.items))
+        self.assertEqual([a.pass_index for a in batch.items[0].attempts], [0, 1, 2])
+        s = batch.summary
+        self.assertEqual((s.passes, s.attempts_total, s.attempts_done, s.passed), (3, 12, 12, 12))
+        self.assertEqual((s.total, s.done), (4, 4))
+        self.assertAlmostEqual(s.cost_usd, 0.12)  # 12 answers at $0.01
+        self.assertAlmostEqual(batch.items[0].cost_usd, 0.03)  # summed over passes
+
+    def test_disagreeing_passes_make_a_mixed_question(self) -> None:
+        calls = {}
+
+        def outcome(i):
+            # question 0 alternates pass/fail across its passes; question 1 always passes
+            n = calls.get(i, 0)
+            calls[i] = n + 1
+            return ("pass" if n % 2 == 0 else "fail") if i == 0 else "pass"
+
+        batch = self.start(outcome, size=2, passes=4, concurrency=1)
+        q0, q1 = batch.items
+        self.assertEqual(q0.status, "mixed")
+        self.assertEqual((q0.passes_passed, q0.passes_failed), (2, 2))
+        self.assertEqual(q1.status, "passed")
+        s = batch.summary
+        self.assertAlmostEqual(s.pass_rate, 6 / 8)  # mean over answers
+        self.assertAlmostEqual(s.pass_all_rate, 1 / 2)  # q1 only
+        self.assertAlmostEqual(s.pass_any_rate, 1.0)
+        self.assertEqual(s.mixed, 1)
+
+    def test_passes_run_the_whole_set_then_again(self) -> None:
+        order: list[tuple[int, int]] = []
+        tasks = registry.sample_tasks("finqa", 3)
+        pos = {t.id: i for i, t in enumerate(tasks)}
+        base = fake_execute(lambda i: "pass")
+
+        def recording(config, task, *, mode, meter, model_override=None, parent_run_id=None):
+            order.append((pos[task.id], len([o for o in order if o[0] == pos[task.id]])))
+            return base(config, task, mode=mode, meter=meter)
+
+        with mock.patch.object(batches, "execute", recording):
+            batch = batches.start(BatchRequest(configuration=CONFIG, size=3, passes=2, concurrency=1))
+            wait(batch.id)
+        # all three questions once, then all three again
+        self.assertEqual([q for q, _ in order], [0, 1, 2, 0, 1, 2])
+
+    def test_spend_cap_stops_between_full_passes(self) -> None:
+        batch = self.start(lambda i: "pass", size=3, passes=2, budget_usd=0.03, concurrency=1)
+        self.assertEqual(batch.status, "stopped")
+        self.assertEqual(batch.summary.attempts_done, 3)
+        # the first full pass finished for every question; the second never started
+        self.assertEqual([len(i.attempts) for i in batch.items], [1, 1, 1])
+        self.assertEqual([i.status for i in batch.items], ["passed", "passed", "passed"])
+        per = batch.summary.per_pass
+        self.assertEqual([(x.pass_index, x.done) for x in per], [(0, 3), (1, 0)])
+        self.assertEqual(batch.summary.pass_rate_min, 1.0)
+
+    def test_per_pass_summaries_show_the_spread(self) -> None:
+        calls = {}
+
+        def outcome(i):
+            # every question fails on its second pass only
+            n = calls.get(i, 0)
+            calls[i] = n + 1
+            return "pass" if n == 0 else "fail"
+
+        batch = self.start(outcome, size=4, passes=2, concurrency=1)
+        per = batch.summary.per_pass
+        self.assertEqual([x.pass_rate for x in per], [1.0, 0.0])
+        self.assertEqual((batch.summary.pass_rate_min, batch.summary.pass_rate_max), (0.0, 1.0))
+        self.assertAlmostEqual(batch.summary.pass_rate, 0.5)
+        self.assertAlmostEqual(per[0].cost_usd, 0.04)
+
+    def test_errored_pass_is_recorded_as_an_attempt(self) -> None:
+        pattern = ["pass", "raise"]
+        batch = self.start(lambda i: pattern[i % 2], size=2, passes=2)
+        self.assertEqual(batch.items[1].status, "error")
+        self.assertEqual([a.status for a in batch.items[1].attempts], ["error", "error"])
+        self.assertEqual(batch.summary.errors, 1)
+        # the errored passes still spent money
+        self.assertAlmostEqual(batch.items[1].cost_usd, 0.02)
 
 
 if __name__ == "__main__":
