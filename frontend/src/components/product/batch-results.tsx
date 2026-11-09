@@ -22,9 +22,12 @@ import {
   type RunResult,
   chainSteps,
   getRun,
+  isConversational,
   pipelineSteps,
+  taskNoun,
 } from "@/lib/api"
 import { ChainTraceView } from "@/components/product/chain-trace"
+import { ConversationView } from "@/components/product/conversation-view"
 import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
 import { RunTrace } from "@/components/product/run-trace"
 import { Button } from "@/components/ui/button"
@@ -257,6 +260,27 @@ function ItemDetail({ item }: { item: BatchItem }) {
 
   const chain = chainSteps(run)
   const pipeline = pipelineSteps(run)
+  if (run.conversation) {
+    return (
+      <div className="space-y-4">
+        {picker}
+        {run.note ? <p className="text-[13px] leading-relaxed text-muted-foreground">{run.note}</p> : null}
+        {run.error ? (
+          <p className="rounded-xl border border-mm-orange/25 bg-mm-orange/8 px-4 py-3 text-[13px] text-[#b34800]">
+            {run.error}
+          </p>
+        ) : null}
+        <ConversationView run={run} compact />
+        {pipeline.length ? <RunTrace steps={pipeline} /> : null}
+        <Link
+          href={`/runs/${run.id}`}
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-mm-charge hover:underline"
+        >
+          Open full run <ArrowSquareOut className="size-3.5" weight="bold" />
+        </Link>
+      </div>
+    )
+  }
   return (
     <div className="space-y-4">
       {picker}
@@ -348,13 +372,19 @@ function ItemRow({
             {item.question}
           </span>
           <span className="mt-1 flex flex-wrap gap-x-3 font-data text-[11px] text-muted-foreground">
-            <span>
-              got{" "}
-              <span className={STATUS_STYLE[item.status].text}>
-                {item.scored_answer ?? "—"}
-              </span>
-            </span>
-            <span>expected {item.expected_display ?? "—"}</span>
+            {item.expected_display != null || item.scored_answer != null ? (
+              <>
+                <span>
+                  got{" "}
+                  <span className={STATUS_STYLE[item.status].text}>
+                    {item.scored_answer ?? "—"}
+                  </span>
+                </span>
+                <span>expected {item.expected_display ?? "—"}</span>
+              </>
+            ) : (
+              <span className={STATUS_STYLE[item.status].text}>{STATUS_STYLE[item.status].label}</span>
+            )}
             {multi ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="inline-flex gap-[2px]" aria-hidden>
@@ -409,6 +439,10 @@ export function BatchResults({
   children?: React.ReactNode
 }) {
   const [filter, setFilter] = useState<Filter>("all")
+  const conv = isConversational(batch.benchmark_id)
+  const noun = (n: number) => taskNoun(batch.benchmark_id, n)
+  // A FinQA pass is a correct answer; a τ-bench pass is a completed conversation
+  const unit = (n: number) => (passes > 1 ? (conv ? "results" : "answers") : noun(n))
   const [query, setQuery] = useState("")
   const [shown, setShown] = useState(PAGE)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
@@ -483,7 +517,7 @@ export function BatchResults({
             </p>
             <p className="text-[13px] text-muted-foreground">
               {passes > 1 ? `mean pass rate over ${passes} full passes` : "pass rate"} · {s.passed} of{" "}
-              {s.passed + s.failed} {passes > 1 ? "answers" : "questions"} correct
+              {s.passed + s.failed} {unit(s.passed + s.failed)} {conv ? "completed" : "correct"}
             </p>
           </div>
           {passes > 1 ? (
@@ -501,7 +535,7 @@ export function BatchResults({
               <span className="font-data font-semibold">{pct(s.pass_all_rate, 0)}</span>
               {" · "}in at least one{" "}
               <span className="font-data font-semibold">{pct(s.pass_any_rate, 0)}</span>
-              {s.mixed ? ` · ${s.mixed} ${s.mixed === 1 ? "question" : "questions"} flipped between passes` : ""}
+              {s.mixed ? ` · ${s.mixed} ${noun(s.mixed)} flipped between passes` : ""}
             </p>
           ) : null}
           <p className="mt-2 text-[13px] text-muted-foreground">
@@ -510,8 +544,8 @@ export function BatchResults({
             </span>
             {" · "}
             {passes > 1
-              ? `pass ${Math.min(passes, (s.per_pass ?? []).filter((p) => p.done > 0).length || 1)} of ${passes} · ${s.attempts_done ?? 0} / ${s.attempts_total ?? s.total * passes} answers`
-              : `${s.done} / ${s.total} questions`}{" "}
+              ? `pass ${Math.min(passes, (s.per_pass ?? []).filter((p) => p.done > 0).length || 1)} of ${passes} · ${s.attempts_done ?? 0} / ${s.attempts_total ?? s.total * passes} ${conv ? "results" : "answers"}`
+              : `${s.done} / ${s.total} ${noun(s.total)}`}{" "}
             · {secs(s.elapsed_sec)}
             {batch.stop_reason ? ` · ${batch.stop_reason}` : ""}
           </p>
@@ -551,26 +585,38 @@ export function BatchResults({
           hint={
             running && s.projected_cost_usd != null
               ? `about ${usd(s.projected_cost_usd)} when done`
-              : `${usd(s.avg_cost_usd)} per ${passes > 1 ? "answer" : "question"}`
+              : `${usd(s.avg_cost_usd)} per ${conv ? "conversation" : passes > 1 ? "answer" : "question"}`
           }
         />
-        <Stat label="Per correct answer" value={usd(s.cost_per_pass_usd)} hint="cost ÷ correct answers" />
         <Stat
-          label="Time per question"
+          label={conv ? "Per completed conversation" : "Per correct answer"}
+          value={usd(s.cost_per_pass_usd)}
+          hint={conv ? "cost ÷ conversations that passed" : "cost ÷ correct answers"}
+        />
+        <Stat
+          label={`Time per ${noun(1)}`}
           value={secs(s.avg_latency_sec)}
           hint={s.p95_latency_sec != null ? `slowest tenth ${secs(s.p95_latency_sec)}` : undefined}
         />
-        <Stat
-          label="Calculation matched FinQA"
-          value={pct(s.program_match_rate, 0)}
-          hint={s.errors ? `${s.errors} errored` : "of answers with a program"}
-        />
+        {conv ? (
+          <Stat
+            label="Did not finish"
+            value={String(s.errors)}
+            hint={s.errors ? "stopped before the grader ran" : "every conversation reached the grader"}
+          />
+        ) : (
+          <Stat
+            label="Calculation matched FinQA"
+            value={pct(s.program_match_rate, 0)}
+            hint={s.errors ? `${s.errors} errored` : "of answers with a program"}
+          />
+        )}
       </dl>
 
       {children}
 
       <div>
-        <h2 className="mb-3 text-[16px] font-semibold text-mm-dark">Questions</h2>
+        <h2 className="mb-3 text-[16px] font-semibold text-mm-dark">{noun(2).replace(/^./, (c) => c.toUpperCase())}</h2>
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <div className="seg-track">
             {(
@@ -604,7 +650,7 @@ export function BatchResults({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search questions"
+              placeholder={`Search ${noun(2)}`}
               className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
             />
           </label>
@@ -625,7 +671,7 @@ export function BatchResults({
           </ul>
         ) : (
           <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-            No questions match.
+            No {noun(2)} match.
           </p>
         )}
         {visible.length > shown ? (

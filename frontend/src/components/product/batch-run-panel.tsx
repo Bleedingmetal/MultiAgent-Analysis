@@ -6,11 +6,15 @@ import { ArrowSquareOut, ClockCounterClockwise, Play } from "@phosphor-icons/rea
 
 import {
   type BatchRun,
+  type BenchmarkId,
+  type BenchmarkInfo,
   type RunMode,
+  benchmarkName,
   cancelBatch,
   createBatch,
   getBatch,
   listBatches,
+  taskNoun,
 } from "@/lib/api"
 import type { AgentConfiguration } from "@/types/configuration"
 import {
@@ -30,20 +34,26 @@ const POLL_MS = 1500
 export function BatchRunPanel({
   configuration,
   runMode,
-  datasetTotal,
+  benchmarks,
   remainingBudget,
   canRun,
   onSpendChanged,
 }: {
   configuration: AgentConfiguration
   runMode: RunMode
-  datasetTotal: number
+  // Scored benchmarks the backend has data for
+  benchmarks: BenchmarkInfo[]
   remainingBudget: number | null
   canRun: boolean
   onSpendChanged: () => void
 }) {
+  const [benchmarkId, setBenchmarkId] = useState<BenchmarkId>("finqa")
   const [size, setSize] = useState<number | null>(25)
   const [passes, setPasses] = useState<number>(1)
+  const benchmark = benchmarks.find((b) => b.id === benchmarkId) ?? benchmarks[0]
+  const datasetTotal = benchmark?.task_count ?? 0
+  const activeBenchmarkId = benchmark?.id ?? benchmarkId
+  const sizeOptions = SIZE_OPTIONS.filter((o) => o < datasetTotal)
   const [budget, setBudget] = useState("1.00")
   const [history, setHistory] = useState<BatchRun[]>([])
   const [batch, setBatch] = useState<BatchRun | null>(null)
@@ -95,7 +105,9 @@ export function BatchRunPanel({
   const n = size ?? datasetTotal
   // Cost guess from the most recent run of this configuration, when there is one
   const estimate =
-    batch?.summary.avg_cost_usd != null ? batch.summary.avg_cost_usd * n * passes : null
+    batch?.summary.avg_cost_usd != null && batch.benchmark_id === activeBenchmarkId
+      ? batch.summary.avg_cost_usd * n * passes
+      : null
   const budgetValue = Number(budget)
   const budgetOk = Number.isFinite(budgetValue) && budgetValue > 0
 
@@ -107,7 +119,7 @@ export function BatchRunPanel({
       const created = await createBatch({
         configuration,
         mode: runMode,
-        benchmark_id: "finqa",
+        benchmark_id: activeBenchmarkId,
         size,
         budget_usd: budgetValue,
         passes,
@@ -144,10 +156,34 @@ export function BatchRunPanel({
       {/* Setup: one row of controls, one sentence that states what will run */}
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-white">
         <div className="flex flex-wrap items-end gap-x-7 gap-y-4 p-5">
+          {benchmarks.length > 1 ? (
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-muted-foreground">Benchmark</p>
+              <div className="seg-track whitespace-nowrap">
+                {benchmarks.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className="seg-item"
+                    data-active={activeBenchmarkId === b.id}
+                    onClick={() => {
+                      setBenchmarkId(b.id)
+                      setSize((s) => (s != null && s >= b.task_count ? null : s))
+                    }}
+                    disabled={running}
+                  >
+                    {benchmarkName(b.id)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div>
-            <p className="mb-2 text-[12px] font-medium text-muted-foreground">Questions</p>
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground">
+              {taskNoun(activeBenchmarkId, 2).replace(/^./, (c) => c.toUpperCase())}
+            </p>
             <div className="seg-track whitespace-nowrap">
-              {SIZE_OPTIONS.map((option) => (
+              {sizeOptions.map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -205,15 +241,15 @@ export function BatchRunPanel({
         <div className="flex flex-wrap items-center gap-4 border-t border-border/70 bg-[#fafbfd] px-5 py-3">
         <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-muted-foreground">
           <span className="text-mm-dark">
-            {n.toLocaleString()} FinQA questions
-            {passes > 1 ? ` × ${passes} full passes = ${(n * passes).toLocaleString()} answers` : ""}
+            {n.toLocaleString()} {benchmarkName(activeBenchmarkId)} {taskNoun(activeBenchmarkId, n)}
+            {passes > 1 ? ` × ${passes} full passes = ${(n * passes).toLocaleString()} results` : ""}
           </span>
           {estimate != null ? <> · about <span className="font-data text-mm-dark">{usd(estimate)}</span> at the last run&apos;s cost per answer</> : null}
           {remainingBudget != null ? <> · <span className="font-data text-mm-dark">{usd(remainingBudget)}</span> left today</> : null}
           .{" "}
           {passes > 1
             ? "The whole set runs once, then runs again: the pass rate is averaged over the passes and you see which questions flip."
-            : "Every configuration gets the same questions in the same order. Add passes to see how stable the answers are."}
+            : `Every configuration gets the same ${taskNoun(activeBenchmarkId, 2)} in the same order. Add passes to see how stable the results are.`}
         </p>
           <button
             type="button"

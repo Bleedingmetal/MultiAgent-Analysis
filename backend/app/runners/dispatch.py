@@ -14,6 +14,22 @@ from app.schemas import AgentConfiguration, RunResult
 CONFIG_ERRORS = (ChainConfigError, RoutingConfigError)
 
 
+def _tau_v1():
+    from app.benchmarks.tau_retail import run_task
+
+    return run_task
+
+
+def _tau_v2():
+    from app.benchmarks.tau2_retail import run_task
+
+    return run_task
+
+
+# Benchmarks where the environment drives a conversation (imported lazily: heavy packages)
+CONVERSATIONAL = {"tau-retail": _tau_v1, "tau2-retail": _tau_v2}
+
+
 def preflight(config: AgentConfiguration, mode: str, model_override: str | None = None) -> None:
     """Reject unrunnable chain / routing configs before anything is spent."""
     if mode == "prompt-chain":
@@ -32,6 +48,14 @@ def execute(
     parent_run_id: str | None = None,
 ) -> RunResult:
     """Run one task. Every dollar spent is added to `meter`, including chain/routing runs."""
+    if task.benchmark_id in CONVERSATIONAL:
+        # A multi-turn tool-using conversation: the benchmark drives the loop and our
+        # configuration answers each turn (see app.benchmarks).
+        runner = CONVERSATIONAL[task.benchmark_id]()
+        return runner(
+            config, task, mode=mode, meter=meter,
+            model_override=model_override, parent_run_id=parent_run_id,
+        )
     if mode == "prompt-chain":
         result = run_prompt_chain(
             config,

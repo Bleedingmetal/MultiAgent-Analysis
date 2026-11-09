@@ -53,8 +53,8 @@ async def get_tasks(benchmark_id: str, limit: int = 20):
                 "question": t.question,
                 "expected_answer": t.expected_answer,
                 "expected_display": t.expected_display,
-                "scored": t.expected_answer is not None
-                and benchmark_id == "finqa",
+                "scored": benchmark_id in registry.SCORED_BENCHMARKS
+                and (t.expected_answer is not None or benchmark_id != "finqa"),
                 # Ground-truth programs/evidence are evaluation-only and must
                 # not be exposed to the client before a run.
                 "metadata": {

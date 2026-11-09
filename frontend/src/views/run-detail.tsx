@@ -6,12 +6,14 @@ import { useEffect, useState } from "react"
 import { ArrowLeft, Copy, Play } from "@phosphor-icons/react"
 
 import { ChainTraceView } from "@/components/product/chain-trace"
+import { ConversationView } from "@/components/product/conversation-view"
 import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
 import { Bezel, Reveal } from "@/components/product/ui-bits"
 import { Button } from "@/components/ui/button"
 import { RunTrace } from "@/components/product/run-trace"
 import { ReasoningSteps } from "@/components/product/reasoning-steps"
 import {
+  benchmarkName,
   chainSteps,
   createRun,
   getRun,
@@ -198,7 +200,7 @@ export default function RunDetailPage() {
       <Reveal delay={0.05} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Config", run.configuration_name],
-          ["Benchmark", run.benchmark_id],
+          ["Benchmark", benchmarkName(run.benchmark_id)],
           ["Models", run.model],
           ["Cost", `$${run.cost_usd.toFixed(5)}`],
           ["Latency", `${run.latency_sec}s`],
@@ -220,7 +222,9 @@ export default function RunDetailPage() {
 
       <Reveal delay={0.08}>
         <Bezel coreClassName="p-5">
-          <h3 className="text-[15px] font-semibold text-mm-dark">Question</h3>
+          <h3 className="text-[15px] font-semibold text-mm-dark">
+            {run.conversation ? "Customer's situation" : "Question"}
+          </h3>
           <p className="mt-2 text-[15px] leading-relaxed text-mm-dark">
             {run.question}
           </p>
@@ -239,6 +243,11 @@ export default function RunDetailPage() {
                 : run.expected_answer}
             </p>
           ) : null}
+          {run.conversation ? (
+            <div className="mt-6">
+              <ConversationView run={run} />
+            </div>
+          ) : null}
           {run.reasoning_comparison ? (
             <FinQAReasoningComparisonView
               comparison={run.reasoning_comparison}
@@ -252,18 +261,22 @@ export default function RunDetailPage() {
               <ReasoningSteps text={run.reasoning} className="mt-3" />
             </>
           ) : null}
-          <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
-            Final answer
-          </h3>
-          <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark/90">
-            {run.scored_answer || run.answer}
-          </p>
-          <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
-            Raw output
-          </h3>
-          <p className="mt-2 whitespace-pre-wrap font-data text-[12px] leading-relaxed text-muted-foreground">
-            {run.answer}
-          </p>
+          {!run.conversation ? (
+            <>
+              <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
+                Final answer
+              </h3>
+              <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark/90">
+                {run.scored_answer || run.answer}
+              </p>
+              <h3 className="mt-6 text-[15px] font-semibold text-mm-dark">
+                Raw output
+              </h3>
+              <p className="mt-2 whitespace-pre-wrap font-data text-[12px] leading-relaxed text-muted-foreground">
+                {run.answer}
+              </p>
+            </>
+          ) : null}
           {run.classifier_plan ? (
             <div className="mt-4 rounded-xl bg-[#f4f7fb] p-4 text-sm">
               <p className="font-medium text-mm-dark">

@@ -7,7 +7,7 @@ import { LayoutGroup, motion, useReducedMotion } from "motion/react"
 
 import { BATCH_STATUS_LABEL, pct, secs } from "@/components/product/batch-results"
 import { Bezel, Reveal } from "@/components/product/ui-bits"
-import { type BatchRun, listBatches, listRuns, type RunResult } from "@/lib/api"
+import { type BatchRun, benchmarkName, listBatches, listRuns, type RunResult } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 type Row =
@@ -182,7 +182,7 @@ export default function Runs() {
                         {formatWhen(row.run.created_at)}
                       </td>
                       <td className={cn(cell, "font-medium text-mm-dark")}>{row.run.configuration_name}</td>
-                      <td className={cn(cell, "text-muted-foreground")}>{row.run.benchmark_id}</td>
+                      <td className={cn(cell, "text-muted-foreground")}>{benchmarkName(row.run.benchmark_id)}</td>
                       <td className={cn(cell, "font-data text-xs text-muted-foreground")}>{row.run.model}</td>
                       <td className={cell}>
                         <motion.span
@@ -244,7 +244,7 @@ function BatchRow({
       <td className={cn(cell, "whitespace-nowrap text-muted-foreground")}>{formatWhen(batch.created_at)}</td>
       <td className={cn(cell, "font-medium text-mm-dark")}>{batch.configuration_name}</td>
       <td className={cn(cell, "text-muted-foreground")}>
-        {batch.benchmark_id} · {batch.size}
+        {benchmarkName(batch.benchmark_id)} · {batch.size}
         {(batch.passes ?? 1) > 1 ? ` × ${batch.passes}` : ""}
       </td>
       <td className={cn(cell, "font-data text-xs text-muted-foreground")}>{batch.models.join(", ")}</td>

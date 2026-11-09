@@ -22,12 +22,14 @@ FINQA_TEST_URL = (
 FAB_CSV_URL = (
     "https://raw.githubusercontent.com/vals-ai/finance-agent/main/data/public.csv"
 )
-TAU_RETAIL_TASKS_URL = (
-    "https://raw.githubusercontent.com/sierra-research/tau-bench/main/"
-    "tau_bench/envs/retail/tasks_test.py"
-)
-
-TAU_SAMPLE_SIZE = 15
+# tau2-bench keeps its domain data outside the package; tau-bench (v1) ships inside its package.
+TAU2_RAW_ROOT = "https://raw.githubusercontent.com/sierra-research/tau2-bench/main/data/tau2/"
+TAU2_RAW = TAU2_RAW_ROOT + "domains/retail/"
+TAU2_API_ROOT = "https://api.github.com/repos/sierra-research/tau2-bench/contents/data/tau2/"
+TAU2_RETAIL_FILES = ("db.json", "policy.md", "tasks.json", "split_tasks.json")
+# The customer simulator builds its guidelines from the English language pack.
+TAU2_PACK_FILES = ("multilingual/migration_manifest.json", "multilingual/telecom-caller-roles.json")
+TAU2_PACK_DIR = "multilingual/en"
 FAB_SAMPLE_SIZE = 20
 FINQA_SAMPLE_SIZE = 20
 
@@ -106,58 +108,48 @@ def download_fab(force: bool) -> None:
     print(f"FAB rows available: {len(rows)} (sample: {len(sample)})")
 
 
-def _parse_tau_retail_tasks(py_source: str) -> list[tuple[str, str]]:
-    """Extract (user_id, instruction) per Task() block."""
-    blocks = re.split(r"\bTask\s*\(", py_source)[1:]
-    pairs: list[tuple[str, str]] = []
-    for block in blocks:
-        uid_m = re.search(r'user_id="([^"]+)"', block)
-        ins_m = re.search(r'instruction="((?:\\.|[^"\\])*)"', block, re.S)
-        if not uid_m or not ins_m:
+def download_tau2_retail(force: bool) -> None:
+    """τ²-bench retail domain data (database, policy, tasks) for the tau2 package.
+
+    The backend points TAU2_DATA_DIR at backend/data, and tau2 reads
+    <TAU2_DATA_DIR>/tau2/domains/retail/. τ-bench (v1) needs no download: its
+    data ships inside the tau_bench package.
+    """
+    tau_dir = DATA / "tau2" / "domains" / "retail"
+    for name in TAU2_RETAIL_FILES:
+        path = tau_dir / name
+        if path.exists() and not force:
+            print(f"skip τ²-bench {name} (exists): {path.relative_to(ROOT)}")
             continue
-        instruction = bytes(ins_m.group(1), "utf-8").decode("unicode_escape")
-        pairs.append((uid_m.group(1), instruction))
-    return pairs
+        print(f"fetching τ²-bench retail {name}")
+        write_if_needed(path, fetch(TAU2_RAW + name), force=True, label=f"τ²-bench retail {name}")
+    tasks_path = tau_dir / "tasks.json"
+    if tasks_path.exists():
+        with tasks_path.open(encoding="utf-8") as f:
+            print(f"τ²-bench retail tasks available: {len(json.load(f))}")
+
+    root = DATA / "tau2"
+    wanted = [(rel, TAU2_RAW_ROOT + rel) for rel in TAU2_PACK_FILES]
+    if force or not (root / TAU2_PACK_DIR / "pack.yaml").exists():
+        wanted += _github_dir_files(TAU2_PACK_DIR)
+    for rel, url in wanted:
+        path = root / rel
+        if path.exists() and not force:
+            continue
+        write_if_needed(path, fetch(url), force=True, label=f"τ²-bench {rel}")
 
 
-def download_tau_retail(force: bool) -> None:
-    tau_dir = DATA / "tau_bench"
-    py_path = tau_dir / "tasks_test_retail.py"
-    sample_path = tau_dir / "retail_sample.json"
-
-    if not py_path.exists() or force:
-        print(f"fetching τ-bench retail tasks from {TAU_RETAIL_TASKS_URL}")
-        raw = fetch(TAU_RETAIL_TASKS_URL).decode("utf-8")
-        write_if_needed(py_path, raw, force=True, label="τ-bench tasks_test_retail.py")
-    else:
-        print(f"skip τ-bench source (exists): {py_path.relative_to(ROOT)}")
-        raw = py_path.read_text(encoding="utf-8")
-
-    pairs = _parse_tau_retail_tasks(raw)
-    if not pairs:
-        raise ValueError(
-            "Could not parse any τ-bench retail tasks from tasks_test_retail.py"
-        )
-
-    tasks = []
-    for i, (uid, instruction) in enumerate(pairs[:TAU_SAMPLE_SIZE]):
-        tasks.append(
-            {
-                "id": f"tau-retail-{i:03d}",
-                "user_id": uid,
-                "instruction": instruction,
-            }
-        )
-    write_if_needed(
-        sample_path,
-        json.dumps(tasks, indent=2),
-        force=force or not sample_path.exists(),
-        label=f"τ-bench retail sample ({len(tasks)} tasks)",
-    )
-    print(
-        f"τ-bench retail tasks parsed: {len(pairs)} "
-        f"(sample: {len(tasks)})"
-    )
+def _github_dir_files(rel: str) -> list[tuple[str, str]]:
+    """(relative path, download url) for every file under data/tau2/<rel> on GitHub."""
+    listing = json.loads(fetch(TAU2_API_ROOT + rel).decode("utf-8"))
+    out: list[tuple[str, str]] = []
+    for item in listing:
+        child = f"{rel}/{item['name']}"
+        if item["type"] == "dir":
+            out += _github_dir_files(child)
+        elif item.get("download_url"):
+            out.append((child, item["download_url"]))
+    return out
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -171,7 +163,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--only",
-        choices=("finqa", "fab", "tau"),
+        choices=("finqa", "fab", "tau2"),
         help="Download a single benchmark.",
     )
     return parser.parse_args(argv)
@@ -182,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     steps = {
         "finqa": download_finqa,
         "fab": download_fab,
-        "tau": download_tau_retail,
+        "tau2": download_tau2_retail,
     }
     selected = [args.only] if args.only else list(steps.keys())
 

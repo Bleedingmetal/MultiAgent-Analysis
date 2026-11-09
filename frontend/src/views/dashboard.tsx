@@ -16,6 +16,7 @@ import { STATUS_STYLE, pct, secs, usd, when } from "@/components/product/batch-r
 import {
   type BatchRun,
   type RunResult,
+  benchmarkName,
   getBatch,
   getHealth,
   listBatches,
@@ -170,7 +171,7 @@ export default function Dashboard() {
   const sizesDiffer = new Set(board.map((b) => b.size)).size > 1
   const lead = board[0]
   const finding = lead
-    ? `${lead.configuration_name} leads FinQA: ${pct(lead.summary.pass_rate, 1)} of ${lead.summary.passed + lead.summary.failed} answers correct${(lead.passes ?? 1) > 1 ? ` over ${lead.passes} passes` : ""}, at ${usd(lead.summary.cost_per_pass_usd)} per correct answer.`
+    ? `${lead.configuration_name} leads ${benchmarkName(lead.benchmark_id)}: ${pct(lead.summary.pass_rate, 1)} of ${lead.summary.passed + lead.summary.failed} answers correct${(lead.passes ?? 1) > 1 ? ` over ${lead.passes} passes` : ""}, at ${usd(lead.summary.cost_per_pass_usd)} per correct answer.`
     : loaded
       ? "Nothing has been evaluated end-to-end yet."
       : ""
@@ -195,7 +196,10 @@ export default function Dashboard() {
       {/* Bare KPI strip on the ground, split by hairlines */}
       <dl className={cn("mt-6 grid grid-cols-2 divide-[#e3e8ef] lg:grid-cols-4 lg:divide-x", card)}>
         <Kpi label="End-to-end runs" value={String(batches.length)} caption={`${runs.length} single-question ${runs.length === 1 ? "run" : "runs"} besides`} />
-        <Kpi label="Questions evaluated" value={totals.questions.toLocaleString()} caption="FinQA, all runs" />
+        <Kpi label="Questions evaluated" value={totals.questions.toLocaleString()} caption={(() => {
+          const names = [...new Set([...batches.map((b) => b.benchmark_id), ...runs.map((r) => r.benchmark_id)])]
+          return names.length ? names.map(benchmarkName).join(", ") : "all benchmarks"
+        })()} />
         <Kpi label="Pass rate" value={pct(totals.passRate, 1)} caption={totals.scored ? `${totals.passed} of ${totals.scored} scored answers` : "nothing scored yet"} />
         <Kpi
           label="Spent"
@@ -275,7 +279,7 @@ export default function Dashboard() {
               </>
             ) : (
               <p className="mx-5 mb-5 rounded-md border border-dashed border-[#d1d7e0] px-4 py-6 text-center text-[13px] text-muted-foreground">
-                {loaded ? "No end-to-end runs yet. Open a configuration and run it end-to-end on FinQA." : "Loading…"}
+                {loaded ? "No end-to-end runs yet. Open a configuration and run it end-to-end on FinQA or τ-bench." : "Loading…"}
               </p>
             )}
           </section>

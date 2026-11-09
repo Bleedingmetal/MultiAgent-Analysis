@@ -18,10 +18,13 @@ import { Button } from "@/components/ui/button"
 import {
   type BatchItem,
   type BatchRun,
+  type BenchmarkId,
   type RunMode,
+  benchmarkName,
   cancelBatch,
   createBatch,
   getBatch,
+  taskNoun,
 } from "@/lib/api"
 import { getConfiguration } from "@/lib/configuration-storage"
 import { cn } from "@/lib/utils"
@@ -200,7 +203,7 @@ export default function BatchDetailPage() {
       const next = await createBatch({
         configuration: batch.configuration,
         mode: batch.mode as RunMode,
-        benchmark_id: "finqa",
+        benchmark_id: batch.benchmark_id as BenchmarkId,
         size: batch.size,
         passes: batch.passes ?? 1,
         budget_usd: batch.budget_usd,
@@ -256,7 +259,7 @@ export default function BatchDetailPage() {
               {batch.configuration_name}
             </h2>
             <p className="mt-2 text-[13px] text-muted-foreground">
-              End-to-end run on FinQA · {batch.size.toLocaleString()} questions
+              End-to-end run on {benchmarkName(batch.benchmark_id)} · {batch.size.toLocaleString()} {taskNoun(batch.benchmark_id, batch.size)}
               {(batch.passes ?? 1) > 1 ? ` × ${batch.passes} full passes` : ""}
               <span className="mx-2 text-border">/</span>
               <span className="font-data text-[12px]">{batch.id}</span>
@@ -312,7 +315,7 @@ export default function BatchDetailPage() {
                   <Field label="Runner" value={MODE_LABEL[batch.mode] ?? batch.mode} />
                   <Field label="Models" value={batch.models.join(", ") || "—"} />
                   <Field
-                    label="Questions run"
+                    label={`${taskNoun(batch.benchmark_id, 2).replace(/^./, (c) => c.toUpperCase())} run`}
                     value={`${s.done} of ${s.total}${s.skipped ? ` · ${s.skipped} skipped` : ""}`}
                   />
                   <Field label="Spent" value={`${usd(s.cost_usd)} of ${usd(batch.budget_usd)} cap`} />
@@ -333,10 +336,12 @@ export default function BatchDetailPage() {
                     value={`${s.prompt_tokens.toLocaleString()} in → ${s.completion_tokens.toLocaleString()} out`}
                   />
                   <Field label="Latency p50 / p95" value={`${secs(s.p50_latency_sec)} / ${secs(s.p95_latency_sec)}`} />
-                  <Field
-                    label="Disputed labels"
-                    value={s.disputed ? `${s.disputed} of ${s.done}` : "None"}
-                  />
+                  {batch.benchmark_id === "finqa" ? (
+                    <Field
+                      label="Disputed labels"
+                      value={s.disputed ? `${s.disputed} of ${s.done}` : "None"}
+                    />
+                  ) : null}
                 </dl>
                 {batch.stop_reason ? (
                   <p className="mt-5 text-[13px] text-mm-dark">{batch.stop_reason}</p>

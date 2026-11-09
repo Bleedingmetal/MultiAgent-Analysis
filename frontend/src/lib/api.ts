@@ -9,7 +9,48 @@ export type RunMode =
   | "prompt-chain"
   | "routing"
 export type ProviderId = "openai" | "anthropic" | "google"
-export type BenchmarkId = "finqa" | "tau-retail" | "fab"
+export type BenchmarkId = "finqa" | "tau-retail" | "tau2-retail" | "fab"
+
+export const BENCHMARK_NAMES: Record<string, string> = {
+  finqa: "FinQA",
+  "tau-retail": "τ-bench Retail",
+  "tau2-retail": "τ²-bench Retail",
+  fab: "Finance Agent Benchmark",
+}
+
+export function benchmarkName(id: string) {
+  return BENCHMARK_NAMES[id] ?? id
+}
+
+/** Benchmarks where each task is a multi-turn conversation rather than a question. */
+export function isConversational(id: string) {
+  return id === "tau-retail" || id === "tau2-retail"
+}
+
+/** "question" / "conversation", pluralised. */
+export function taskNoun(id: string, n = 2) {
+  const one = isConversational(id) ? "conversation" : "question"
+  return n === 1 ? one : `${one}s`
+}
+
+export type ConversationTurn = {
+  role: "user" | "assistant" | "tool"
+  turn?: number
+  content?: string | null
+  tool_calls?: { id?: string; name: string; arguments: Record<string, unknown> }[]
+  tool_call_id?: string
+  error?: boolean
+  requestor?: string
+  cost_usd?: number
+}
+
+export type DbChange = {
+  path: string
+  change: "changed" | "added" | "removed"
+  from?: unknown
+  to?: unknown
+  value?: unknown
+}
 
 export type ClassifierPlan = {
   roles: string[]
@@ -30,7 +71,14 @@ export type TraceStep = {
   user_prompt?: string | null
   output: string
   decision?: Record<string, unknown> | null
-  tool_calls: { name: string; arguments: Record<string, unknown>; result: string }[]
+  tool_calls: {
+    id?: string
+    name: string
+    arguments: Record<string, unknown>
+    result: string | null
+    error?: boolean
+    executed?: boolean
+  }[]
   llm_calls: number
   prompt_tokens: number
   completion_tokens: number
@@ -134,6 +182,10 @@ export type RunResult = {
   // ChainStepTrace for prompt-chain / routing runs, TraceStep for pipeline runs
   steps?: (ChainStepTrace | TraceStep)[]
   llm_calls?: number
+  // τ-bench runs: the transcript, the official evaluation and the database diff
+  conversation?: ConversationTurn[] | null
+  evaluation?: Record<string, unknown> | null
+  db_changes?: DbChange[] | null
 }
 
 /** Prompt-chain / routing steps (ChainStepTrace carries a run_id; TraceStep does not). */

@@ -90,11 +90,22 @@ export const benchmarks: BenchmarkInfo[] = [
     id: "tau-retail",
     name: "τ-bench Retail",
     shortName: "τ-bench",
-    structure: "Sequential · shared-state",
+    structure: "Multi-turn · tool-using · shared-state",
     role: "Fidelity anchor",
     description:
-      "Tool-calling customer service with a simulated user.",
-    checker: "Programmatic pass^k",
+      "The original Sierra benchmark: the agent serves a simulated customer over several turns, calling real order and product tools against a mock store database, and is graded on the database it leaves behind and the facts it tells the customer.",
+    checker: "Database end state + required outputs, pass^k",
+    regimeId: "human-facing",
+  },
+  {
+    id: "tau2-retail",
+    name: "τ²-bench Retail",
+    shortName: "τ²-bench",
+    structure: "Multi-turn · tool-using · shared-state",
+    role: "Fidelity anchor (successor)",
+    description:
+      "The successor to τ-bench on the same retail domain: cleaned tasks, a policy-aware customer simulator, reference-action checks and natural-language assertions judged by an LLM on top of the database check.",
+    checker: "Database end state + actions + NL assertions, pass^k",
     regimeId: "human-facing",
   },
   {

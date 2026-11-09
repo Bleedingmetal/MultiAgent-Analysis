@@ -21,7 +21,8 @@ From the repository root:
 make datasets
 ```
 
-This downloads FinQA, FAB, and τ-bench retail data into `backend/data/`.
+This downloads FinQA, FAB, and τ²-bench retail data into `backend/data/`
+(τ-bench v1 data ships inside its Python package).
 `npm run dev` also runs this check first. Existing files are reused without a
 network request, so datasets are downloaded only when missing. To re-download
 everything:
@@ -30,6 +31,6 @@ everything:
 python3 backend/scripts/download_datasets.py --force
 ```
 
-Download only one benchmark with `--only finqa`, `--only fab`, or `--only tau`.
+Download only one benchmark with `--only finqa`, `--only fab`, or `--only tau2`.
 
 See `backend/README.md` for backend setup and `frontend/README.md` for frontend setup.

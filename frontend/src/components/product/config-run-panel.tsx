@@ -18,6 +18,7 @@ import {
 import type { AgentConfiguration } from "@/types/configuration"
 import { BatchRunPanel } from "@/components/product/batch-run-panel"
 import { ChainTraceView } from "@/components/product/chain-trace"
+import { ConversationView } from "@/components/product/conversation-view"
 import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
 import { ReasoningSteps } from "@/components/product/reasoning-steps"
 import { Button } from "@/components/ui/button"
@@ -251,9 +252,7 @@ export function ConfigRunPanel({
           <BatchRunPanel
             configuration={configuration}
             runMode={runMode}
-            datasetTotal={
-              benchmarks.find((b) => b.id === "finqa")?.task_count ?? 0
-            }
+            benchmarks={benchmarks.filter((b) => b.scored)}
             remainingBudget={spend?.remaining_budget_usd ?? null}
             canRun={!!apiOk && anyProvider}
             onSpendChanged={onSpendChanged}
@@ -509,6 +508,12 @@ export function ConfigRunPanel({
                 <ChainTraceView steps={chainSteps(result)} />
               ) : null}
 
+              {result.conversation ? (
+                <div className="mt-4">
+                  <ConversationView run={result} compact />
+                </div>
+              ) : null}
+
               {result.reasoning_comparison ? (
                 <FinQAReasoningComparisonView
                   comparison={result.reasoning_comparison}
@@ -523,14 +528,16 @@ export function ConfigRunPanel({
                 </div>
               ) : null}
 
-              <div className="mt-4">
-                <p className="text-[12px] font-medium text-muted-foreground">
-                  Final answer
-                </p>
-                <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark">
-                  {result.scored_answer || result.answer}
-                </p>
-              </div>
+              {!result.conversation ? (
+                <div className="mt-4">
+                  <p className="text-[12px] font-medium text-muted-foreground">
+                    Final answer
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-mm-dark">
+                    {result.scored_answer || result.answer}
+                  </p>
+                </div>
+              ) : null}
 
               {result.success != null ? (
                 <div className="mt-4 grid gap-1 border-t border-border/70 pt-4 font-data text-[12px] text-muted-foreground">

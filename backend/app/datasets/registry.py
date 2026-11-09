@@ -184,27 +184,26 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
     )
 
 
-def _load_tau_raw() -> list[dict[str, Any]]:
-    path = DATA_ROOT / "tau_bench" / "retail_sample.json"
-    if not path.exists():
+@lru_cache
+def _tau_tasks() -> list[Task]:
+    """tau-bench (original) retail test tasks, from the official tau_bench package."""
+    try:
+        from app.benchmarks.tau_retail import harness_task, tau_tasks
+    except Exception:
         return []
-    with path.open(encoding="utf-8") as f:
-        return json.load(f)
+    return [harness_task(i, t) for i, t in enumerate(tau_tasks())]
 
 
-def _tau_task(item: dict[str, Any]) -> Task:
-    return Task(
-        id=item["id"],
-        benchmark_id="tau-retail",
-        question=item["instruction"],
-        expected_answer=None,
-        context=(
-            "You are a retail customer-service agent with tools for users, orders, "
-            "and products. Describe the tool calls and final resolution you would take. "
-            f"User id: {item.get('user_id', 'unknown')}."
-        ),
-        metadata={"user_id": item.get("user_id")},
-    )
+@lru_cache
+def _tau2_tasks() -> list[Task]:
+    """tau2-bench retail tasks, from the official tau2 package plus its downloaded data."""
+    if not (DATA_ROOT / "tau2" / "domains" / "retail" / "tasks.json").exists():
+        return []
+    try:
+        from app.benchmarks.tau2_retail import harness_task, tau_tasks
+    except Exception:
+        return []
+    return [harness_task(t) for t in tau_tasks()]
 
 
 def _load_fab_raw() -> list[dict[str, Any]]:
@@ -240,6 +239,11 @@ def _fab_task(item: dict[str, Any], index: int) -> Task:
     )
 
 
+_TAU_PROMPT = (
+    "You are a retail customer-service agent. Follow the store policy you are given, "
+    "look everything up with the tools, and act only when the customer confirms."
+)
+
 DATASET_SYSTEM_PROMPTS: dict[str, str] = {
     "finqa": (
         "You are a financial question-answering assistant. "
@@ -258,12 +262,8 @@ DATASET_SYSTEM_PROMPTS: dict[str, str] = {
         "(for example, 0.0676 and 6.76% are equivalent). Preserve negative and positive signs. "
         "Do not invent units. For yes/no, put yes or no as the Final answer."
     ),
-    "tau-retail": (
-        "You are a retail customer-service agent with access to user, order, and product tools. "
-        "Respond in two parts:\n"
-        "Reasoning: which tools and steps you would take.\n"
-        "Final answer: the concrete resolution."
-    ),
+    "tau-retail": _TAU_PROMPT,
+    "tau2-retail": _TAU_PROMPT,
     "fab": (
         "You are a finance research analyst answering questions grounded in SEC filings and public company disclosures. "
         "Respond in two parts:\n"
@@ -309,7 +309,8 @@ def response_format_for(benchmark_id: str) -> str:
 @lru_cache
 def list_benchmarks() -> list[dict[str, Any]]:
     finqa_n = len(_load_finqa_raw())
-    tau_n = len(_load_tau_raw())
+    tau_n = len(_tau_tasks())
+    tau2_n = len(_tau2_tasks())
     fab_n = len(_load_fab_raw())
     rows = [
         {
@@ -325,14 +326,25 @@ def list_benchmarks() -> list[dict[str, Any]]:
         },
         {
             "id": "tau-retail",
-            "name": "tau-bench Retail",
-            "structure": "Sequential, shared-state",
-            "role": "Fidelity anchor (stub)",
+            "name": "τ-bench Retail",
+            "structure": "Multi-turn, tool-using conversation",
+            "role": "Fidelity anchor",
             "task_count": tau_n,
-            "scored": False,
+            "scored": True,
             "available": tau_n > 0,
             "default_system_prompt": system_prompt_for("tau-retail"),
-            "notes": "Sample retail instructions only. Full tool+user sim comes later.",
+            "notes": "Original tau-bench retail test split: real tools, LLM customer, graded on final database state and required outputs.",
+        },
+        {
+            "id": "tau2-retail",
+            "name": "τ²-bench Retail",
+            "structure": "Multi-turn, tool-using conversation",
+            "role": "Fidelity anchor (successor)",
+            "task_count": tau2_n,
+            "scored": True,
+            "available": tau2_n > 0,
+            "default_system_prompt": system_prompt_for("tau2-retail"),
+            "notes": "tau2-bench retail: the same domain with cleaned tasks, reference-action checks and natural-language assertions judged by an LLM.",
         },
         {
             "id": "fab",
@@ -353,7 +365,9 @@ def list_tasks(benchmark_id: str, limit: int = 20) -> list[Task]:
     if benchmark_id == "finqa":
         return [_finqa_task(x, i) for i, x in enumerate(_load_finqa_raw()[:limit])]
     if benchmark_id == "tau-retail":
-        return [_tau_task(x) for x in _load_tau_raw()[:limit]]
+        return _tau_tasks()[:limit]
+    if benchmark_id == "tau2-retail":
+        return _tau2_tasks()[:limit]
     if benchmark_id == "fab":
         return [_fab_task(x, i) for i, x in enumerate(_load_fab_raw()[:limit])]
     raise KeyError(f"Unknown benchmark: {benchmark_id}")
@@ -362,14 +376,16 @@ def list_tasks(benchmark_id: str, limit: int = 20) -> list[Task]:
 # Fixed so every configuration is evaluated on the same questions.
 SAMPLE_SEED = 20260
 # Benchmarks with an automatic pass/fail scorer (end-to-end runs need one).
-SCORED_BENCHMARKS = {"finqa"}
+SCORED_BENCHMARKS = {"finqa", "tau-retail", "tau2-retail"}
 
 
 def task_count(benchmark_id: str) -> int:
     if benchmark_id == "finqa":
         return len(_load_finqa_raw())
     if benchmark_id == "tau-retail":
-        return len(_load_tau_raw())
+        return len(_tau_tasks())
+    if benchmark_id == "tau2-retail":
+        return len(_tau2_tasks())
     if benchmark_id == "fab":
         return len(_load_fab_raw())
     raise KeyError(f"Unknown benchmark: {benchmark_id}")
@@ -402,7 +418,7 @@ def get_task(benchmark_id: str, task_id: str | None = None) -> Task:
                 return _finqa_task(item, i)
         raise KeyError(f"Task {task_id} not found in finqa")
 
-    tasks = list_tasks(benchmark_id, limit=50)
+    tasks = list_tasks(benchmark_id, limit=10_000)
     if not tasks:
         raise KeyError(f"No tasks for benchmark {benchmark_id}")
     if task_id is None:

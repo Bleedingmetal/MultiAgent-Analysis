@@ -1,7 +1,8 @@
-# Python
-backend/.venv/
-.venv/
-venv/
+# Python (any virtualenv, at any depth: .venv, .venv310, venv-old, ...)
+.venv*/
+venv*/
+**/.venv*/
+**/venv*/
 __pycache__/
 *.py[cod]
 *$py.class

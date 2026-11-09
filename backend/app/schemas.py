@@ -83,7 +83,7 @@ class RunRequest(BaseModel):
     mode: Literal["pipeline", "single-agent", "classify-plan", "prompt-chain", "routing"] = (
         "pipeline"
     )
-    benchmark_id: Literal["finqa", "tau-retail", "fab"] = "finqa"
+    benchmark_id: Literal["finqa", "tau-retail", "tau2-retail", "fab"] = "finqa"
     task_id: str | None = None
     confirm: bool = False
     model_override: str | None = None
@@ -229,6 +229,11 @@ class RunResult(BaseModel):
     # pipeline runs. The two have disjoint required fields, so validation is unambiguous.
     steps: list[ChainStepTrace | TraceStep] = Field(default_factory=list)
     llm_calls: int = 0
+    # Conversational benchmarks (tau-bench): the full transcript, the official
+    # evaluation, and what the agent changed in the simulated database.
+    conversation: list[dict[str, Any]] | None = None
+    evaluation: dict[str, Any] | None = None
+    db_changes: list[dict[str, Any]] | None = None
 
 
 BatchStatus = Literal[
@@ -243,7 +248,7 @@ BatchItemStatus = Literal[
 class BatchRequest(BaseModel):
     configuration: AgentConfiguration
     mode: Literal["pipeline", "prompt-chain", "routing"] = "pipeline"
-    benchmark_id: Literal["finqa"] = "finqa"
+    benchmark_id: Literal["finqa", "tau-retail", "tau2-retail"] = "finqa"
     # Number of questions; None = the whole dataset.
     size: int | None = Field(default=25, ge=1)
     # Stop starting new questions once the batch has spent this much.
