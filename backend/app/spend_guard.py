@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import json
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import date
 
 from app.config import settings
+from app.store import DATA_DIR
+
+# Today's spend survives server restarts, so the daily budget cannot be reset by
+# stopping and starting the backend.
+SPEND_FILE = DATA_DIR / "spend.json"
 
 
 @dataclass
@@ -17,7 +23,27 @@ class SpendState:
     in_flight: bool = False
 
 
-_state = SpendState()
+def _load_state() -> SpendState:
+    try:
+        raw = json.loads(SPEND_FILE.read_text(encoding="utf-8"))
+        if raw.get("day") == date.today().isoformat():
+            return SpendState(day=raw["day"], spend_usd=float(raw.get("spend_usd", 0.0)),
+                              run_count=int(raw.get("run_count", 0)))
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return SpendState()
+
+
+_state = _load_state()
+
+
+def _save_state() -> None:
+    try:
+        SPEND_FILE.parent.mkdir(parents=True, exist_ok=True)
+        data = {k: v for k, v in asdict(_state).items() if k in {"day", "spend_usd", "run_count"}}
+        SPEND_FILE.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _roll_day() -> None:
@@ -26,6 +52,7 @@ def _roll_day() -> None:
         _state.day = today
         _state.spend_usd = 0.0
         _state.run_count = 0
+        _save_state()
 
 
 def status() -> dict:
@@ -86,6 +113,7 @@ def end_run(*, cost_usd: float, ok: bool) -> None:
     _state.spend_usd += max(0.0, cost_usd)
     if ok:
         _state.run_count += 1
+    _save_state()
 
 
 _spend_lock = threading.Lock()
@@ -111,6 +139,7 @@ def begin_batch() -> None:
                 "Raise DAILY_BUDGET_USD in backend/.env if you need more."
             )
         _state.run_count += 1
+        _save_state()
 
 
 def record_spend(cost_usd: float) -> None:
@@ -118,6 +147,7 @@ def record_spend(cost_usd: float) -> None:
     _roll_day()
     with _spend_lock:
         _state.spend_usd += max(0.0, cost_usd)
+        _save_state()
 
 
 def remaining_budget_usd() -> float:

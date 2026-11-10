@@ -85,6 +85,8 @@ class BatchTests(unittest.TestCase):
             mock.patch.object(batches, "_cancel", {}),
             mock.patch.object(batches, "_loaded", True),
             mock.patch.object(spend_guard, "_state", spend_guard.SpendState()),
+            # spend persists to disk now; keep the tests' spend out of the real file
+            mock.patch.object(spend_guard, "SPEND_FILE", Path(self.tmp.name) / "spend.json"),
             mock.patch.dict(spend_guard.settings(), {"daily_budget_usd": 100.0}),
         ]
         for p in patches:
@@ -109,6 +111,58 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(s.prompt_tokens, 800)  # 8 runs returned results
         self.assertAlmostEqual(spend_guard._state.spend_usd, 0.10)
         self.assertEqual(spend_guard._state.run_count, 1)  # one batch = one run
+
+    def test_pauses_before_overspending_and_continues_on_request(self) -> None:
+        # 10 questions at $0.01 each against a $0.05 cap: after 3 results the projection
+        # ($0.10) is over the cap, so the run pauses before spending past it.
+        with mock.patch.object(batches, "execute", fake_execute(lambda i: "pass")):
+            batch = batches.start(BatchRequest(configuration=CONFIG, size=10, budget_usd=0.05, concurrency=1))
+            paused = wait(batch.id)
+            self.assertEqual(paused.status, "paused")
+            self.assertEqual(paused.summary.done, 3)
+            self.assertIn("go over budget", paused.stop_reason)
+            self.assertIn("$0.10", paused.stop_reason)
+            self.assertAlmostEqual(paused.summary.cost_usd, 0.03)
+            self.assertEqual(paused.summary.projected_cost_usd, 0.1)
+            # Continue: the cap rises to double the projection and the run finishes
+            resumed = batches.resume(batch.id)
+            self.assertEqual(resumed.status, "running")
+            self.assertTrue(resumed.budget_ack)
+            self.assertAlmostEqual(resumed.budget_usd, 0.20)
+            done = wait(batch.id)
+        self.assertEqual(done.status, "completed")
+        self.assertEqual(done.summary.done, 10)
+        self.assertAlmostEqual(done.summary.cost_usd, 0.10)
+
+    def test_continuing_a_cheap_run_raises_the_cap_enough(self) -> None:
+        # Haiku-sized numbers: a $0.001 cap must not round the raised cap down to $0
+        def cheap(config, task, *, mode, meter, model_override=None, parent_run_id=None):
+            meter.add_cost(0.0003)
+            r = fake_execute(lambda i: "pass")(config, task, mode=mode, meter=spend_guard.RunMeter())
+            return r.model_copy(update={"cost_usd": 0.0003})
+
+        with mock.patch.object(batches, "execute", cheap):
+            batch = batches.start(BatchRequest(configuration=CONFIG, size=10, budget_usd=0.001, concurrency=1))
+            self.assertEqual(wait(batch.id).status, "paused")
+            resumed = batches.resume(batch.id)
+            self.assertGreater(resumed.budget_usd, 0.003)
+            done = wait(batch.id)
+        self.assertEqual((done.status, done.summary.done), ("completed", 10))
+
+    def test_stopping_a_paused_run_closes_it(self) -> None:
+        with mock.patch.object(batches, "execute", fake_execute(lambda i: "pass")):
+            batch = batches.start(BatchRequest(configuration=CONFIG, size=10, budget_usd=0.05, concurrency=1))
+            self.assertEqual(wait(batch.id).status, "paused")
+            stopped = batches.cancel(batch.id)
+        self.assertEqual(stopped.status, "cancelled")
+        self.assertEqual(stopped.summary.skipped, 7)
+        with self.assertRaises(RuntimeError):
+            batches.resume(batch.id)
+
+    def test_runs_within_budget_never_pause(self) -> None:
+        batch = self.start(lambda i: "pass", size=10, budget_usd=1.0, concurrency=2)
+        self.assertEqual(batch.status, "completed")
+        self.assertFalse(batch.budget_ack)
 
     def test_items_follow_the_fixed_sample(self) -> None:
         batch = self.start(lambda i: "pass", size=5)

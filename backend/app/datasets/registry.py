@@ -306,8 +306,21 @@ def response_format_for(benchmark_id: str) -> str:
     return _FINQA_RESPONSE_FORMAT if benchmark_id == "finqa" else _DEFAULT_RESPONSE_FORMAT
 
 
+def reload() -> None:
+    """Forget cached dataset files (after a download)."""
+    for obj in list(globals().values()):
+        clear = getattr(obj, "cache_clear", None)
+        if callable(clear):
+            clear()
+
+
+def list_benchmarks(include_missing: bool = False) -> list[dict[str, Any]]:
+    rows = _all_benchmarks()
+    return list(rows) if include_missing else [r for r in rows if r["available"]]
+
+
 @lru_cache
-def list_benchmarks() -> list[dict[str, Any]]:
+def _all_benchmarks() -> list[dict[str, Any]]:
     finqa_n = len(_load_finqa_raw())
     tau_n = len(_tau_tasks())
     tau2_n = len(_tau2_tasks())
@@ -358,7 +371,7 @@ def list_benchmarks() -> list[dict[str, Any]]:
             "notes": "vals-ai public validation questions. Open-ended; success not auto-scored yet.",
         },
     ]
-    return [r for r in rows if r["available"]]
+    return rows
 
 
 def list_tasks(benchmark_id: str, limit: int = 20) -> list[Task]:

@@ -23,7 +23,7 @@ def settings() -> dict:
         "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY", ""),
         "google_api_key": os.getenv("GOOGLE_API_KEY", ""),
         # Model for anything without its own (provider inferred from the id).
-        "default_model": os.getenv("DEFAULT_MODEL", "claude-opus-5-5"),
+        "default_model": os.getenv("DEFAULT_MODEL", "claude-haiku-5-5"),
         # Used when a node picks OpenAI but no specific model.
         "openai_model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         "cors_origins": [

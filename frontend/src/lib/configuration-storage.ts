@@ -1,4 +1,8 @@
-import { providerForModel } from "@/lib/provider-models"
+import {
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER,
+  providerForModel,
+} from "@/lib/provider-models"
 import {
   singleAgentTemplate,
 } from "@/data/configuration-templates"
@@ -9,6 +13,43 @@ import type {
 
 const STORAGE_KEY =
   "massmutual-agent-configurations-v1"
+
+// Run once per browser (2026-11-10): a two-pass τ²-bench batch on Sonnet was on
+// course for about $10, so every saved configuration was moved to the cheapest
+// Claude. Bump the key to run it again.
+const CHEAPEST_MIGRATION_KEY = "massmutual-cheapest-models-v1"
+
+function migrateToCheapestModel(
+  configurations: AgentConfiguration[],
+): AgentConfiguration[] {
+  try {
+    if (localStorage.getItem(CHEAPEST_MIGRATION_KEY)) return configurations
+  } catch {
+    return configurations
+  }
+  const migrated = configurations.map((configuration) => ({
+    ...configuration,
+    nodes: configuration.nodes.map((node) =>
+      node.modelSettings
+        ? {
+            ...node,
+            modelSettings: {
+              ...node.modelSettings,
+              provider: DEFAULT_PROVIDER,
+              model: DEFAULT_MODEL,
+            },
+          }
+        : node,
+    ),
+  }))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+    localStorage.setItem(CHEAPEST_MIGRATION_KEY, new Date().toISOString())
+  } catch {
+    /* storage unavailable: still return the cheaper configs for this session */
+  }
+  return migrated
+}
 
 export function getConfigurations():
   AgentConfiguration[] {
@@ -27,9 +68,11 @@ export function getConfigurations():
     }
 
     const configurations =
-      JSON.parse(
-        stored,
-      ) as AgentConfiguration[]
+      migrateToCheapestModel(
+        JSON.parse(
+          stored,
+        ) as AgentConfiguration[],
+      )
 
     return configurations.sort(
       (a, b) =>

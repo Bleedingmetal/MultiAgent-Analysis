@@ -59,7 +59,15 @@ def task_index(task_id: str) -> int:
 
 
 class CostedUser(LLMUserSimulationEnv):
-    """tau-bench's simulator keeps only the last reply's cost; add them up."""
+    """tau-bench's simulator keeps only the last reply's cost, and its constructor
+    makes an LLM call with no instruction. This one adds costs up and waits for
+    `reset(instruction)` before talking."""
+
+    def __init__(self, model: str, provider: str) -> None:
+        self.messages: list[dict[str, Any]] = []
+        self.model = model
+        self.provider = provider
+        self.total_cost = 0.0
 
     def generate_next_message(self, messages: list[dict[str, Any]]) -> str:
         res = completion(model=self.model, custom_llm_provider=self.provider, messages=messages)
@@ -75,8 +83,8 @@ def run_task(config: AgentConfiguration, task: HarnessTask, *, mode: str, meter:
     idx = task_index(task.id)
     user_model = s["tau_user_model"]
     provider = infer_provider(user_model)
-    env = MockRetailDomainEnv(user_strategy="llm", user_model=user_model, user_provider=provider,
-                              task_split="test", task_index=idx)
+    # "human" so the package does not build (and call) its own LLM customer first
+    env = MockRetailDomainEnv(user_strategy="human", task_split="test", task_index=idx)
     env.user = CostedUser(model=user_model, provider=provider)
     agent = ConversationAgent(config, env.wiki, mode=mode, meter=meter, model_override=model_override)
     # One conversation is many round trips: allow every turn its calls (router + agents)

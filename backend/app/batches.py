@@ -46,7 +46,16 @@ _batches: dict[str, BatchRun] = {}
 # run_id -> batch_id, for opening a single question's full run
 _run_index: dict[str, str] = {}
 _cancel: dict[str, threading.Event] = {}
+# Batches paused at the budget check, with everything needed to continue them
+_paused: dict[str, tuple] = {}
 _loaded = False
+# A projection needs a few results before it means anything
+PROJECTION_MIN_ATTEMPTS = 3
+
+
+def _usd(value: float) -> str:
+    """Dollars with enough precision for cheap test runs."""
+    return f"${value:.2f}" if value >= 0.1 else f"${value:.4f}"
 
 
 def _now() -> str:
@@ -84,6 +93,9 @@ def _ensure_loaded() -> None:
                 if batch.status == "running":
                     # The server stopped while this batch was running.
                     _finish(batch, "interrupted", "The server restarted during this run.")
+                    _save(batch)
+                elif batch.status == "paused":
+                    _finish(batch, "stopped", "Paused at the budget check; the server restarted before it was continued.")
                     _save(batch)
                 _batches[batch.id] = batch
                 for item in batch.items:
@@ -161,7 +173,7 @@ def summarize(batch: BatchRun, *, elapsed_sec: float, tokens: tuple[int, int]) -
         cost_per_pass_usd=round(cost / passed, 6) if passed else None,
         projected_cost_usd=(
             round(cost / len(attempts) * len(items) * k, 4)
-            if attempts and batch.status == "running"
+            if attempts and batch.status in ("running", "paused")
             else None
         ),
         avg_latency_sec=round(statistics.fmean(latencies), 3) if latencies else None,
@@ -302,25 +314,54 @@ def start(req: BatchRequest) -> BatchRun:
     return batch
 
 
-def _run(batch: BatchRun, tasks: list[Task], req: BatchRequest, cancel: threading.Event) -> None:
-    t0 = time.perf_counter()
-    # Pass-major: the whole question set runs once, then runs again. A stopped run
-    # leaves complete passes behind, which is what makes passes comparable.
-    queue = iter((q, p) for p in range(req.passes) for q in range(len(tasks)))
-    tokens = [0, 0]
+def _run(
+    batch: BatchRun,
+    tasks: list[Task],
+    req: BatchRequest,
+    cancel: threading.Event,
+    state: dict | None = None,
+) -> None:
+    # `state` carries the queue and counters across a pause, so continuing picks up
+    # exactly where the budget check stopped.
+    if state is None:
+        # Pass-major: the whole question set runs once, then runs again. A stopped run
+        # leaves complete passes behind, which is what makes passes comparable.
+        state = {
+            "queue": iter((q, p) for p in range(req.passes) for q in range(len(tasks))),
+            "tokens": [0, 0],
+            "elapsed": 0.0,
+        }
+    queue = state["queue"]
+    tokens = state["tokens"]
+    t0 = time.perf_counter() - state["elapsed"]
     stop_reason: list[str] = []
+    pause_reason: list[str] = []
+    total_attempts = len(tasks) * req.passes
 
     def next_index() -> tuple[int, int] | None:
         with _lock:
-            if cancel.is_set() or stop_reason:
+            if cancel.is_set() or stop_reason or pause_reason:
                 return None
-            spent = sum(i.cost_usd for i in batch.items)
-            if spent >= req.budget_usd:
-                stop_reason.append(f"Reached the ${req.budget_usd:.2f} spend cap for this run.")
+            attempts = [a for i in batch.items for a in i.attempts]
+            spent = sum(a.cost_usd for a in attempts)
+            if spent >= batch.budget_usd:
+                stop_reason.append(f"Reached the {_usd(batch.budget_usd)} spend cap for this run.")
                 return None
             if spend_guard.remaining_budget_usd() <= 0:
                 stop_reason.append("Reached today's spend cap (DAILY_BUDGET_USD).")
                 return None
+            # Strict budget: once there is enough data to project the total, stop
+            # before the cap is hit and let the user decide whether to go over.
+            if not batch.budget_ack and len(attempts) >= PROJECTION_MIN_ATTEMPTS:
+                projected = spent / len(attempts) * total_attempts
+                if projected > batch.budget_usd:
+                    pause_reason.append(
+                        f"The next part will go over budget: {_usd(spent)} spent on "
+                        f"{len(attempts)} of {total_attempts}, on course for about "
+                        f"{_usd(projected)} against the {_usd(batch.budget_usd)} cap. "
+                        "Do you want to continue?"
+                    )
+                    return None
             job = next(queue, None)
             if job is not None:
                 batch.items[job[0]].status = "running"
@@ -377,6 +418,15 @@ def _run(batch: BatchRun, tasks: list[Task], req: BatchRequest, cancel: threadin
         with ThreadPoolExecutor(max_workers=req.concurrency) as pool:
             for _ in range(req.concurrency):
                 pool.submit(worker)
+        if pause_reason and not cancel.is_set() and not stop_reason:
+            with _lock:
+                state["elapsed"] = time.perf_counter() - t0
+                batch.status = "paused"
+                batch.stop_reason = pause_reason[0]
+                batch.summary = summarize(batch, elapsed_sec=state["elapsed"], tokens=(tokens[0], tokens[1]))
+                _paused[batch.id] = (tasks, req, cancel, state)
+                _save(batch)
+            return
         status = "cancelled" if cancel.is_set() else ("stopped" if stop_reason else "completed")
         reason = "Cancelled from the UI." if cancel.is_set() else (stop_reason[0] if stop_reason else None)
     except Exception as exc:  # noqa: BLE001
@@ -390,11 +440,49 @@ def _run(batch: BatchRun, tasks: list[Task], req: BatchRequest, cancel: threadin
         _cancel.pop(batch.id, None)
 
 
+def resume(batch_id: str, budget_usd: float | None = None) -> BatchRun | None:
+    """Continue a batch paused at the budget check. Continuing means "finish it": the
+    cap becomes `budget_usd`, or double the projected total when not given (later
+    questions often cost more than the first few), and the projection check is not
+    repeated. The hard cap and the daily budget still stop the run."""
+    _ensure_loaded()
+    with _lock:
+        batch = _batches.get(batch_id)
+        if not batch:
+            return None
+        if batch.status != "paused":
+            raise RuntimeError("This run is not paused.")
+        running = next((b for b in _batches.values() if b.status == "running"), None)
+        if running:
+            raise RuntimeError(f"End-to-end run {running.id} is still running. Wait for it first.")
+        saved = _paused.pop(batch_id, None)
+        if saved is None:
+            _finish(batch, "stopped", "Paused at the budget check; the server restarted before it was continued.")
+            _save(batch)
+            raise RuntimeError("The server restarted while this run was paused; start a new run.")
+        projected = batch.summary.projected_cost_usd or batch.budget_usd
+        batch.budget_usd = max(batch.budget_usd, budget_usd if budget_usd is not None else round(projected * 2, 6))
+        batch.budget_ack = True
+        batch.status = "running"
+        batch.stop_reason = None
+        _save(batch)
+    tasks, req, cancel, state = saved
+    threading.Thread(target=_run, args=(batch, tasks, req, cancel, state), name=batch.id, daemon=True).start()
+    return batch
+
+
 def cancel(batch_id: str) -> BatchRun | None:
     _ensure_loaded()
     with _lock:
         event = _cancel.get(batch_id)
         batch = _batches.get(batch_id)
+        if batch and batch.status == "paused":
+            # Nothing is running: just close the books
+            _paused.pop(batch_id, None)
+            _cancel.pop(batch_id, None)
+            _finish(batch, "cancelled", "Stopped at the budget check.")
+            _save(batch)
+            return batch
     if event:
         event.set()
     return batch

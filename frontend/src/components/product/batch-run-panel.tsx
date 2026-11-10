@@ -11,6 +11,7 @@ import {
   type RunMode,
   benchmarkName,
   cancelBatch,
+  continueBatch,
   createBatch,
   getBatch,
   listBatches,
@@ -139,6 +140,16 @@ export function BatchRunPanel({
       setBatch(await cancelBatch(batch.id))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not cancel")
+    }
+  }
+
+  async function keepGoing() {
+    if (!batch) return
+    setError(null)
+    try {
+      setBatch(await continueBatch(batch.id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not continue")
     }
   }
 
@@ -273,7 +284,7 @@ export function BatchRunPanel({
 
       {batch ? (
         <>
-          <BatchResults batch={batch} onStop={() => void stop()} />
+          <BatchResults batch={batch} onStop={() => void stop()} onContinue={() => void keepGoing()} />
           <Link
             href={`/runs/e2e/${batch.id}`}
             className="inline-flex items-center gap-1.5 text-[13px] font-medium text-mm-charge hover:underline"

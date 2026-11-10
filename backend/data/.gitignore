@@ -5,3 +5,4 @@ fab/public.txt
 tau2/
 runs/history.jsonl
 batches/
+runs/spend.json

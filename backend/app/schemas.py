@@ -182,6 +182,8 @@ class TraceStep(BaseModel):
     llm_calls: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    # Of prompt_tokens, how many were served from the provider's prompt cache
+    cached_tokens: int = 0
     cost_usd: float = 0.0
     latency_sec: float = 0.0
 
@@ -237,7 +239,7 @@ class RunResult(BaseModel):
 
 
 BatchStatus = Literal[
-    "running", "completed", "stopped", "cancelled", "interrupted", "failed"
+    "running", "paused", "completed", "stopped", "cancelled", "interrupted", "failed"
 ]
 # "mixed": the question passed in some passes and failed in others
 BatchItemStatus = Literal[
@@ -362,6 +364,8 @@ class BatchRun(BaseModel):
     passes: int = 1
     status: BatchStatus = "running"
     stop_reason: str | None = None
+    # True once the user chose to continue past the projected-overspend pause
+    budget_ack: bool = False
     created_at: str
     finished_at: str | None = None
     models: list[str] = Field(default_factory=list)

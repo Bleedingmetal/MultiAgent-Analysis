@@ -82,6 +82,8 @@ export type TraceStep = {
   llm_calls: number
   prompt_tokens: number
   completion_tokens: number
+  // Of prompt_tokens, served from the provider's prompt cache
+  cached_tokens?: number
   cost_usd: number
   latency_sec: number
 }
@@ -299,6 +301,7 @@ export function getRun(runId: string) {
 
 export type BatchStatus =
   | "running"
+  | "paused"
   | "completed"
   | "stopped"
   | "cancelled"
@@ -402,6 +405,7 @@ export type BatchRun = {
   passes?: number
   status: BatchStatus
   stop_reason?: string | null
+  budget_ack?: boolean
   created_at: string
   finished_at?: string | null
   models: string[]
@@ -438,4 +442,12 @@ export function getBatch(batchId: string) {
 
 export function cancelBatch(batchId: string) {
   return api<BatchRun>(`/api/batches/${batchId}/cancel`, { method: "POST" })
+}
+
+/** Continue a batch paused at the budget check; the cap rises to the projection. */
+export function continueBatch(batchId: string, budgetUsd?: number) {
+  return api<BatchRun>(`/api/batches/${batchId}/continue`, {
+    method: "POST",
+    body: JSON.stringify({ budget_usd: budgetUsd ?? null }),
+  })
 }

@@ -1,36 +1,56 @@
 # MultiAgent Analysis
 
-## Setup and development
+Compares single-agent and multi-agent LLM configurations on finance benchmarks
+(FinQA, τ-bench retail, τ²-bench retail, FAB): accuracy, cost, latency, audit trail.
 
-From the repository root:
+## Setup (fresh clone)
+
+You need Node 18+, Git, and Python 3.12+ (or [uv](https://docs.astral.sh/uv/),
+which installs 3.12 for you). Then, from the repository root:
 
 ```bash
 npm install
 npm run setup
+```
+
+`npm run setup` creates `backend/.venv`, installs the Python requirements
+(including the official `tau_bench` and `tau2` benchmark packages from GitHub),
+creates `backend/.env` from the example, installs the frontend, and downloads
+the benchmark data into `backend/data/` (it is not committed).
+
+Put your keys in `backend/.env`:
+
+```
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+```
+
+## Run
+
+```bash
 npm run dev
 ```
 
-`npm run dev` starts the FastAPI backend on port 8000 and the Next.js
-frontend on port 3000 (or the next available port).
+Backend on http://localhost:8000, frontend on http://localhost:3000. The backend
+also checks for missing benchmark data every time it starts and downloads what is
+absent, so a clone that skipped `npm run setup`'s download step still works once
+it is online. `/api/health` reports which datasets are available.
 
-## Download benchmark datasets
-
-From the repository root:
-
-```bash
-make datasets
-```
-
-This downloads FinQA, FAB, and τ²-bench retail data into `backend/data/`
-(τ-bench v1 data ships inside its Python package).
-`npm run dev` also runs this check first. Existing files are reused without a
-network request, so datasets are downloaded only when missing. To re-download
-everything:
+## Benchmark data
 
 ```bash
-python3 backend/scripts/download_datasets.py --force
+npm run datasets
 ```
 
-Download only one benchmark with `--only finqa`, `--only fab`, or `--only tau2`.
+Re-downloads anything missing. `python backend/scripts/download_datasets.py --force`
+replaces everything; `--only finqa|fab|tau2` limits it to one benchmark. τ-bench v1
+data ships inside its Python package.
+
+## Budgets
+
+Every end-to-end run has a spend cap (default $1). Once a few results are in, the
+run projects its total cost; if that is over the cap it pauses and asks whether to
+continue, before any money past the cap is spent. `DAILY_BUDGET_USD` in
+`backend/.env` caps the whole day and survives restarts.
 
 See `backend/README.md` for backend setup and `frontend/README.md` for frontend setup.

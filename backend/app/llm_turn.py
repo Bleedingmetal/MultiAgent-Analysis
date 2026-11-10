@@ -16,10 +16,13 @@ from typing import Any
 
 from app.config import settings
 from app.llm import (
+    CACHE,
     _anthropic_client,
     _gemini_client,
     _is_openai_reasoning_model,
     _openai_client,
+    anthropic_usage,
+    openai_cached_tokens,
     require_provider,
 )
 from app.pricing import cost_usd
@@ -38,6 +41,9 @@ class TurnResult:
     tool_calls: list[TurnToolCall] = field(default_factory=list)
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    # Of prompt_tokens, served from the provider's prompt cache
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     cost_usd: float = 0.0
 
 
@@ -63,7 +69,10 @@ def chat_turn(
     else:
         client = _gemini_client() if provider == "google" else _openai_client()
         result = _openai_turn(client, provider, model, system, messages, tools or [], temperature, max_tokens)
-    result.cost_usd = cost_usd(model, result.prompt_tokens, result.completion_tokens)
+    result.cost_usd = cost_usd(
+        model, result.prompt_tokens, result.completion_tokens,
+        cache_read_tokens=result.cache_read_tokens, cache_write_tokens=result.cache_write_tokens,
+    )
     return result
 
 
@@ -112,6 +121,7 @@ def _openai_turn(client, provider, model, system, messages, tools, temperature, 
         tool_calls=calls,
         prompt_tokens=(usage.prompt_tokens or 0) if usage else 0,
         completion_tokens=(usage.completion_tokens or 0) if usage else 0,
+        cache_read_tokens=openai_cached_tokens(usage) if usage else 0,
     )
 
 
@@ -149,22 +159,38 @@ def _anthropic_turn(model, system, messages, tools, temperature, max_tokens) -> 
             merged.append(entry)
     if not merged or merged[0]["role"] != "user":
         merged.insert(0, {"role": "user", "content": "(conversation start)"})
-    kwargs: dict[str, Any] = {"model": model, "system": system, "max_tokens": max_tokens, "messages": merged}
+    # Cache breakpoints: the tool list, the system prompt (policy), and the latest
+    # message, so each turn pays full price only for what was added since the last one.
+    last = merged[-1]
+    if isinstance(last["content"], str):
+        last["content"] = [{"type": "text", "text": last["content"], "cache_control": CACHE}]
+    elif last["content"]:
+        last["content"][-1] = {**last["content"][-1], "cache_control": CACHE}
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "system": [{"type": "text", "text": system, "cache_control": CACHE}],
+        "max_tokens": max_tokens,
+        "messages": merged,
+    }
     if tools:
         kwargs["tools"] = [
             {"name": t["function"]["name"], "description": t["function"].get("description", ""),
              "input_schema": t["function"].get("parameters") or {"type": "object", "properties": {}}}
             for t in tools
         ]
+        kwargs["tools"][-1]["cache_control"] = CACHE
     resp = client.messages.create(**kwargs)
     text = "".join(b.text for b in resp.content if b.type == "text").strip()
     calls = [
         TurnToolCall(id=b.id, name=b.name, arguments=dict(b.input) if isinstance(b.input, dict) else {})
         for b in resp.content if b.type == "tool_use"
     ]
+    prompt, read, write = anthropic_usage(resp.usage)
     return TurnResult(
         text=text,
         tool_calls=calls,
-        prompt_tokens=resp.usage.input_tokens or 0,
+        prompt_tokens=prompt,
         completion_tokens=resp.usage.output_tokens or 0,
+        cache_read_tokens=read,
+        cache_write_tokens=write,
     )

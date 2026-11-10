@@ -2,10 +2,9 @@
   "name": "multiagent-analysis",
   "private": true,
   "scripts": {
-    "setup": "python3 -m venv backend/.venv && backend/.venv/bin/python -m pip install -r backend/requirements.txt && npm --prefix frontend install && npm run datasets",
-    "datasets": "python3 backend/scripts/download_datasets.py",
-    "predev": "npm run datasets",
-    "dev": "concurrently --kill-others --names backend,frontend --prefix-colors blue,green \"cd backend && .venv/bin/python -m uvicorn app.main:app --reload --port 8000\" \"npm --prefix frontend run dev\""
+    "setup": "python backend/scripts/setup.py && npm --prefix frontend install",
+    "datasets": "python backend/scripts/download_datasets.py",
+    "dev": "concurrently --kill-others --names backend,frontend --prefix-colors blue,green \"python backend/scripts/run_backend.py\" \"npm --prefix frontend run dev\""
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

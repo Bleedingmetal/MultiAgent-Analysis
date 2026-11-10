@@ -78,7 +78,8 @@ export function RunTrace({ steps }: { steps: TraceStep[] }) {
                   </span>
                   <span className="ml-auto font-data text-[11px] text-muted-foreground">
                     {step.model ? `${step.model} · ` : ""}
-                    {step.prompt_tokens}→{step.completion_tokens} · $
+                    {step.prompt_tokens}
+                    {step.cached_tokens ? ` (${step.cached_tokens} cached)` : ""}→{step.completion_tokens} · $
                     {step.cost_usd.toFixed(5)} · {step.latency_sec}s
                   </span>
                   {summary ? (

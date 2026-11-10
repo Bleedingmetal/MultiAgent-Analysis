@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import threading
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from app.config import settings
 from app.datasets import registry
@@ -11,6 +14,30 @@ from app.schemas import BatchRequest, BatchRun, RunRequest, RunResult
 from app import batches, spend_guard, store
 
 app = FastAPI(title="Agent Evaluation API", version="0.1.0")
+
+# Benchmark data is not committed; a fresh clone fetches it on first start.
+_datasets = {"downloading": False, "error": None, "checked": False}
+
+
+def _bootstrap_datasets() -> None:
+    _datasets["downloading"] = True
+    try:
+        from scripts.download_datasets import ensure_datasets
+
+        for line in ensure_datasets():
+            print(f"[datasets] {line}", flush=True)
+        registry.reload()
+    except Exception as exc:  # noqa: BLE001
+        _datasets["error"] = f"{type(exc).__name__}: {exc}"
+        print(f"[datasets] could not download: {exc}", flush=True)
+    finally:
+        _datasets["downloading"] = False
+        _datasets["checked"] = True
+
+
+@app.on_event("startup")
+def _on_startup() -> None:
+    threading.Thread(target=_bootstrap_datasets, name="datasets", daemon=True).start()
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +58,10 @@ async def health_check():
         "providers": providers,
         "spend": spend_guard.status(),
         "require_confirm": settings()["require_confirm"],
+        "datasets": {
+            **_datasets,
+            "available": {b["id"]: b["available"] for b in registry.list_benchmarks(include_missing=True)},
+        },
     }
 
 
@@ -159,6 +190,21 @@ def list_batches(configuration_id: str | None = None, limit: int = 20):
 @app.get("/api/batches/{batch_id}", response_model=BatchRun)
 def get_batch(batch_id: str):
     batch = batches.get(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="End-to-end run not found")
+    return batch
+
+
+class ContinueBody(BaseModel):
+    budget_usd: float | None = None
+
+
+@app.post("/api/batches/{batch_id}/continue", response_model=BatchRun)
+def continue_batch(batch_id: str, body: ContinueBody | None = None):
+    try:
+        batch = batches.resume(batch_id, body.budget_usd if body else None)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not batch:
         raise HTTPException(status_code=404, detail="End-to-end run not found")
     return batch

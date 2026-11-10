@@ -53,6 +53,7 @@ export const STATUS_STYLE: Record<
 
 export const BATCH_STATUS_LABEL: Record<BatchRun["status"], string> = {
   running: "Running",
+  paused: "Paused for budget",
   completed: "Completed",
   stopped: "Stopped early",
   cancelled: "Cancelled",
@@ -429,11 +430,14 @@ function ItemRow({
 export function BatchResults({
   batch,
   onStop,
+  onContinue,
   showMeta = true,
   children,
 }: {
   batch: BatchRun
   onStop?: () => void
+  /** Continue past the budget check (the cap rises to the projected total). */
+  onContinue?: () => void
   showMeta?: boolean
   /** Rendered between the headline metrics and the question list. */
   children?: React.ReactNode
@@ -497,10 +501,37 @@ export function BatchResults({
 
   const s = batch.summary
   const running = batch.status === "running"
+  const paused = batch.status === "paused"
   const progress = (s.attempts_total ?? s.total) ? (s.attempts_done ?? s.done) / (s.attempts_total ?? s.total) : 0
 
   return (
     <div className="space-y-5">
+      {paused ? (
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-mm-yellow/50 bg-mm-yellow/10 px-5 py-4">
+          <p className="min-w-0 flex-1 text-[14px] leading-relaxed text-[#5c4600]">
+            <span className="font-semibold">Stopped before going over budget.</span>{" "}
+            {batch.stop_reason}
+            {s.projected_cost_usd != null ? (
+              <span className="block text-[12px] text-[#7a5d00]">
+                Continuing raises this run&apos;s cap to {usd(s.projected_cost_usd * 2)} (double the projection) so it can finish; the daily budget still applies.
+              </span>
+            ) : null}
+          </p>
+          <div className="flex shrink-0 gap-2">
+            {onContinue ? (
+              <Button type="button" onClick={onContinue} className="h-10 rounded-full bg-mm-dark px-4 text-sm text-white hover:bg-black">
+                Continue
+              </Button>
+            ) : null}
+            {onStop ? (
+              <Button type="button" variant="outline" onClick={onStop} className="h-10 rounded-full px-4 text-sm">
+                <Stop className="size-4" weight="fill" />
+                Stop here
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           {showMeta ? (
@@ -539,7 +570,7 @@ export function BatchResults({
             </p>
           ) : null}
           <p className="mt-2 text-[13px] text-muted-foreground">
-            <span className={cn("font-medium", running ? "text-mm-charge" : "text-mm-dark")}>
+            <span className={cn("font-medium", running ? "text-mm-charge" : paused ? "text-[#7a5d00]" : "text-mm-dark")}>
               {BATCH_STATUS_LABEL[batch.status]}
             </span>
             {" · "}
@@ -547,7 +578,7 @@ export function BatchResults({
               ? `pass ${Math.min(passes, (s.per_pass ?? []).filter((p) => p.done > 0).length || 1)} of ${passes} · ${s.attempts_done ?? 0} / ${s.attempts_total ?? s.total * passes} ${conv ? "results" : "answers"}`
               : `${s.done} / ${s.total} ${noun(s.total)}`}{" "}
             · {secs(s.elapsed_sec)}
-            {batch.stop_reason ? ` · ${batch.stop_reason}` : ""}
+            {batch.stop_reason && !paused ? ` · ${batch.stop_reason}` : ""}
           </p>
         </div>
         {running && onStop ? (

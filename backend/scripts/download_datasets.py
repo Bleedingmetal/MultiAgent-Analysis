@@ -169,6 +169,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def ensure_datasets():
+    """Download whatever is missing, yielding one progress line per step. Used by the
+    backend at startup; errors in one benchmark do not stop the others."""
+    import contextlib
+    import io
+
+    for key, step in (("finqa", download_finqa), ("fab", download_fab), ("tau2", download_tau2_retail)):
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                step(False)
+            wrote = [ln for ln in buf.getvalue().splitlines() if ln.startswith("wrote")]
+            yield f"{key}: {'downloaded ' + str(len(wrote)) + ' file(s)' if wrote else 'present'}"
+        except Exception as exc:  # noqa: BLE001
+            yield f"{key}: failed ({exc})"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     steps = {

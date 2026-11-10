@@ -136,6 +136,9 @@ class ConversationAgent:
         self.router = spec_for(router, model_override) if router and mode == "routing" else None
         self.chain = mode == "prompt-chain" and len(self.agents) > 1
         self.specialist: TurnSpec | None = None
+        # Chain notes are refreshed when the customer says something new, not after
+        # every tool result: that halves the chain's calls without changing what it knows.
+        self.notes: str | None = None
 
     @property
     def temperature(self) -> float:
@@ -153,8 +156,11 @@ class ConversationAgent:
                 self.specialist = self._route(wire)
             speaker = self.specialist
         elif self.chain:
-            for spec in self.agents[:-1]:
-                notes = self._note(spec, wire, notes)
+            if self.notes is None or (wire and wire[-1]["role"] == "user"):
+                for spec in self.agents[:-1]:
+                    notes = self._note(spec, wire, notes)
+                self.notes = notes
+            notes = self.notes
             speaker = self.agents[-1]
         extra = f"Notes from your colleagues on this conversation so far:\n{notes}" if notes else ""
         system = self._system(speaker, extra)
@@ -172,6 +178,7 @@ class ConversationAgent:
             output=text or (result.text or ""),
             tool_calls=[{"id": c.id, "name": c.name, "arguments": c.arguments, "result": None} for c in calls],
             llm_calls=1, prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
+            cached_tokens=result.cache_read_tokens,
             cost_usd=round(result.cost_usd, 6), latency_sec=round(time.perf_counter() - t0, 3),
         ))
         for c in calls:

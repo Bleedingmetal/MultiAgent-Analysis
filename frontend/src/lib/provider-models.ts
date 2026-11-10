@@ -1,8 +1,10 @@
 import type { ModelProvider } from "@/types/configuration"
 
-// Default for new agents, templates, and anything without its own model.
+// Default for new agents, templates, and anything without its own model: the
+// cheapest Claude. Each provider's list starts with its cheapest model, which is
+// what a node gets when its provider changes.
 export const DEFAULT_PROVIDER: ModelProvider = "anthropic"
-export const DEFAULT_MODEL = "claude-opus-5-5"
+export const DEFAULT_MODEL = "claude-haiku-5-5"
 
 export const PROVIDER_MODELS: Record<
   ModelProvider,
@@ -16,16 +18,16 @@ export const PROVIDER_MODELS: Record<
     { id: "o4-mini", label: "o4-mini" },
   ],
   anthropic: [
-    { id: "claude-opus-5-5", label: "Claude Opus 5.5" },
-    { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
     { id: "claude-haiku-5-5", label: "Claude Haiku 5.5" },
+    { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
+    { id: "claude-opus-5-5", label: "Claude Opus 5.5" },
     { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
     { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
   ],
   google: [
+    { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
     { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-    { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
   ],
   local: [
     { id: "llama3.1", label: "Llama 3.1" },

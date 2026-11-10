@@ -35,6 +35,9 @@ class LLMResult:
     text: str
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    # Of prompt_tokens, served from the provider's prompt cache (cheaper)
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     cost_usd: float = 0.0
     # Number of API round trips (>1 when tools were used)
     calls: int = 1
@@ -42,6 +45,23 @@ class LLMResult:
 
 
 ToolExecutor = Callable[[str, dict[str, Any]], str]
+
+# Prompt caching. Anthropic caches everything up to a marked block; the system prompt,
+# the tool list and the latest message are marked so each turn only pays full price
+# for what is new. OpenAI caches automatically and just reports the cached count.
+CACHE: dict[str, str] = {"type": "ephemeral"}
+
+
+def anthropic_usage(usage) -> tuple[int, int, int]:
+    """(all input tokens, cache reads, cache writes). Anthropic's input_tokens excludes cached."""
+    read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    write = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    return (usage.input_tokens or 0) + read + write, read, write
+
+
+def openai_cached_tokens(usage) -> int:
+    details = getattr(usage, "prompt_tokens_details", None)
+    return (getattr(details, "cached_tokens", 0) or 0) if details else 0
 # Called before every API round trip so the caller can enforce budgets.
 BeforeCall = Callable[[], None]
 
@@ -163,7 +183,10 @@ def complete(
             client, provider, model, system, user, temperature, max_tokens,
             tools or [], tool_executor, max_tool_steps, before_call,
         )
-    result.cost_usd = cost_usd(model, result.prompt_tokens, result.completion_tokens)
+    result.cost_usd = cost_usd(
+        model, result.prompt_tokens, result.completion_tokens,
+        cache_read_tokens=result.cache_read_tokens, cache_write_tokens=result.cache_write_tokens,
+    )
     return result
 
 
@@ -216,6 +239,7 @@ def _openai_turn(
         if resp.usage:
             out.prompt_tokens += resp.usage.prompt_tokens or 0
             out.completion_tokens += resp.usage.completion_tokens or 0
+            out.cache_read_tokens += openai_cached_tokens(resp.usage)
         msg = resp.choices[0].message
         calls = msg.tool_calls or []
         if not calls:
@@ -258,12 +282,15 @@ def _anthropic_turn(
     before_call: BeforeCall | None,
 ) -> LLMResult:
     client = _anthropic_client()
-    messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
+    # The task prompt is marked cacheable too, so tool-loop follow-ups reuse it.
+    messages: list[dict[str, Any]] = [
+        {"role": "user", "content": [{"type": "text", "text": user, "cache_control": CACHE}]}
+    ]
     # The Messages API no longer accepts `temperature` ("Extra inputs are not
     # permitted"), so the node's temperature setting is ignored for Claude.
     kwargs: dict[str, Any] = {
         "model": model,
-        "system": system,
+        "system": [{"type": "text", "text": system, "cache_control": CACHE}],
         "max_tokens": max_tokens,
     }
     if tools:
@@ -271,6 +298,7 @@ def _anthropic_turn(
             {"name": t.name, "description": t.description, "input_schema": t.parameters}
             for t in tools
         ]
+        kwargs["tools"][-1]["cache_control"] = CACHE
 
     out = LLMResult(text="", calls=0)
     for step in range(max_tool_steps + 1):
@@ -280,7 +308,10 @@ def _anthropic_turn(
             before_call()
         resp = client.messages.create(messages=messages, **kwargs)
         out.calls += 1
-        out.prompt_tokens += resp.usage.input_tokens or 0
+        prompt, read, write = anthropic_usage(resp.usage)
+        out.prompt_tokens += prompt
+        out.cache_read_tokens += read
+        out.cache_write_tokens += write
         out.completion_tokens += resp.usage.output_tokens or 0
         text = "".join(b.text for b in resp.content if b.type == "text").strip()
         uses = [b for b in resp.content if b.type == "tool_use"]

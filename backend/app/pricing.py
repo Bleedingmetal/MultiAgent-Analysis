@@ -38,6 +38,36 @@ def price_for(model: str) -> tuple[float, float]:
     return s["price_input_per_mtok"], s["price_output_per_mtok"]
 
 
-def cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float:
+# Prompt caching: what a cached input token costs relative to a fresh one.
+# Anthropic: cache reads 10%, cache writes 125%. OpenAI: reads 50%. Google: reads 25%.
+CACHE_READ_MULTIPLIER = {"anthropic": 0.10, "openai": 0.50, "google": 0.25}
+CACHE_WRITE_MULTIPLIER = {"anthropic": 1.25, "openai": 1.00, "google": 1.00}
+
+
+def _provider_of(model: str) -> str:
+    m = model.lower()
+    if m.startswith("claude"):
+        return "anthropic"
+    if m.startswith("gemini"):
+        return "google"
+    return "openai"
+
+
+def cost_usd(
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    *,
+    cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
+) -> float:
+    """`prompt_tokens` is every input token, cached ones included."""
     price_in, price_out = price_for(model)
-    return prompt_tokens / 1_000_000 * price_in + completion_tokens / 1_000_000 * price_out
+    provider = _provider_of(model)
+    fresh = max(0, prompt_tokens - cache_read_tokens - cache_write_tokens)
+    billed_input = (
+        fresh
+        + cache_read_tokens * CACHE_READ_MULTIPLIER[provider]
+        + cache_write_tokens * CACHE_WRITE_MULTIPLIER[provider]
+    )
+    return billed_input / 1_000_000 * price_in + completion_tokens / 1_000_000 * price_out

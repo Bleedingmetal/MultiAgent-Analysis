@@ -22,6 +22,7 @@ import {
   type RunMode,
   benchmarkName,
   cancelBatch,
+  continueBatch,
   createBatch,
   getBatch,
   taskNoun,
@@ -226,6 +227,16 @@ export default function BatchDetailPage() {
     }
   }
 
+  async function keepGoing() {
+    if (!batch) return
+    setActionError(null)
+    try {
+      setBatch(await continueBatch(batch.id))
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not continue")
+    }
+  }
+
   if (error) {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-center">
@@ -305,7 +316,7 @@ export default function BatchDetailPage() {
 
       <Reveal delay={0.05}>
         <Bezel coreClassName="p-5 md:p-6">
-          <BatchResults batch={batch} onStop={() => void stop()} showMeta={false}>
+          <BatchResults batch={batch} onStop={() => void stop()} onContinue={() => void keepGoing()} showMeta={false}>
             {/* Details: two panels at their own heights, so neither is stretched */}
             <div className="grid items-start gap-4 lg:grid-cols-3">
               <section className="min-w-0 rounded-2xl bg-[#f5f7fb] p-5 lg:col-span-2">
