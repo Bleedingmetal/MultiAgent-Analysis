@@ -204,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nerror: {exc}", file=sys.stderr)
         return 1
 
-    print("\nDone. Start the app from the repository root with: npm run dev")
+    print("\nDone. Start the app from the repository root with: python start.py")
     return 0
 
 

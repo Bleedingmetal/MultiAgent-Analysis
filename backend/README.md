@@ -1,29 +1,25 @@
 # Agent Evaluation API
 
-## Setup
+## Setup and run
 
-Python 3.12 or newer (the official `tau2` benchmark package requires it).
+From the repository root, `python setup.py` once, then `python start.py` (see the
+root README). That creates `backend/.venv` on Python 3.12+ (the official `tau2`
+benchmark package requires it), installs `requirements.txt`, creates `.env` from
+`.env.example`, downloads the benchmark data, and runs the API with the frontend.
 
-```bash
-cd backend
-uv venv --python 3.12 .venv
-.\.venv\Scripts\activate
-uv pip install -r requirements.txt
-copy .env.example .env
-# put OPENAI_API_KEY and ANTHROPIC_API_KEY in .env (GOOGLE_API_KEY optional)
-```
-
-`python -m venv .venv` and `pip install -r requirements.txt` work too with a 3.12
-interpreter. On Windows, set `PYTHONUTF8=1` for the install: tau-bench's setup
-script reads its README without declaring an encoding.
-
-## Run
+Backend only, by hand:
 
 ```bash
 cd backend
-.\.venv\Scripts\activate
-uvicorn app.main:app --reload --port 8000
+uv venv --python 3.12 .venv            # or: py -3.12 -m venv .venv
+uv pip install --python .venv/Scripts/python.exe -r requirements.txt
+copy .env.example .env                 # put OPENAI_API_KEY / ANTHROPIC_API_KEY in it
+.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
 ```
+
+On Windows set `PYTHONUTF8=1` for the install: tau-bench's setup script reads its
+README without declaring an encoding. The API downloads missing benchmark data on
+startup.
 
 Health: http://localhost:8000/api/health
 

@@ -3,38 +3,28 @@
 Compares single-agent and multi-agent LLM configurations on finance benchmarks
 (FinQA, τ-bench retail, τ²-bench retail, FAB): accuracy, cost, latency, audit trail.
 
-## Setup (fresh clone)
+## Setup and run (fresh clone)
 
-You need Node 18+, Git, and Python 3.12+ (or [uv](https://docs.astral.sh/uv/),
-which installs 3.12 for you). Then, from the repository root:
-
-```bash
-npm install
-npm run setup
-```
-
-`npm run setup` creates `backend/.venv`, installs the Python requirements
-(including the official `tau_bench` and `tau2` benchmark packages from GitHub),
-creates `backend/.env` from the example, installs the frontend, and downloads
-the benchmark data into `backend/data/` (it is not committed).
-
-Put your keys in `backend/.env`:
-
-```
-OPENAI_API_KEY=...
-ANTHROPIC_API_KEY=...
-```
-
-## Run
+You need Git and Node.js 18+. Python 3.12+ is needed too, but the setup script
+installs one for you (through `uv`) if it is missing. Then:
 
 ```bash
-npm run dev
+python setup.py        # once: venv, Python packages, frontend packages, data, backend/.env
 ```
 
-Backend on http://localhost:8000, frontend on http://localhost:3000. The backend
-also checks for missing benchmark data every time it starts and downloads what is
-absent, so a clone that skipped `npm run setup`'s download step still works once
-it is online. `/api/health` reports which datasets are available.
+Put your keys in `backend/.env` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`), then:
+
+```bash
+python start.py        # or ./start.sh on macOS/Linux, start.bat on Windows
+```
+
+That runs the backend on http://localhost:8000 and the app on http://localhost:3000
+and stops both on Ctrl-C. `start.py` runs setup itself if the venv or the frontend
+packages are missing, so on a clean machine `python start.py` alone is enough once
+the keys are in place. The backend also downloads any missing benchmark data when
+it starts, and `/api/health` reports which datasets are available.
+
+`npm run setup` and `npm run dev` do the same as the two scripts above.
 
 ## Benchmark data
 

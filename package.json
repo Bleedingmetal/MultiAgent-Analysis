@@ -2,11 +2,9 @@
   "name": "multiagent-analysis",
   "private": true,
   "scripts": {
-    "setup": "python backend/scripts/setup.py && npm --prefix frontend install",
-    "datasets": "python backend/scripts/download_datasets.py",
-    "dev": "concurrently --kill-others --names backend,frontend --prefix-colors blue,green \"python backend/scripts/run_backend.py\" \"npm --prefix frontend run dev\""
-  },
-  "devDependencies": {
-    "concurrently": "^9.2.1"
+    "setup": "python setup.py",
+    "dev": "python start.py",
+    "start": "python start.py",
+    "datasets": "python backend/scripts/download_datasets.py"
   }
 }
