@@ -27,6 +27,7 @@ from app.benchmarks.conversation import ConversationAgent, db_changes, describe_
 from app.config import settings
 from app.datasets.registry import Task as HarnessTask
 from app.llm import infer_provider
+from app.pricing import cost_usd
 from app.schemas import AgentConfiguration, RunResult
 from app.spend_guard import RunMeter
 
@@ -73,7 +74,9 @@ class CostedUser(LLMUserSimulationEnv):
         res = completion(model=self.model, custom_llm_provider=self.provider, messages=messages)
         message = res.choices[0].message
         self.messages.append(message.model_dump())
-        self.total_cost += float(res._hidden_params.get("response_cost") or 0.0)
+        usage = getattr(res, "usage", None)
+        self.total_cost += cost_usd(self.model, int(getattr(usage, "prompt_tokens", 0) or 0),
+                                    int(getattr(usage, "completion_tokens", 0) or 0))
         return message.content or ""
 
 

@@ -75,6 +75,14 @@ def infer_provider(model: str) -> str:
     return "openai"
 
 
+def litellm_name(model: str) -> str:
+    """'provider/model' as litellm wants it, so new model ids it has not heard of still route."""
+    if "/" in model:
+        return model
+    provider = infer_provider(model)
+    return f"{'gemini' if provider == 'google' else provider}/{model}"
+
+
 def default_provider() -> str:
     return infer_provider(settings()["default_model"])
 
@@ -83,10 +91,11 @@ def default_model_for(provider: str) -> str:
     """Model to use when a node names a provider but no (real) model."""
     if provider == default_provider():
         return settings()["default_model"]
+    # Cheapest model of each provider: internal testing runs on the low end
     if provider == "anthropic":
-        return "claude-opus-5-5"
+        return "claude-haiku-5-5"
     if provider == "google":
-        return "gemini-2.5-flash"
+        return "gemini-2.0-flash"
     return settings()["openai_model"]
 
 

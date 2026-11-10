@@ -28,6 +28,7 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
 
 
 def price_for(model: str) -> tuple[float, float]:
+    model = model.split("/")[-1]  # litellm spells models "anthropic/claude-..."
     if model in MODEL_PRICES:
         return MODEL_PRICES[model]
     # Dated snapshots like claude-sonnet-4-5-20250929 / gpt-4o-mini-2024-07-18

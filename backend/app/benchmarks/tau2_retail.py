@@ -18,6 +18,8 @@ from typing import Any
 from app.benchmarks.conversation import ConversationAgent, Trace, db_changes, describe_outcome
 from app.config import settings
 from app.datasets.registry import Task as HarnessTask
+from app.llm import litellm_name
+from app.pricing import cost_usd
 from app.schemas import AgentConfiguration, RunResult
 from app.spend_guard import RunMeter
 
@@ -195,14 +197,14 @@ def run_task(config: AgentConfiguration, task: HarnessTask, *, mode: str, meter:
              model_override: str | None = None, parent_run_id: str | None = None) -> RunResult:
     s = settings()
     tau = find_tau_task(task.id)
-    _point_judges_at(s["tau_judge_model"])
+    _point_judges_at(litellm_name(s["tau_judge_model"]))
     env = get_environment()
     db_before = RetailDB.load(RETAIL_DB_PATH).model_dump(mode="json")
     agent = ConversationAgent(config, env.get_policy(), mode=mode, meter=meter, model_override=model_override)
     # One conversation is many round trips: allow every turn its calls (router + agents)
     meter.max_calls = max(meter.max_calls or 0, int(s["tau_max_steps"]) * (len(agent.agents) + 1))
     user = UserSimulator(
-        llm=s["tau_user_model"],
+        llm=litellm_name(s["tau_user_model"]),
         instructions=str(tau.user_scenario),
         tools=user_tools_for_task(env, tau),
         llm_args={"temperature": 0.0},
@@ -221,7 +223,11 @@ def run_task(config: AgentConfiguration, task: HarnessTask, *, mode: str, meter:
     success = reward >= 1.0
     messages = sim.messages or []
     final_text = next((m.content for m in reversed(messages) if isinstance(m, AssistantMessage) and m.content), "")
-    user_cost = float(sim.user_cost or 0.0)
+    # Price the customer's turns ourselves: litellm's table lags behind new model ids
+    user_cost = sum(
+        cost_usd(s["tau_user_model"], int(m.usage.get("prompt_tokens") or 0), int(m.usage.get("completion_tokens") or 0))
+        for m in messages if isinstance(m, UserMessage) and getattr(m, "usage", None)
+    ) or float(sim.user_cost or 0.0)
     meter.add_cost(user_cost)
     ended = str(getattr(sim.termination_reason, "value", sim.termination_reason))
     basis = [str(getattr(b, "value", b)) for b in ((ri.reward_basis if ri else None) or [])]

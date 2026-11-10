@@ -63,8 +63,8 @@ def settings() -> dict:
         "max_eval_rounds": int(os.getenv("MAX_EVAL_ROUNDS", "3")),
         # tau-bench retail (both generations): the simulated customer, the LLM judge
         # tau2 uses for natural-language checks, the turn cap, and where tau2's data lives
-        "tau_user_model": os.getenv("TAU_USER_MODEL", "gpt-4o-mini"),
-        "tau_judge_model": os.getenv("TAU_JUDGE_MODEL", "gpt-4o-mini"),
+        "tau_user_model": os.getenv("TAU_USER_MODEL", "claude-haiku-5-5"),
+        "tau_judge_model": os.getenv("TAU_JUDGE_MODEL", "claude-haiku-5-5"),
         "tau_max_steps": int(os.getenv("TAU_MAX_STEPS", "60")),
         "tau2_data_dir": Path(
             os.getenv("TAU2_DATA_DIR") or (Path(__file__).resolve().parents[1] / "data")
