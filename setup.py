@@ -102,8 +102,39 @@ def python312() -> list[str] | None:
     return None
 
 
+def venv_version() -> tuple[int, int] | None:
+    """(major, minor) of the Python inside backend/.venv, or None if it is unusable."""
+    if not PY.exists():
+        return None
+    out = version_of([str(PY), "-c", "import sys; print(sys.version_info[0], sys.version_info[1])"])
+    try:
+        major, minor = out.split()
+        return int(major), int(minor)
+    except ValueError:
+        return None
+
+
+def retire_old_venv() -> None:
+    """A half-done setup often has a 3.10 venv from the old README: move it aside
+    (never delete) so a 3.12 one can be built; the user's .env is untouched."""
+    ver = venv_version()
+    if ver is None and PY.exists():
+        say("backend/.venv is broken; moving it to backend/.venv-broken")
+        target = VENV.with_name(".venv-broken")
+    elif ver is not None and ver < (3, 12):
+        say(f"backend/.venv is Python {ver[0]}.{ver[1]}; the tau2 package needs 3.12+. "
+            f"Moving it to backend/.venv-py{ver[0]}{ver[1]}-old and creating a new one")
+        target = VENV.with_name(f".venv-py{ver[0]}{ver[1]}-old")
+    else:
+        return
+    if target.exists():
+        shutil.rmtree(target)
+    VENV.rename(target)
+
+
 def setup_backend() -> None:
     uv = uv_command()
+    retire_old_venv()
     if not PY.exists():
         say("Creating backend/.venv (Python 3.12+)")
         if uv:
@@ -125,6 +156,8 @@ def setup_backend() -> None:
     if not env_file.exists():
         shutil.copy(BACKEND / ".env.example", env_file)
         say(f"Created {env_file.relative_to(ROOT)}: add OPENAI_API_KEY and ANTHROPIC_API_KEY to it")
+    else:
+        say("Keeping the existing backend/.env (new settings all have defaults)")
 
     say("Checking benchmark data")
     run([str(PY), str(BACKEND / "scripts" / "download_datasets.py")])
@@ -133,8 +166,14 @@ def setup_backend() -> None:
 def setup_frontend() -> None:
     say("Installing frontend packages")
     npm = which("npm")
-    lock = FRONTEND / "package-lock.json"
-    run([npm, "ci" if lock.exists() else "install"], cwd=FRONTEND)
+    # `npm ci` wipes node_modules, which fails on Windows if a dev server or editor
+    # still holds a file; on a half-done setup use the incremental install instead.
+    cmd = [npm, "install"] if (FRONTEND / "node_modules").exists() else [npm, "ci"]
+    if run(cmd, cwd=FRONTEND, check=False) != 0:
+        print("npm failed; close any running dev server or editor using frontend/node_modules, retrying once...")
+        import time
+        time.sleep(5)
+        run([npm, "install"], cwd=FRONTEND)
 
 
 def main() -> int:

@@ -26,7 +26,10 @@ FRONTEND_PORT = os.environ.get("FRONTEND_PORT", "3000")
 
 
 def preflight() -> None:
-    if not PY.exists() or not (FRONTEND / "node_modules").exists():
+    venv_ok = PY.exists() and subprocess.run(
+        [str(PY), "-c", "import sys, tau2; assert sys.version_info >= (3, 12)"],
+        capture_output=True).returncode == 0
+    if not venv_ok or not (FRONTEND / "node_modules").exists():
         print("First run: setting the repository up (this takes a few minutes once).", flush=True)
         if subprocess.run([sys.executable, str(ROOT / "setup.py")]).returncode != 0:
             sys.exit("Setup did not finish; fix the message above and run again.")
