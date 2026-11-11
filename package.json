@@ -2,9 +2,9 @@
   "name": "multiagent-analysis",
   "private": true,
   "scripts": {
-    "setup": "python setup.py",
-    "dev": "python start.py",
-    "start": "python start.py",
-    "datasets": "python backend/scripts/download_datasets.py"
+    "dev": "node start.js",
+    "start": "node start.js",
+    "setup": "node start.js --setup",
+    "datasets": "node start.js --setup"
   }
 }
