@@ -8,9 +8,11 @@ tau2's agent interface and hands tool calls back to the orchestrator to execute.
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
+import types
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -167,16 +169,48 @@ def _conversation(messages: list[Message]) -> list[dict[str, Any]]:
     return out
 
 
+def lenient_json_loads(text: str):
+    """json.loads that survives a model wrapping its JSON in a code fence or a sentence."""
+    import re
+
+    text = (text or "").strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
+    if fenced:
+        try:
+            return json.loads(fenced.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        return json.loads(text[start:end + 1])
+    raise json.JSONDecodeError("No JSON object in judge reply", text, 0)
+
+
 def _point_judges_at(model: str) -> None:
-    """tau2's judges default to a model this deployment may not have; use ours."""
+    """tau2's judges default to a model this deployment may not have; use ours, and
+    parse their replies leniently (Claude sometimes fences the JSON)."""
+    claude = model.split("/")[-1].lower().startswith("claude")
     try:
         import tau2.evaluator.evaluator_nl_assertions as nl
         nl.DEFAULT_LLM_NL_ASSERTIONS = model
+        nl.json = types.SimpleNamespace(loads=lenient_json_loads, dumps=json.dumps)
+        if claude:
+            nl.DEFAULT_LLM_NL_ASSERTIONS_ARGS = {
+                k: v for k, v in dict(nl.DEFAULT_LLM_NL_ASSERTIONS_ARGS).items() if k not in ("temperature", "reasoning_effort")
+            }
     except Exception:
         pass
     try:
         import tau2.data_model.semantic_communication as sc
         sc.DEFAULT_SEMANTIC_COMMUNICATE_MODEL = model
+        if claude:
+            sc.DEFAULT_SEMANTIC_COMMUNICATE_MODEL_ARGS = {
+                k: v for k, v in dict(sc.DEFAULT_SEMANTIC_COMMUNICATE_MODEL_ARGS).items() if k not in ("temperature", "reasoning_effort")
+            }
     except Exception:
         pass
 
@@ -207,7 +241,8 @@ def run_task(config: AgentConfiguration, task: HarnessTask, *, mode: str, meter:
         llm=litellm_name(s["tau_user_model"]),
         instructions=str(tau.user_scenario),
         tools=user_tools_for_task(env, tau),
-        llm_args={"temperature": 0.0},
+        # Anthropic rejects `temperature` for current Claude models; OpenAI accepts it
+        llm_args={} if s["tau_user_model"].lower().startswith("claude") else {"temperature": 0.0},
     )
     orchestrator = Orchestrator(
         domain="retail", agent=ConfigAgent(agent, env.get_tools(), env.get_policy()), user=user,

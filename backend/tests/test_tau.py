@@ -3,6 +3,7 @@ customer are scripted, the benchmark packages' environments and graders are real
 
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from pathlib import Path
@@ -210,6 +211,17 @@ class Tau2Tests(unittest.TestCase):
         self.assertIn("cancel_pending_order", task.metadata["reference_tools"])
         self.assertEqual(registry.task_count("tau2-retail"), 114)
         self.assertEqual(len(registry.sample_tasks("tau2-retail", 5)), 5)
+
+    def test_judge_replies_are_parsed_even_when_fenced_or_wrapped(self):
+        from app.benchmarks.tau2_retail import lenient_json_loads
+
+        want = {"results": [{"expectedOutcome": "x", "metExpectation": True, "reasoning": "r"}]}
+        body = json.dumps(want)
+        self.assertEqual(lenient_json_loads(body), want)
+        self.assertEqual(lenient_json_loads("```json" + chr(10) + body + chr(10) + "```"), want)
+        self.assertEqual(lenient_json_loads("Here is my evaluation:" + chr(10) + body + chr(10) + "Done."), want)
+        with self.assertRaises(json.JSONDecodeError):
+            lenient_json_loads("no json here")
 
     def test_config_agent_hands_tool_calls_back_to_the_orchestrator(self):
         from tau2.data_model.message import MultiToolMessage, ToolMessage, UserMessage
