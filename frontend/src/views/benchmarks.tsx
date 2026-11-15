@@ -2,12 +2,32 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import type React from "react"
 import { ArrowUpRight } from "@phosphor-icons/react"
 
 import { IslandLink, Reveal, RevealInView } from "@/components/product/ui-bits"
 import { benchmarks, taskRegimes } from "@/data/evaluation-mock"
 import { type BenchmarkInfo, getDatasets } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { Phone, Plot, Relay, Terminal } from "@lucasmarkes/hairline/react"
+
+// One hairline figure per benchmark: an isometric line object that answers the pointer.
+// FinQA is a bar chart whose tabs lift; τ-bench a phone that opens in layers (a customer
+// call); τ²-bench a relay whose path lights hop by hop (a tool-calling conversation);
+// FAB a terminal with its history (research over filings).
+const FIGURE: Record<string, React.ComponentType<{ play?: boolean; intensity?: number; theme?: "auto" | "light" | "dark"; label?: string; className?: string }>> = {
+  finqa: Plot,
+  "tau-retail": Phone,
+  "tau2-retail": Relay,
+  fab: Terminal,
+}
+const FIGURE_STYLE = {
+  "--hairline-plate": "#001735",
+  "--hairline-hi": "#ffffff",
+  "--hairline-edge": "#9fc2ef",
+  "--hairline-mid": "#4a74a8",
+  "--hairline-lo": "#0b2a55",
+} as React.CSSProperties
 
 export default function Benchmarks() {
   const [live, setLive] = useState<Record<string, BenchmarkInfo> | null>(null)
@@ -101,6 +121,14 @@ export default function Benchmarks() {
                   ) : null}
                 </div>
                 <div className="bg-mm-dark p-6 text-white">
+                  {FIGURE[bench.id] ? (
+                    <div className="mb-5" style={FIGURE_STYLE}>
+                      {(() => {
+                        const Figure = FIGURE[bench.id]
+                        return <Figure play intensity={0.6} theme="dark" label={`${bench.name} figure`} />
+                      })()}
+                    </div>
+                  ) : null}
                   <p className="text-[12px] text-mm-light/80">
                     Example use case
                   </p>

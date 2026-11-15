@@ -12,6 +12,7 @@ import {
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Sidebar,
   SidebarContent,
@@ -77,7 +78,10 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="px-6 pb-6">
-        <p className="text-[12px] text-white/45">WPI MQP × MassMutual</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[12px] text-white/45">WPI MQP × MassMutual</p>
+          <ThemeToggle />
+        </div>
       </SidebarFooter>
     </Sidebar>
   )

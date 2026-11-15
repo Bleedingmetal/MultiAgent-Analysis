@@ -94,38 +94,44 @@ const NODE_KIND: Record<string, string> = {
   tool: "Tool",
 }
 
-/** The pipeline as a short vertical list: working nodes in run order on one rail,
+/** The pipeline as a horizontal stepper: working nodes in run order on one rail,
  *  agents marked in the accent with their model, other nodes in grey. */
 function Flow({ configuration }: { configuration: AgentConfiguration }) {
   const layerOrder = new Map(configuration.layers.map((l) => [l.id, l.order]))
   const nodes = [...configuration.nodes]
     .filter((n) => n.type !== "input" && n.type !== "output")
     .sort((a, b) => (layerOrder.get(a.layerId) ?? 0) - (layerOrder.get(b.layerId) ?? 0) || a.order - b.order)
-  const shown = nodes.slice(0, 5)
+  const shown = nodes.slice(0, 8)
   const more = nodes.length - shown.length
+  const columns = Math.min(Math.max(shown.length + (more > 0 ? 1 : 0), 1), 4)
   return (
-    <ol className="relative ml-[5px] pl-4">
-      {/* the rail: a soft tone bar, not a line */}
-      <span aria-hidden className="absolute bottom-2 left-[-1px] top-2 w-[3px] rounded-full bg-[#e9edf3]" />
-      {shown.map((node) => {
+    <ol className="grid gap-y-4" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+      {shown.map((node, i) => {
         const agent = node.type === "model"
+        const last = i === shown.length - 1 && more === 0
         return (
-          <li key={node.id} className="relative py-1.5">
+          <li key={node.id} className="relative min-w-0 pr-3">
+            {/* the rail to the next step: a soft tone bar through the dots */}
+            {!last ? <span aria-hidden className="absolute left-[9px] right-0 top-[3px] h-[3px] rounded-full bg-[#e9edf3]" /> : null}
             <span
               aria-hidden
               className={
-                "absolute -left-[20px] top-[11px] size-[9px] rounded-full ring-2 ring-white " +
-                (agent ? "bg-mm-charge" : "bg-[#b9c2d0]")
+                "relative block size-[9px] rounded-full ring-2 ring-white " + (agent ? "bg-mm-charge" : "bg-[#b9c2d0]")
               }
             />
-            <p className="truncate text-[13px] font-medium leading-5 text-mm-dark">{node.name}</p>
+            <p className="mt-2 truncate text-[13px] font-medium leading-5 text-mm-dark">{node.name}</p>
             <p className="truncate text-[12px] leading-4 text-muted-foreground">
               {agent ? node.modelSettings?.model ?? "model not set" : NODE_KIND[node.type] ?? node.type}
             </p>
           </li>
         )
       })}
-      {more > 0 ? <li className="py-1 text-[12px] text-muted-foreground">+{more} more</li> : null}
+      {more > 0 ? (
+        <li className="relative min-w-0">
+          <span aria-hidden className="relative block size-[9px] rounded-full bg-[#b9c2d0] ring-2 ring-white" />
+          <p className="mt-2 text-[13px] text-muted-foreground">+{more} more</p>
+        </li>
+      ) : null}
     </ol>
   )
 }

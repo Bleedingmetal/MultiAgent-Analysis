@@ -100,6 +100,67 @@
     --shadow-inset: inset 0 1px 1px rgba(255, 255, 255, 0.7);
 }
 
+
+/* Dark theme: driven by the `dark` class on <html> (see src/hooks/use-theme.ts).
+   Tokens first; then the handful of literal light colours the views use, mapped
+   to their dark equivalents so every page reads in both. The sidebar is navy in
+   both themes and keeps its own tokens. */
+.dark {
+    color-scheme: dark;
+    --background: #0f1420;
+    --foreground: #e6ebf3;
+    --card: #171d2a;
+    --card-foreground: #e6ebf3;
+    --popover: #171d2a;
+    --popover-foreground: #e6ebf3;
+    --primary: #3d86ff;
+    --primary-foreground: #ffffff;
+    --secondary: #223049;
+    --secondary-foreground: #d7e3f5;
+    --muted: #1f2736;
+    --muted-foreground: #9aa6ba;
+    --accent: #223049;
+    --accent-foreground: #d7e3f5;
+    --destructive: #f0655d;
+    --border: #2a3344;
+    --input: #2f3a4d;
+    --ring: #3d86ff;
+    --sidebar: #0b1526;
+    --sidebar-accent: #15264a;
+    --shadow-ambient: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-lift: 0 1px 3px rgba(0, 0, 0, 0.35);
+    --shadow-inset: inset 0 1px 1px rgba(255, 255, 255, 0.04);
+}
+.dark .text-mm-dark { color: #e6ebf3; }
+.dark .text-mm-blue { color: #9fc2ef; }
+.dark .bg-white { background-color: var(--card); }
+.dark .bg-\[\#f7f9fc\], .dark .hover\:bg-\[\#f7f9fc\]:hover,
+.dark .bg-\[\#f4f7fb\], .dark .hover\:bg-\[\#f4f7fb\]:hover,
+.dark .bg-\[\#fafbfd\], .dark .bg-\[\#f8fafc\], .dark .bg-\[\#f5f7fb\],
+.dark .bg-\[\#eef2f8\], .dark .bg-\[\#eef1f6\] { background-color: #1f2736; }
+.dark .focus-visible\:bg-\[\#f7f9fc\]:focus-visible { background-color: #1f2736; }
+.dark .bg-\[\#eef1f5\], .dark .bg-\[\#edf0f4\], .dark .bg-\[\#e9edf3\],
+.dark .bg-\[\#e8edf4\], .dark .bg-\[\#dfe5ee\] { background-color: #2a3344; }
+.dark .bg-\[\#b9c2d0\], .dark .bg-\[\#8d97aa\], .dark .bg-\[\#8a94a6\] { background-color: #6b7790; }
+.dark .border-\[\#e3e8ef\], .dark .border-\[\#eef1f5\], .dark .border-\[\#d1d7e0\],
+.dark .divide-\[\#e3e8ef\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#eef1f5\] > :not([hidden]) ~ :not([hidden]) { border-color: #2a3344; }
+.dark .text-\[\#5b6577\], .dark .text-\[\#5f6368\] { color: #9aa6ba; }
+.dark .text-\[\#b34800\] { color: #ff9a5c; }
+.dark .text-\[\#2f7a1f\] { color: #6cc95a; }
+.dark .text-\[\#c4242a\] { color: #ff7b72; }
+.dark .text-\[\#7a5d00\], .dark .text-\[\#5c4600\] { color: #f1d98a; }
+.dark .bg-\[\#1d1f20\], .dark .hover\:bg-black:hover { background-color: #e6ebf3; color: #0f1420; }
+.dark .bg-\[\#1d1f20\].text-white, .dark .bg-\[\#1d1f20\] .text-white { color: #0f1420; }
+.dark .bezel { border-color: #2a3344; background: rgba(255, 255, 255, 0.03); }
+.dark .bezel-core { border-color: #2a3344; }
+.dark .surface, .dark .surface-interactive { border-color: #2a3344; }
+.dark .seg-track { background: rgba(255, 255, 255, 0.05); border-color: #2a3344; }
+.dark .seg-item[data-active="true"] { color: #e6ebf3; }
+.dark .seg-thumb { background: #2a3344; }
+.dark .grain { mix-blend-mode: screen; opacity: 0.035; }
+.dark ::selection { background: rgba(61, 134, 255, 0.35); }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
