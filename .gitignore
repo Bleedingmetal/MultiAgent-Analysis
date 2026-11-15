@@ -1,3 +1,6 @@
+# Portable Node.js installed by setup.py
+.tools/
+
 # Python (any virtualenv, at any depth: .venv, .venv310, venv-old, ...)
 .venv*/
 venv*/

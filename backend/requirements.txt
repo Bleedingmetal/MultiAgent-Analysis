@@ -5,6 +5,6 @@ python-dotenv>=1.0.1
 pydantic>=2.9.0
 anthropic>=0.40.0
 deepdiff>=8.0
-# tau-bench retail, both generations (Python 3.12+; installed from GitHub)
-tau_bench @ git+https://github.com/sierra-research/tau-bench.git
-tau2 @ git+https://github.com/sierra-research/tau2-bench.git
+# tau-bench retail, both generations (Python 3.12+; GitHub archives, so Git is not required)
+tau_bench @ https://github.com/sierra-research/tau-bench/archive/refs/heads/main.zip
+tau2 @ https://github.com/sierra-research/tau2-bench/archive/refs/heads/main.zip

@@ -6,30 +6,33 @@ WPI MQP × MassMutual.
 
 ## Quick start
 
-You need **Git** and **Node.js 18+** installed. That is all: the setup installs
-Python 3.12 for you if you do not have it.
+One command sets everything up. Pick the line for what the machine has:
 
 ```bash
 git clone https://github.com/Bleedingmetal/MultiAgent-Analysis.git
 cd MultiAgent-Analysis
-npm run dev
+python setup.py        # has Python (python3 on macOS/Linux): installs Node.js too if missing
 ```
 
-The first `npm run dev` sets everything up (Python venv, packages, benchmark data,
-frontend packages; a few minutes once) and then starts both servers. Open
-`backend/.env` and paste your keys, then run `npm run dev` again if you added
-them after the first start:
+No Python either? `setup.bat` on Windows or `./setup.sh` on macOS/Linux installs it first.
+Node.js, Python 3.12, the virtualenv, all packages and the benchmark data are handled by
+setup; nothing needs admin rights, and Git is only needed for `git pull`.
+
+Then paste your keys into `backend/.env`:
 
 ```
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
+and run the app:
+
+```bash
+python start.py        # or npm run dev, ./start.sh, start.bat
+```
+
 Go to http://localhost:3000. Ctrl-C in that terminal stops both servers. If port
 3000 or 8000 is already taken, the next free port is used and printed.
-
-`npm run setup` does only the setup step. `python start.py` / `python3 start.py`,
-`./start.sh` and `start.bat` are the same thing as `npm run dev` without npm.
 
 ## If you already had the repo cloned
 

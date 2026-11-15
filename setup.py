@@ -1,42 +1,49 @@
 #!/usr/bin/env python3
-"""Set up the whole repository after a clone. Stdlib only; Windows, macOS, Linux.
+"""Set up the whole repository after a clone, with one command. Stdlib only.
 
     python setup.py            (python3 on macOS/Linux)
 
-What it does, skipping anything already done:
-  1. Checks for Git, Node 18+, and npm, and says exactly what to install if missing.
-  2. Creates backend/.venv on Python 3.12+ (the tau2 benchmark package needs it).
-     Uses `uv` when present; otherwise installs uv into this Python and lets it
-     fetch a 3.12 interpreter, so no manual Python install is needed.
-  3. Installs backend/requirements.txt (the two tau-bench packages come from GitHub).
-  4. Creates backend/.env from .env.example when there is no .env yet.
-  5. Downloads the benchmark data that is not committed (FinQA, FAB, tau2-bench).
-  6. Installs the frontend's npm packages.
+Everything the app needs that is missing gets installed here, without admin rights:
+  1. Node.js: if no Node 18+ is on PATH, a portable Node LTS is downloaded into .tools/
+     and used from there by setup and start.
+  2. Python 3.12+ for the backend venv (the tau2 benchmark package needs it): uses `uv`
+     when present, otherwise installs uv into this Python and lets it fetch 3.12.
+  3. backend/.venv with backend/requirements.txt (the two tau-bench packages come
+     from GitHub as archives, so Git itself is not required).
+  4. backend/.env from .env.example when there is no .env yet.
+  5. The benchmark data that is not committed (FinQA, FAB, tau2-bench).
+  6. The frontend's npm packages.
+Safe to rerun: each step is skipped when already done; an old 3.10 venv is moved
+aside and rebuilt; an existing .env is kept.
 
 Then: add OPENAI_API_KEY / ANTHROPIC_API_KEY to backend/.env and run `python start.py`.
+No Python at all? Run setup.bat (Windows) or ./setup.sh (macOS/Linux) instead.
 """
 
 from __future__ import annotations
 
 import os
+import platform
+import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import urllib.request
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT / "backend"
 FRONTEND = ROOT / "frontend"
+TOOLS = ROOT / ".tools"
 VENV = BACKEND / ".venv"
 PY = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+NODE_LINE = "v22"  # Node LTS line used for the portable install
 ENV = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 
-def real_key(value: str) -> bool:
-    """A key that is not the placeholder from .env.example."""
-    v = value.strip().strip('"')
-    return bool(v) and "your-key" not in v
-
+# ---- helpers ------------------------------------------------------------------------
 
 def say(msg: str) -> None:
     print(f"\n==> {msg}", flush=True)
@@ -48,7 +55,8 @@ def run(cmd: list[str], cwd: Path | None = None, check: bool = True) -> int:
 
 
 def which(name: str) -> str | None:
-    return shutil.which(name) or (shutil.which(name + ".cmd") if os.name == "nt" else None)
+    path = ENV.get("PATH", "")
+    return shutil.which(name, path=path) or (shutil.which(name + ".cmd", path=path) if os.name == "nt" else None)
 
 
 def version_of(cmd: list[str]) -> str:
@@ -58,22 +66,86 @@ def version_of(cmd: list[str]) -> str:
         return ""
 
 
-def check_tools() -> bool:
-    ok = True
-    if not which("git"):
-        print("Git is required (the benchmark packages install from GitHub): https://git-scm.com/downloads")
-        ok = False
-    node = which("node")
-    node_v = version_of([node, "--version"]) if node else ""
-    major = int(node_v.lstrip("v").split(".")[0]) if node_v.startswith("v") else 0
-    if major < 18:
-        print(f"Node.js 18 or newer is required (found {node_v or 'none'}): https://nodejs.org/")
-        ok = False
-    if not which("npm"):
-        print("npm is required; it ships with Node.js: https://nodejs.org/")
-        ok = False
-    return ok
+def real_key(value: str) -> bool:
+    """A key that is not the placeholder from .env.example."""
+    v = value.strip().strip('"')
+    return bool(v) and "your-key" not in v
 
+
+def portable_node_dirs() -> list[Path]:
+    """bin directories of any portable Node under .tools/, newest first."""
+    out = []
+    for d in sorted(TOOLS.glob("node-v*"), reverse=True):
+        bin_dir = d if os.name == "nt" else d / "bin"
+        if (bin_dir / ("node.exe" if os.name == "nt" else "node")).exists():
+            out.append(bin_dir)
+    return out
+
+
+def add_to_path(d: Path) -> None:
+    ENV["PATH"] = str(d) + os.pathsep + ENV.get("PATH", "")
+
+
+# ---- Node ---------------------------------------------------------------------------
+
+def node_major() -> int:
+    node = which("node")
+    v = version_of([node, "--version"]) if node else ""
+    return int(v.lstrip("v").split(".")[0]) if v.startswith("v") else 0
+
+
+def install_portable_node() -> None:
+    """Download Node LTS into .tools/ for this OS and CPU: no installer, no admin."""
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    arm = machine in ("arm64", "aarch64")
+    if system == "windows":
+        suffix, ext = ("win-arm64" if arm else "win-x64"), ".zip"
+    elif system == "darwin":
+        suffix, ext = ("darwin-arm64" if arm else "darwin-x64"), ".tar.gz"
+    else:
+        suffix, ext = ("linux-arm64" if arm else "linux-x64"), ".tar.gz"
+    index = f"https://nodejs.org/dist/latest-{NODE_LINE}.x/"
+    say(f"Node.js not found: downloading a portable Node {NODE_LINE} LTS for {suffix} into .tools/")
+    with urllib.request.urlopen(index + "SHASUMS256.txt", timeout=60) as resp:
+        listing = resp.read().decode()
+    m = re.search(rf"(node-v{NODE_LINE[1:]}\.\d+\.\d+)-{re.escape(suffix)}{re.escape(ext)}", listing)
+    if not m:
+        sys.exit(f"No portable Node build for {suffix}. Install Node.js 18+ from https://nodejs.org/ and rerun.")
+    name = m.group(1)
+    archive = TOOLS / f"{name}-{suffix}{ext}"
+    TOOLS.mkdir(exist_ok=True)
+    print(f"  fetching {index}{archive.name}", flush=True)
+    urllib.request.urlretrieve(f"{index}{archive.name}", archive)
+    if ext == ".zip":
+        with zipfile.ZipFile(archive) as z:
+            z.extractall(TOOLS)
+    else:
+        with tarfile.open(archive) as t:
+            t.extractall(TOOLS)
+    archive.unlink()
+    extracted = TOOLS / f"{name}-{suffix}"
+    target = TOOLS / name
+    if target.exists():
+        shutil.rmtree(target)
+    extracted.rename(target)
+    for d in portable_node_dirs():
+        add_to_path(d)
+    print(f"  installed {name} at {target.relative_to(ROOT)}", flush=True)
+
+
+def ensure_node() -> None:
+    for d in portable_node_dirs():
+        add_to_path(d)
+    if node_major() >= 18 and which("npm"):
+        print(f"Node {version_of([which('node'), '--version'])} found", flush=True)
+        return
+    install_portable_node()
+    if node_major() < 18 or not which("npm"):
+        sys.exit("Node.js could not be set up. Install Node.js 18+ from https://nodejs.org/ and rerun.")
+
+
+# ---- Python / backend -----------------------------------------------------------------
 
 def uv_command() -> list[str] | None:
     """`uv` as a command, installing it into this Python if it is not on PATH."""
@@ -96,14 +168,12 @@ def python312() -> list[str] | None:
         candidates += [["py", "-3.13"], ["py", "-3.12"]]
     candidates += [["python3.13"], ["python3.12"], ["python3"], ["python"]]
     for cmd in candidates:
-        out = version_of(cmd + ["-c", "import sys; print(sys.version_info >= (3, 12))"])
-        if out == "True":
+        if version_of(cmd + ["-c", "import sys; print(sys.version_info >= (3, 12))"]) == "True":
             return cmd
     return None
 
 
 def venv_version() -> tuple[int, int] | None:
-    """(major, minor) of the Python inside backend/.venv, or None if it is unusable."""
     if not PY.exists():
         return None
     out = version_of([str(PY), "-c", "import sys; print(sys.version_info[0], sys.version_info[1])"])
@@ -163,6 +233,8 @@ def setup_backend() -> None:
     run([str(PY), str(BACKEND / "scripts" / "download_datasets.py")])
 
 
+# ---- frontend -------------------------------------------------------------------------
+
 def setup_frontend() -> None:
     say("Installing frontend packages")
     npm = which("npm")
@@ -178,8 +250,10 @@ def setup_frontend() -> None:
 
 def main() -> int:
     say("Checking tools")
-    if not check_tools():
-        return 1
+    print(f"Python {platform.python_version()} at {sys.executable}", flush=True)
+    if not which("git"):
+        print("Git not found; fine for setup (packages come as archives), but you need it to pull updates.", flush=True)
+    ensure_node()
     setup_backend()
     setup_frontend()
     keys = (BACKEND / ".env").read_text(encoding="utf-8") if (BACKEND / ".env").exists() else ""

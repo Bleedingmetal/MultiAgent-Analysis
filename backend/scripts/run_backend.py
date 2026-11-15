@@ -17,7 +17,7 @@ if not PY.exists():
 
 raise SystemExit(
     subprocess.call(
-        [str(PY), "-m", "uvicorn", "app.main:app", "--reload", "--port", "8000"],
+        [str(PY), "-m", "uvicorn", "app.main:app", "--reload", "--reload-dir", "app", "--port", "8000"],
         cwd=BACKEND,
         env={**os.environ, "PYTHONUTF8": "1"},
     )

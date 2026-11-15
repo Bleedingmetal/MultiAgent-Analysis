@@ -30,7 +30,7 @@ def preflight() -> None:
     venv_ok = PY.exists() and subprocess.run(
         [str(PY), "-c", "import sys, tau2; assert sys.version_info >= (3, 12)"],
         capture_output=True).returncode == 0
-    if not venv_ok or not (FRONTEND / "node_modules").exists():
+    if not venv_ok or not (FRONTEND / "node_modules").exists() or not (shutil.which("npm") or shutil.which("npm.cmd")):
         print("Setting the repository up first (a few minutes, once).", flush=True)
         if subprocess.run([sys.executable, str(ROOT / "setup.py")]).returncode != 0:
             sys.exit("Setup did not finish; fix the message above and run again.")
@@ -43,17 +43,19 @@ def preflight() -> None:
               "but runs will fail until a key is added.", flush=True)
 
 
+def listening(port: int) -> bool:
+    """True if something already answers on the port. A connect test, not a bind
+    test: on Windows a bind can succeed on a port another server is using."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.3)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
 def free_port(preferred: int) -> int:
     """`preferred` if nothing listens on it, else the next free port above it."""
-    port = preferred
-    while port < preferred + 50:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                s.bind(("127.0.0.1", port))
-                return port
-            except OSError:
-                port += 1
+    for port in range(preferred, preferred + 50):
+        if not listening(port):
+            return port
     sys.exit(f"No free port near {preferred}")
 
 
@@ -87,7 +89,23 @@ def stop(proc: subprocess.Popen) -> None:
             pass
 
 
+def portable_node_dirs() -> list[Path]:
+    """bin directories of any portable Node that setup.py put under .tools/."""
+    out = []
+    for d in sorted((ROOT / ".tools").glob("node-v*"), reverse=True):
+        bin_dir = d if os.name == "nt" else d / "bin"
+        if (bin_dir / ("node.exe" if os.name == "nt" else "node")).exists():
+            out.append(bin_dir)
+    return out
+
+
 def main() -> int:
+    # Next.js and uvicorn print Unicode symbols; a cp1252 console must not kill the log threads
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+    for d in portable_node_dirs():
+        os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
     preflight()
     npm = shutil.which("npm") or shutil.which("npm.cmd")
     if not npm:
@@ -100,7 +118,10 @@ def main() -> int:
             print(f"Port {want} is in use (another copy running?); {name} will use {got}.", flush=True)
     env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
            "NEXT_PUBLIC_API_URL": f"http://localhost:{backend_port}"}
-    backend = spawn([str(PY), "-m", "uvicorn", "app.main:app", "--reload", "--port", str(backend_port)], BACKEND, env)
+    # --reload-dir app: only our code triggers a restart, not files the benchmark
+    # packages write inside the venv
+    backend = spawn([str(PY), "-m", "uvicorn", "app.main:app", "--reload", "--reload-dir", "app",
+                     "--port", str(backend_port)], BACKEND, env)
     frontend = spawn([npm, "run", "dev", "--", "--port", str(frontend_port)], FRONTEND, env)
     for name, proc in (("backend", backend), ("frontend", frontend)):
         threading.Thread(target=pump, args=(name, proc), daemon=True).start()
