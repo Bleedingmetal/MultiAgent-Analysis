@@ -98,6 +98,7 @@ function bounds(r: Row) {
 }
 /** "50 × 2" for a two-pass run, "20" for one pass. */
 function nLabel(r: Row) {
+  if (!r.eligible && r.graded < r.expected) return `${r.graded} of ${r.expected}`
   return r.passes > 1 ? `${r.n} × ${r.passes}` : String(r.n)
 }
 /** Whether two rows ran the same model, so a delta between them means something. */
@@ -317,7 +318,7 @@ function HowThisWorks({ benches }: { benches: string[] }) {
               <dd className="text-muted-foreground">Everything the run spent on model calls, divided by the answers it got right.</dd>
             </div>
             <div>
-              <dt className="font-medium text-mm-dark">n and ±</dt>
+              <dt className="font-medium text-mm-dark">n and the interval</dt>
               <dd className="text-muted-foreground">How many tasks were graded (× passes, when a run repeats them), and the 95% interval the pass rate sits in; repeated passes of one task are not independent, so the interval is built on tasks. A run counts for the leaderboard only when it finished every task it was given, with at least {MIN_N} tasks; others are marked partial.</dd>
             </div>
             <div>

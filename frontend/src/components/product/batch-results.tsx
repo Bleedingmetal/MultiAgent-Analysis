@@ -73,9 +73,9 @@ export function pct(value?: number | null, digits = 1) {
 
 export function secs(value?: number | null) {
   if (value == null) return "—"
-  return value < 60
-    ? `${value.toFixed(1)}s`
-    : `${Math.floor(value / 60)}m ${Math.round(value % 60)}s`
+  if (value < 60) return `${value.toFixed(1)}s`
+  const whole = Math.round(value)
+  return `${Math.floor(whole / 60)}m ${whole % 60}s`
 }
 
 export function when(iso: string) {

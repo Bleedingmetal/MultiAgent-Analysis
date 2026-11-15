@@ -65,3 +65,6 @@ skills-lock.json
 *.pem
 coverage/
 .cache/
+
+# tasteskill / hairline working files (design tooling, not part of the app)
+.taste-skill/
