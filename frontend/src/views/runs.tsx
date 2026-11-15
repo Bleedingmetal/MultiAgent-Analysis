@@ -148,7 +148,7 @@ export default function Runs() {
             </div>
           ) : (
             <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="border-b border-border/70 bg-[#f7f9fc] text-[12px] text-muted-foreground">
+              <thead className="border-b border-border bg-muted/40 text-[12px] text-muted-foreground">
                 <tr>
                   <th className={cn(cell, "font-medium")}>Run</th>
                   <th className={cn(cell, "font-medium")}>When</th>
@@ -168,7 +168,7 @@ export default function Runs() {
                     <motion.tr
                       key={`${filter}-${row.run.id}`}
                       {...enter(i)}
-                      className="border-b border-border/60 last:border-0 hover:bg-muted/35"
+                      className="border-b border-border last:border-0 hover:bg-muted/50"
                     >
                       <td className={cell}>
                         <Link
@@ -228,7 +228,7 @@ function BatchRow({
   return (
     <motion.tr
       {...motionProps}
-      className="relative border-b border-border/60 bg-mm-charge/[0.025] last:border-0 hover:bg-muted/35"
+      className="relative border-b border-border bg-muted/30 shadow-[inset_3px_0_0_var(--color-mm-charge)] last:border-0 hover:bg-muted/50"
     >
       <td className={cell}>
         <Link
@@ -237,7 +237,7 @@ function BatchRow({
         >
           {batch.id}
         </Link>
-        <span className="ml-2 inline-flex rounded-full bg-mm-charge/10 px-2 py-0.5 text-[10.5px] font-semibold text-mm-charge">
+        <span className="ml-2 inline-flex rounded-full bg-mm-charge/10 px-2 py-0.5 text-[10.5px] font-medium text-mm-charge">
           End-to-end
         </span>
       </td>
@@ -262,7 +262,7 @@ function BatchRow({
           </span>
         ) : (
           <span
-            className="inline-flex rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-mm-dark"
+            className="inline-flex whitespace-nowrap rounded-full bg-muted px-2.5 py-0.5 font-data text-[11px] font-medium text-mm-dark"
             title={BATCH_STATUS_LABEL[batch.status]}
           >
             {pct(s.pass_rate, 0)} · {s.passed}/{s.passed + s.failed}
