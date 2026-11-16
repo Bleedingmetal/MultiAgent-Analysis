@@ -17,6 +17,7 @@
 import Link from "next/link"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
 import { CaretRight, X } from "@phosphor-icons/react"
 
 import { STATUS_STYLE, pct, secs, usd, when } from "@/components/product/batch-results"
@@ -124,11 +125,21 @@ function leaderboard(batches: BatchRun[]) {
 }
 
 /** The list's columns, shared by the header and every row. */
-const COLS = "grid w-full grid-cols-[minmax(0,1fr)_minmax(150px,38%)_56px] items-center gap-3 px-5 md:grid-cols-[minmax(170px,1fr)_minmax(200px,32%)_56px_76px_100px]"
-const card = "rounded-[8px] border border-border bg-card"
-const btnPrimary = "inline-flex h-9 shrink-0 items-center rounded-[8px] bg-foreground px-4 text-[12px] font-medium text-background hover:opacity-90"
-const btnQuiet = "inline-flex h-9 shrink-0 items-center rounded-[8px] border border-border px-4 text-[12px] font-medium text-mm-dark hover:bg-muted/60"
-const pill = "rounded-[8px] px-1.5 py-px text-[12px] leading-[16px] whitespace-nowrap"
+const COLS = "grid w-full grid-cols-[minmax(0,1fr)_minmax(150px,38%)_56px] items-center gap-3 px-3 md:grid-cols-[minmax(170px,1fr)_minmax(200px,32%)_56px_76px_100px]"
+/** The one raised surface on the page: the exploration tool. Everything else sits on the page itself. */
+const surface = "rounded-[20px] bg-card shadow-[0_1px_2px_rgba(0,23,53,0.04),0_24px_48px_-28px_rgba(0,23,53,0.22)]"
+const btnPrimary = "inline-flex h-9 shrink-0 items-center rounded-full bg-foreground px-4 text-[12px] font-medium text-background hover:opacity-90"
+const btnQuiet = "inline-flex h-9 shrink-0 items-center rounded-full border border-border px-4 text-[12px] font-medium text-mm-dark hover:bg-muted/60"
+const pill = "rounded-full px-2 py-px text-[12px] leading-[16px] whitespace-nowrap"
+/** A section's title, with its one-line aside, sitting directly on the page. */
+function Heading({ title, aside }: { title: string; aside?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <h3 className="text-[15px] font-semibold text-mm-dark">{title}</h3>
+      {aside ? <span className="text-[12px] text-muted-foreground">{aside}</span> : null}
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const [batches, setBatches] = useState<BatchRun[]>([])
@@ -175,10 +186,10 @@ export default function Dashboard() {
   return (
     <div className={cn("mx-auto w-full max-w-[1180px] transition-[padding] duration-200", openId && "xl:pr-[440px]")}>
       {/* 1 · Introduction */}
-      <header className="flex items-start justify-between gap-6">
+      <header className="flex items-start justify-between gap-6 px-6">
         <div className="min-w-0 max-w-[76ch]">
           <h2 className="text-[24px] font-semibold tracking-[-0.01em] text-mm-dark">Agent Evaluation</h2>
-          <p className="mt-1.5 text-[15px] leading-snug text-mm-dark">
+          <p className="mt-2 text-[17px] leading-snug text-mm-dark">
             Does a multi-agent architecture beat a single agent on finance tasks, and at what price?
             {benches.length ? (
               <> Judged on {benches.map(benchmarkName).join(" and ")} by pass rate and cost per correct answer.</>
@@ -192,7 +203,7 @@ export default function Dashboard() {
 
       {/* 2 · Research snapshot: one card per benchmark */}
       {benches.length ? (
-        <div className={cn("mt-6 grid gap-4", benches.length > 1 && "md:grid-cols-2")}>
+        <div className={cn("mt-10 grid gap-8 px-6", benches.length > 1 && "md:grid-cols-2 md:gap-0 md:divide-x md:divide-border/70")}>
           {benches.map((id) => (
             <Snapshot key={id} id={id} rows={board.filter((r) => r.batch.benchmark_id === id)} total={taskCount[id]} onOpen={setOpenId} />
           ))}
@@ -210,23 +221,23 @@ export default function Dashboard() {
       {/* (shown even before any run exists; each question then explains what it needs) */}
 
       {/* 3 · Configurations compared */}
-      <section className={cn("mt-6", card)}>
-        <h3 className="px-5 pt-4 pb-3 text-[15px] font-semibold text-mm-dark">Configurations compared</h3>
+      <section className="mt-12 px-6">
+        <Heading title="Configurations compared" aside="latest complete run of each; partial runs listed last, never ranked" />
         {board.length ? (
           benches.map((id) => {
             const group = board.filter((r) => r.batch.benchmark_id === id)
             const best = group.find((r) => r.eligible)
             const baseline = group.find((r) => r.eligible && r.batch.architecture === "single-agent")
             return (
-              <div key={id} className="border-t border-border">
-                <div className={cn(COLS, "items-baseline border-l-2 border-transparent pt-3 pb-1 text-[12px] text-muted-foreground")}>
+              <div key={id} className="-mx-3 mt-4 [&+&]:mt-8">
+                <div className={cn(COLS, "items-baseline border-l-2 border-transparent pb-2 text-[12px] text-muted-foreground")}>
                   <span className="font-medium text-mm-dark">{benchmarkName(id)}</span>
                   <span>Pass rate · 95% interval</span>
                   <span className="text-right">n</span>
                   <span className="hidden text-right md:block">$ / correct</span>
                   <span className="hidden text-right md:block">Time p50–p95</span>
                 </div>
-                <ul>
+                <ul className="border-t border-border/70">
                   {group.map((r) => (
                     <ConfigRow
                       key={r.batch.id}
@@ -243,24 +254,21 @@ export default function Dashboard() {
             )
           })
         ) : (
-          <p className="mx-5 mb-5 mt-1 rounded-[8px] border border-dashed border-border px-4 py-6 text-center text-[12px] text-muted-foreground">
+          <p className="mt-4 rounded-[16px] border border-dashed border-border px-4 py-8 text-center text-[12px] text-muted-foreground">
             {loaded ? "No end-to-end runs yet. Open a configuration and run it on FinQA or τ²-bench." : "Loading…"}
           </p>
         )}
       </section>
 
-      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="mt-12 grid grid-cols-[minmax(0,1fr)] items-start gap-12 px-6">
         {/* 4 · Recent activity */}
-        <section className={cn("min-w-0", card)}>
-          <div className="flex items-baseline justify-between gap-3 px-5 pt-4 pb-2">
-            <h3 className="text-[15px] font-semibold text-mm-dark">Recent activity</h3>
-            {asOf ? <span className="text-[12px] text-muted-foreground">as of {when(asOf.toISOString())}</span> : null}
-          </div>
+        <section className="min-w-0">
+          <Heading title="Recent activity" aside={asOf ? `as of ${when(asOf.toISOString())}` : undefined} />
           {recent.length ? (
-            <ul className="divide-y divide-border border-t border-border">
+            <ul className="-mx-3 mt-3 max-w-[720px] divide-y divide-border/60 border-t border-border/70">
               {recent.map((b) => (
                 <li key={b.id}>
-                  <Link href={`/runs/e2e/${b.id}`} className="flex h-11 items-center gap-3 px-5 text-[12px] hover:bg-muted/60">
+                  <Link href={`/runs/e2e/${b.id}`} className="flex h-11 items-center gap-3 rounded-[10px] px-3 text-[12px] hover:bg-muted/50">
                     <span className="min-w-0 flex-1 truncate text-mm-dark">
                       {b.configuration_name}
                       <span className="text-muted-foreground"> · {benchmarkName(b.benchmark_id)}, {b.size}{(b.passes ?? 1) > 1 ? ` × ${b.passes}` : ""}</span>
@@ -274,11 +282,9 @@ export default function Dashboard() {
               ))}
             </ul>
           ) : (
-            <p className="px-5 pb-4 text-[12px] text-muted-foreground">{loaded ? "No runs yet." : "Loading…"}</p>
+            <p className="mt-3 text-[12px] text-muted-foreground">{loaded ? "No runs yet." : "Loading…"}</p>
           )}
-          <div className="border-t border-border px-5 py-3">
-            <Link href="/runs" className="text-[12px] font-medium text-mm-charge hover:underline">All runs</Link>
-          </div>
+          <Link href="/runs" className="mt-3 inline-block text-[12px] font-medium text-mm-charge hover:underline">All runs</Link>
         </section>
 
         {/* 5 · Research coverage */}
@@ -316,7 +322,7 @@ function HowThisWorks({ benches }: { benches: string[] }) {
         {open ? "Hide how this works" : "How this works"}
       </button>
       {open ? (
-        <div className={cn("absolute left-0 top-7 z-20 max-h-[70vh] w-[min(92vw,520px)] overflow-y-auto p-5 shadow-lg", card)}>
+        <div className={cn("absolute left-0 top-7 z-20 max-h-[70vh] w-[min(92vw,520px)] overflow-y-auto p-5", surface)}>
           <dl className="space-y-3 text-[12px] leading-snug">
             {(benches.length ? benches : ["finqa", "tau2-retail"]).map((id) => (
               <div key={id}>
@@ -360,19 +366,29 @@ function Snapshot({ id, rows, total, onOpen }: { id: string; rows: Row[]; total?
   const ratio = multi && single && single.batch.summary.cost_per_pass_usd && multi.batch.summary.cost_per_pass_usd
     ? multi.batch.summary.cost_per_pass_usd / single.batch.summary.cost_per_pass_usd
     : null
+  const figure = multi ?? lead
   return (
-    <section className={cn("p-5", card)}>
+    <section className={cn("min-w-0", "md:first:pr-8 md:last:pl-8")}>
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-[15px] font-semibold text-mm-dark">{benchmarkName(id)}</h3>
         <span className="text-[12px] text-muted-foreground">
           {lead ? `${lead.n} of ${total?.toLocaleString() ?? "?"} ${noun}${lead.passes > 1 ? `, ${lead.passes} passes` : ""}` : `${rows.length} partial ${rows.length === 1 ? "run" : "runs"}`}
         </span>
       </div>
+      {figure ? (
+        <p className="mt-3 flex items-baseline gap-3 font-data text-mm-dark">
+          <span className="text-[40px] leading-none tracking-[-0.02em]">{pct(figure.rate, 1)}</span>
+          <span className="text-[12px] text-muted-foreground">
+            {arch(figure.batch.architecture).label} · {bounds(figure)}
+            {single && multi ? <> · single agent {pct(single.rate, 1)}</> : null}
+          </span>
+        </p>
+      ) : null}
       {single && multi ? (
         <>
-          <p className="mt-2 text-[15px] leading-snug text-mm-dark tabular-nums">
-            {arch(multi.batch.architecture).label} <Rate r={multi} /> against the single agent&rsquo;s <Rate r={single} />
-            {sameModel(multi, single) ? ", same model" : ", a different model"}: <Delta a={multi.rate} b={single.rate} /> at{" "}
+          <p className="mt-3 text-[15px] leading-snug text-mm-dark tabular-nums">
+            <Delta a={multi.rate} b={single.rate} /> over the single agent&rsquo;s <Rate r={single} />
+            {sameModel(multi, single) ? ", same model" : ", a different model"}, at{" "}
             {usd(multi.batch.summary.cost_per_pass_usd)} vs {usd(single.batch.summary.cost_per_pass_usd)} per correct answer
             {ratio ? ratio >= 1 ? `, ${ratio.toFixed(1)}× the cost` : `, ${Math.round((1 - ratio) * 100)}% cheaper` : ""}.
           </p>
@@ -382,12 +398,11 @@ function Snapshot({ id, rows, total, onOpen }: { id: string; rows: Row[]; total?
           </p>
         </>
       ) : lead ? (
-        <p className="mt-2 text-[15px] leading-snug text-mm-dark tabular-nums">
-          {lead.batch.configuration_name} ({arch(lead.batch.architecture).label}) <Rate r={lead} /> at{" "}
-          {usd(lead.batch.summary.cost_per_pass_usd)} per correct answer. No {single ? "multi-agent" : "single-agent"} run to compare against yet.
+        <p className="mt-3 text-[15px] leading-snug text-mm-dark tabular-nums">
+          {lead.batch.configuration_name} at {usd(lead.batch.summary.cost_per_pass_usd)} per correct answer. No {single ? "multi-agent" : "single-agent"} run to compare against yet.
         </p>
       ) : (
-        <p className="mt-2 text-[15px] leading-snug text-mm-dark">No complete run of at least {MIN_N} {noun} yet.</p>
+        <p className="mt-3 text-[15px] leading-snug text-mm-dark">No complete run of at least {MIN_N} {noun} yet.</p>
       )}
       {lead ? (
         <button type="button" onClick={() => onOpen((multi ?? lead).batch.id)} className="mt-3 text-[12px] font-medium text-mm-charge hover:underline">
@@ -424,8 +439,8 @@ function ConfigRow({ row, best, baseline, delta, selected, onOpen }: { row: Row;
         aria-label={`${b.configuration_name}, ${arch(b.architecture).label}: ${pct(row.rate, 1)} of ${nLabel(row)}, interval ${bounds(row)}${row.eligible ? "" : ", partial"}`}
         className={cn(
           COLS,
-          "group border-l-2 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mm-charge/50",
-          selected ? "border-mm-charge bg-muted/40" : "border-transparent",
+          "group border-l-2 border-b border-b-border/60 py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mm-charge/50",
+          selected ? "border-l-mm-charge bg-muted/40" : "border-l-transparent",
         )}
       >
         <span className="flex min-w-0 items-center gap-2">
@@ -500,20 +515,22 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
   const configs = [...new Map(board.map((r) => [r.batch.configuration_id, r.batch.configuration_name])).entries()]
   const cell = (cid: string, bid: string) => board.find((r) => r.batch.configuration_id === cid && r.batch.benchmark_id === bid)
   return (
-    <section className={cn("min-w-0", card)}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-5 pt-4 pb-2">
-        <h3 className="text-[15px] font-semibold text-mm-dark">Research coverage</h3>
-        <span className="text-[12px] text-muted-foreground">
-          {running.length ? `${running.length} ${running.length === 1 ? "batch" : "batches"} running · ` : ""}
-          {health?.spend ? `${usd(health.spend.remaining_budget_usd)} of today's ${usd(health.spend.daily_budget_usd)} budget left` : loaded ? "budget unknown" : "…"}
-        </span>
-      </div>
+    <section className="min-w-0">
+      <Heading
+        title="Research coverage"
+        aside={
+          <>
+            {running.length ? `${running.length} ${running.length === 1 ? "batch" : "batches"} running · ` : ""}
+            {health?.spend ? `${usd(health.spend.remaining_budget_usd)} of today's ${usd(health.spend.daily_budget_usd)} budget left` : loaded ? "budget unknown" : "…"}
+          </>
+        }
+      />
       {configs.length ? (
-        <div className="overflow-x-auto border-t border-border">
+        <div className="mt-3 overflow-x-auto border-t border-border/70">
         <table className="w-full text-[12px] whitespace-nowrap">
           <thead className="text-muted-foreground">
             <tr>
-              <th className="px-5 py-2 text-left font-normal">Configuration</th>
+              <th className="py-2 pr-3 text-left font-normal">Configuration</th>
               {benches.map((id) => {
                 const d = datasets.find((x) => x.id === id)
                 const ran = Math.max(0, ...board.filter((r) => r.eligible && r.batch.benchmark_id === id).map((r) => r.n))
@@ -528,8 +545,8 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
           </thead>
           <tbody>
             {configs.map(([cid, name]) => (
-              <tr key={cid} className="border-t border-border">
-                <td className="px-5 py-2 text-mm-dark">{name}</td>
+              <tr key={cid} className="border-t border-border/60">
+                <td className="py-2 pr-3 text-mm-dark">{name}</td>
                 {benches.map((bid) => {
                   const r = cell(cid, bid)
                   const scored = datasets.find((x) => x.id === bid)?.scored ?? true
@@ -551,7 +568,7 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
         </table>
         </div>
       ) : (
-        <p className="px-5 pb-4 text-[12px] text-muted-foreground">{loaded ? "Nothing has run yet." : "Loading…"}</p>
+        <p className="mt-3 text-[12px] text-muted-foreground">{loaded ? "Nothing has run yet." : "Loading…"}</p>
       )}
     </section>
   )
@@ -601,7 +618,7 @@ function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row 
           exit={{ x: 440 }}
           transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
           aria-labelledby="overview-panel-title"
-          role="complementary" className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,380px)] flex-col xl:w-[440px] overflow-y-auto border-l border-border bg-card shadow-[-8px_0_24px_rgba(0,23,53,0.08)]"
+          role="complementary" className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,380px)] flex-col xl:w-[440px] overflow-y-auto rounded-l-[20px] bg-card shadow-[-12px_0_40px_rgba(0,23,53,0.10)]"
         >
           <div className="flex items-start justify-between gap-3 px-6 pt-5">
             <div className="min-w-0">
@@ -611,7 +628,7 @@ function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row 
                 {passes > 1 ? ` × ${passes} passes` : ""} · {when(b.created_at)}
               </p>
             </div>
-            <button type="button" onClick={onClose} aria-label="Close" className="rounded-[8px] p-1 text-muted-foreground hover:bg-muted hover:text-mm-dark">
+            <button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-mm-dark">
               <X className="size-4" weight="bold" />
             </button>
           </div>

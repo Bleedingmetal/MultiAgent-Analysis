@@ -200,6 +200,15 @@
     var(--background);
 }
 .dark .page-wash { background: var(--background); }
+/* Tailwind v4 resets buttons to the arrow cursor; anything clickable shows a hand */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="tab"],
+summary,
+label[for] {
+  cursor: pointer;
+}
+
 .font-data {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

@@ -76,12 +76,12 @@ export function DiscoverInsights({
   const q = QUESTIONS.find((x) => x.id === question)!
 
   return (
-    <section className="mt-6 overflow-hidden rounded-[8px] border border-border bg-card shadow-[0_1px_2px_rgba(0,23,53,0.04),0_12px_32px_-16px_rgba(0,23,53,0.14)]">
-      <div className="relative border-b border-border px-5 pt-4 pb-3 [background:radial-gradient(600px_160px_at_0%_0%,rgba(2,101,255,0.07),transparent_70%)]">
+    <section className="mt-10 overflow-hidden rounded-[20px] bg-card shadow-[0_1px_2px_rgba(0,23,53,0.04),0_24px_48px_-28px_rgba(0,23,53,0.22)]">
+      <div className="relative px-6 pt-5 pb-2 [background:radial-gradient(600px_160px_at_0%_0%,rgba(2,101,255,0.07),transparent_70%)]">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <h3 className="min-w-0 text-[15px] font-semibold text-mm-dark">Discover insights</h3>
           {benches.length > 1 ? (
-            <div role="tablist" aria-label="Benchmark" className="relative flex shrink-0 gap-0.5 rounded-[8px] bg-muted p-0.5">
+            <div role="tablist" aria-label="Benchmark" className="relative flex shrink-0 gap-0.5 rounded-full bg-muted p-0.5">
               {benches.map((id) => {
                 const on = id === bench
                 return (
@@ -92,14 +92,14 @@ export function DiscoverInsights({
                     type="button"
                     onClick={() => setChosen(id)}
                     className={cn(
-                      "relative rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
+                      "relative rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
                       on ? "text-mm-dark" : "text-muted-foreground hover:text-mm-dark",
                     )}
                   >
                     {on ? (
                       <motion.span
                         layoutId="explore-bench"
-                        className="absolute inset-0 rounded-[6px] bg-card shadow-[0_1px_2px_rgba(0,23,53,0.12)]"
+                        className="absolute inset-0 rounded-full bg-card shadow-[0_1px_2px_rgba(0,23,53,0.12)]"
                         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 38 }}
                       />
                     ) : null}
@@ -115,7 +115,7 @@ export function DiscoverInsights({
       </div>
 
       <div className="grid md:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
-        <ul className="flex gap-1 overflow-x-auto border-b border-border p-2 md:block md:space-y-0.5 md:border-r md:border-b-0" aria-label="Questions">
+        <ul className="flex gap-1 overflow-x-auto px-3 pb-3 md:block md:space-y-0.5 md:py-3 md:pl-3 md:pr-0" aria-label="Questions">
           {QUESTIONS.map((x) => {
             const on = x.id === question
             return (
@@ -125,14 +125,14 @@ export function DiscoverInsights({
                   aria-pressed={on}
                   onClick={() => setQuestion(x.id)}
                   className={cn(
-                    "group relative flex w-full items-center gap-2 rounded-[8px] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
+                    "group relative flex w-full items-center gap-2 rounded-[12px] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
                     !on && "hover:bg-muted/60",
                   )}
                 >
                   {on ? (
                     <motion.span
                       layoutId="explore-question"
-                      className="absolute inset-0 rounded-[8px] bg-mm-charge/[0.08] ring-1 ring-mm-charge/25"
+                      className="absolute inset-0 rounded-[12px] bg-mm-charge/[0.08]"
                       transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 40 }}
                     />
                   ) : null}
@@ -149,7 +149,7 @@ export function DiscoverInsights({
           })}
         </ul>
 
-        <div className="min-w-0 p-5" aria-live="polite">
+        <div className="min-w-0 px-6 pt-4 pb-5 md:pl-8" aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={`${bench}:${question}`}
@@ -178,7 +178,7 @@ export function DiscoverInsights({
             </motion.div>
           </AnimatePresence>
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border pt-3 text-[12px] text-muted-foreground">
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border/60 pt-3 text-[12px] text-muted-foreground">
             <span>
               {answer ? "Select a configuration to open its run. " : ""}
               {q.hint}
@@ -205,7 +205,7 @@ const NEEDS: Record<QuestionId, string> = {
 
 function Empty({ q, id, bench, none }: { q: string; id: QuestionId; bench: string; none: boolean }) {
   return (
-    <div className="rounded-[8px] border border-dashed border-border px-4 py-10 text-center">
+    <div className="rounded-[16px] border border-dashed border-border px-4 py-10 text-center">
       <p className="text-[15px] text-mm-dark">{q}</p>
       <p className="mx-auto mt-1 max-w-[52ch] text-[12px] text-muted-foreground">
         {none ? `No complete ${benchmarkName(bench)} runs yet. ` : "Not answerable from the runs so far. "}
