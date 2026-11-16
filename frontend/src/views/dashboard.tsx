@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { CaretRight, X } from "@phosphor-icons/react"
 
 import { STATUS_STYLE, pct, secs, usd, when } from "@/components/product/batch-results"
+import { DiscoverInsights } from "@/components/product/discover-insights"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   type BatchRun,
@@ -67,7 +68,7 @@ function wilson(k: number, n: number): [number, number] {
   return [Math.max(0, c - h), Math.min(1, c + h)]
 }
 
-type Row = {
+export type Row = {
   batch: BatchRun
   /** answers graded: tasks × passes */
   graded: number
@@ -197,6 +198,16 @@ export default function Dashboard() {
           ))}
         </div>
       ) : null}
+
+      {/* 2b · Discover insights: pick a question, get the chart that answers it */}
+      <DiscoverInsights
+        board={board}
+        benches={benches.length ? benches : datasets.length ? datasets.map((d) => d.id) : ["finqa", "tau2-retail", "fab"]}
+        selectedId={openId}
+        onOpen={setOpenId}
+        archLabel={(a) => arch(a).label}
+      />
+      {/* (shown even before any run exists; each question then explains what it needs) */}
 
       {/* 3 · Configurations compared */}
       <section className={cn("mt-6", card)}>
