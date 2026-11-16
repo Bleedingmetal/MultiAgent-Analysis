@@ -95,6 +95,42 @@ export const BUILT_IN_PRESETS: AgentPreset[] = [
     outputFormat: "structured",
     builtIn: true,
   },
+  // τ²-bench Retail roles, written as a pair: the Customer Service Agent decides, the Retail
+  // Operations Agent calls the tools. Tool names follow the retail domain's own tool set.
+  {
+    id: "customer-service-agent",
+    label: "Customer Service Agent",
+    description: "τ²-bench Retail: talks to the customer, applies store policy, and decides what action is needed.",
+    objective:
+      "Understand the customer's request, check it against the retail policy, and decide which action, if any, to take.",
+    instructions: [
+      "Identify the customer by email, or by name and zip code, before anything else.",
+      "Ask a short question if an order, item, or payment method is unclear. Do not guess ids or details.",
+      "Decline requests the policy does not allow, without opinions or recommendations.",
+      "Before any cancel, modify, return, or exchange, state the full details and get an explicit yes from the customer.",
+      "Pass the Retail Operations Agent the action, order id, item ids, payment method, and whether the customer confirmed.",
+    ].join(" "),
+    promptTemplate: DEFAULT_PROMPT_TEMPLATE,
+    outputFormat: "text",
+    builtIn: true,
+  },
+  {
+    id: "retail-operations-agent",
+    label: "Retail Operations Agent",
+    description: "τ²-bench Retail: carries out lookups, cancellations, modifications, returns, and exchanges through tool calls.",
+    objective:
+      "Carry out the decided action by calling the right retail tools with exact arguments, and report what they returned.",
+    instructions: [
+      "Look up the user, order, and items first; take every id from a tool result or the customer.",
+      "Match the tool to the order status: pending orders can be cancelled or modified, delivered orders returned or exchanged.",
+      "Change an order only after the customer has confirmed. Modify and exchange work once per order, so include every item in one call.",
+      "Make one tool call at a time. If something is missing or a tool errors, say so instead of guessing.",
+      "Report which tools you called and what each returned.",
+    ].join(" "),
+    promptTemplate: DEFAULT_PROMPT_TEMPLATE,
+    outputFormat: "text",
+    builtIn: true,
+  },
 ]
 
 const STORAGE_KEY = "massmutual-agent-presets-v1"
