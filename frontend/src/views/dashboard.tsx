@@ -123,7 +123,7 @@ function leaderboard(batches: BatchRun[]) {
 }
 
 /** The list's columns, shared by the header and every row. */
-const COLS = "grid w-full grid-cols-[minmax(0,1fr)_minmax(150px,38%)_56px] items-center gap-3 px-5 md:grid-cols-[minmax(150px,1fr)_minmax(210px,36%)_56px_76px_100px]"
+const COLS = "grid w-full grid-cols-[minmax(0,1fr)_minmax(150px,38%)_56px] items-center gap-3 px-5 md:grid-cols-[minmax(170px,1fr)_minmax(200px,32%)_56px_76px_100px]"
 const card = "rounded-[8px] border border-border bg-card"
 const btnPrimary = "inline-flex h-9 shrink-0 items-center rounded-[8px] bg-foreground px-4 text-[12px] font-medium text-background hover:opacity-90"
 const btnQuiet = "inline-flex h-9 shrink-0 items-center rounded-[8px] border border-border px-4 text-[12px] font-medium text-mm-dark hover:bg-muted/60"
@@ -180,7 +180,7 @@ export default function Dashboard() {
           <p className="mt-1.5 text-[15px] leading-snug text-mm-dark">
             Does a multi-agent architecture beat a single agent on finance tasks, and at what price?
             {benches.length ? (
-              <> Configurations run end-to-end on {benches.map(benchmarkName).join(" and ")}, judged by pass rate and cost per correct answer.</>
+              <> Judged on {benches.map(benchmarkName).join(" and ")} by pass rate and cost per correct answer.</>
             ) : null}
           </p>
           <HowThisWorks benches={benches} />
@@ -222,7 +222,7 @@ export default function Dashboard() {
                       row={r}
                       best={r === best}
                       baseline={r === baseline}
-                      delta={baseline && r !== baseline && r.eligible && sameModel(r, baseline) ? r.rate - baseline.rate : null}
+                      delta={baseline && r !== baseline && r.eligible && sameModel(r, baseline) && r.n === baseline.n ? r.rate - baseline.rate : null}
                       selected={openId === r.batch.id}
                       onOpen={() => setOpenId(r.batch.id)}
                     />
@@ -238,9 +238,9 @@ export default function Dashboard() {
         )}
       </section>
 
-      <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {/* 4 · Recent activity */}
-        <section className={card}>
+        <section className={cn("min-w-0", card)}>
           <div className="flex items-baseline justify-between gap-3 px-5 pt-4 pb-2">
             <h3 className="text-[15px] font-semibold text-mm-dark">Recent activity</h3>
             {asOf ? <span className="text-[12px] text-muted-foreground">as of {when(asOf.toISOString())}</span> : null}
@@ -363,7 +363,7 @@ function Snapshot({ id, rows, total, onOpen }: { id: string; rows: Row[]; total?
             {arch(multi.batch.architecture).label} <Rate r={multi} /> against the single agent&rsquo;s <Rate r={single} />
             {sameModel(multi, single) ? ", same model" : ", a different model"}: <Delta a={multi.rate} b={single.rate} /> at{" "}
             {usd(multi.batch.summary.cost_per_pass_usd)} vs {usd(single.batch.summary.cost_per_pass_usd)} per correct answer
-            {ratio && ratio > 1.15 ? `, ${ratio.toFixed(1)}× the cost` : ratio && ratio < 0.87 ? `, ${(1 / ratio).toFixed(1)}× cheaper` : ""}.
+            {ratio ? ratio >= 1 ? `, ${ratio.toFixed(1)}× the cost` : `, ${Math.round((1 - ratio) * 100)}% cheaper` : ""}.
           </p>
           <p className="mt-2 text-[12px] text-muted-foreground">
             {overlap(multi, single) ? "The intervals overlap: not a settled difference at this n." : "The intervals do not overlap."}
@@ -419,7 +419,7 @@ function ConfigRow({ row, best, baseline, delta, selected, onOpen }: { row: Row;
       >
         <span className="flex min-w-0 items-center gap-2">
           <span className="min-w-0">
-            <span className={cn("block truncate text-[15px] font-medium", row.eligible ? "text-mm-dark" : "text-muted-foreground")}>{b.configuration_name}</span>
+            <span className={cn("line-clamp-2 text-[15px] font-medium leading-tight", row.eligible ? "text-mm-dark" : "text-muted-foreground")}>{b.configuration_name}</span>
             <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
               <ArchBadge id={b.architecture} />
               {baseline ? <span className={cn(pill, "border border-border")}>baseline</span> : null}
@@ -489,8 +489,14 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
   const configs = [...new Map(board.map((r) => [r.batch.configuration_id, r.batch.configuration_name])).entries()]
   const cell = (cid: string, bid: string) => board.find((r) => r.batch.configuration_id === cid && r.batch.benchmark_id === bid)
   return (
-    <section className={card}>
-      <h3 className="px-5 pt-4 pb-2 text-[15px] font-semibold text-mm-dark">Research coverage</h3>
+    <section className={cn("min-w-0", card)}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-5 pt-4 pb-2">
+        <h3 className="text-[15px] font-semibold text-mm-dark">Research coverage</h3>
+        <span className="text-[12px] text-muted-foreground">
+          {running.length ? `${running.length} ${running.length === 1 ? "batch" : "batches"} running · ` : ""}
+          {health?.spend ? `${usd(health.spend.remaining_budget_usd)} of today's ${usd(health.spend.daily_budget_usd)} budget left` : loaded ? "budget unknown" : "…"}
+        </span>
+      </div>
       {configs.length ? (
         <div className="overflow-x-auto border-t border-border">
         <table className="w-full text-[12px] whitespace-nowrap">
@@ -536,10 +542,6 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
       ) : (
         <p className="px-5 pb-4 text-[12px] text-muted-foreground">{loaded ? "Nothing has run yet." : "Loading…"}</p>
       )}
-      <p className="border-t border-border px-5 py-3 text-[12px] text-muted-foreground">
-        {running.length ? `${running.length} ${running.length === 1 ? "batch" : "batches"} running now · ` : ""}
-        {health?.spend ? `${usd(health.spend.remaining_budget_usd)} of today's ${usd(health.spend.daily_budget_usd)} budget left` : loaded ? "budget unknown" : "…"}
-      </p>
     </section>
   )
 }
@@ -587,12 +589,12 @@ function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row 
           animate={{ x: 0 }}
           exit={{ x: 440 }}
           transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
-          aria-label={`${b.configuration_name} on ${benchmarkName(b.benchmark_id)}`}
-          className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,440px)] flex-col overflow-y-auto border-l border-border bg-card shadow-[-8px_0_24px_rgba(0,23,53,0.08)]"
+          aria-labelledby="overview-panel-title"
+          role="complementary" className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,380px)] flex-col xl:w-[440px] overflow-y-auto border-l border-border bg-card shadow-[-8px_0_24px_rgba(0,23,53,0.08)]"
         >
           <div className="flex items-start justify-between gap-3 px-6 pt-5">
             <div className="min-w-0">
-              <h3 ref={heading} tabIndex={-1} className="truncate text-[15px] font-semibold text-mm-dark outline-none">{b.configuration_name}</h3>
+              <h3 ref={heading} id="overview-panel-title" tabIndex={-1} className="truncate text-[15px] font-semibold text-mm-dark outline-none">{b.configuration_name}</h3>
               <p className="mt-0.5 text-[12px] text-muted-foreground">
                 {arch(b.architecture).label} · {b.models.join(", ") || b.mode} · {benchmarkName(b.benchmark_id)}, {b.size} {taskNoun(b.benchmark_id, b.size)}
                 {passes > 1 ? ` × ${passes} passes` : ""} · {when(b.created_at)}
@@ -609,7 +611,7 @@ function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row 
             </p>
             <p className="mt-1 text-[12px] text-muted-foreground">
               {s.passed} of {row.graded} {passes > 1 ? `answers (${row.n} ${taskNoun(b.benchmark_id, row.n)} × ${passes} passes)` : taskNoun(b.benchmark_id, row.graded)} passed; 95% interval on {row.n} {taskNoun(b.benchmark_id, row.n)}
-              {baseline && baseline !== row && row.eligible && sameModel(row, baseline) ? <>, <Delta a={row.rate} b={baseline.rate} /> against the single-agent baseline</> : baseline === row ? ", the single-agent baseline" : baseline && baseline !== row && row.eligible ? ", no same-model baseline to compare against" : ""}
+              {baseline && baseline !== row && row.eligible && sameModel(row, baseline) && row.n === baseline.n ? <>, <Delta a={row.rate} b={baseline.rate} /> against the single-agent baseline</> : baseline === row ? ", the single-agent baseline" : baseline && baseline !== row && row.eligible ? (sameModel(row, baseline) ? ", a different task sample from the baseline, so no delta" : ", no same-model baseline to compare against") : ""}
               {!row.eligible ? ` · partial: ${partialWhy(row)}, not ranked` : ""}
             </p>
           </div>
@@ -683,7 +685,7 @@ function Consistency({ always, any, passes }: { always: number; any: number; pas
   )
   return (
     <div className="px-6 pt-5">
-      <p className="mb-1.5 text-[12px] text-muted-foreground">Consistency over {passes} passes</p>
+      <p className="mb-1.5 text-[12px] text-muted-foreground" title="A task flipped if it passed in at least one pass but not in all of them">Consistency over {passes} passes</p>
       <div className="flex h-[12px] w-full overflow-hidden rounded-[2px] bg-muted">
         {seg(always, "bg-mm-green", "Right every pass")}
         {seg(flipped, "bg-mm-yellow", "Flipped between passes")}
