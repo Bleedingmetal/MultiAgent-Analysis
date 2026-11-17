@@ -561,8 +561,31 @@ class ParsedQuantity:
     yes_no: str | None = None
 
 
+_HEDGE_RE = re.compile(r"^(?:approximately|approx\.?|about|around|roughly|nearly|~|≈)\s*", re.IGNORECASE)
+# "(in thousands)", "(thousands)", "(in $ millions)": a unit written in brackets after the number
+_BRACKET_UNIT_RE = re.compile(
+    r"\s*\(\s*(?:in\s+)?(?:\$\s*|usd\s+)?(thousands?|millions?|billions?)(?:\s+of\s+dollars)?\s*\)\s*$",
+    re.IGNORECASE,
+)
+# digits grouped with spaces or thin spaces: "338 928" or "1 016 784"
+_SPACED_DIGITS_RE = re.compile(r"(?<![\d.])(\d{1,3})((?:[   ]\d{3})+)(?![\d])")
+
+
+def _tidy_span(span: str) -> str:
+    """Normalise how a number is written, without changing which number it is."""
+    s = span.strip()
+    s = _HEDGE_RE.sub("", s)
+    s = _BRACKET_UNIT_RE.sub(lambda m: " " + m.group(1), s)
+    # A note in brackets after the number ("$338,928 thousand (≈ $338.9 million)") is
+    # dropped, unless the whole answer is bracketed, which is an accounting negative.
+    if not (s.startswith("(") and s.endswith(")")):
+        s = re.sub(r"\s*\([^()]*\)\s*$", "", s)
+    s = _SPACED_DIGITS_RE.sub(lambda m: m.group(1) + re.sub(r"[   ]", "", m.group(2)), s)
+    return s
+
+
 def parse_final_quantity(span: str) -> ParsedQuantity | None:
-    s = span.strip().lower()
+    s = _tidy_span(span).lower()
     s = s.replace("−", "-").replace("–", "-")
     s = s.replace(",", "")
     s = re.sub(r"\s+", " ", s)

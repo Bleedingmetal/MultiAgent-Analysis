@@ -196,6 +196,29 @@ class FinQATaskTests(unittest.TestCase):
         self.assertTrue(score_answer("105.0", "Final answer: 105%", expected_is_percent=False))
         self.assertTrue(score_answer("6.76", "6.76%", expected_is_percent=False))
 
+    def test_number_formatting_does_not_change_the_score(self) -> None:
+        # FinQA EOG/2018/page_75.pdf-1: gold 338928 (thousands)
+        gold = "338928.0"
+        for said in [
+            "338,928 thousand",
+            "338928 thousand",
+            "338,928 (thousand)",
+            "338,928 (in thousands)",
+            "$338,928 (thousands)",
+            "$338,928 (in $ thousands)",
+            "338 928 thousand",
+            "approximately $338,928 thousand",
+            "$338,928 thousand (≈ $338.9 million)",
+        ]:
+            with self.subTest(said=said):
+                self.assertTrue(score_answer(gold, f"Final answer: {said}", expected_is_percent=False))
+
+    def test_formatting_tidy_does_not_rescue_wrong_answers(self) -> None:
+        self.assertFalse(score_answer("338928.0", "Final answer: $412,000 thousand", expected_is_percent=False))
+        self.assertFalse(score_answer("338928.0", "Final answer: 338,928 potatoes", expected_is_percent=False))
+        self.assertTrue(score_answer("-100", "(100.9)"))
+        self.assertFalse(score_answer("100", "(100.9)"))
+
     def test_percent_form_still_needs_the_right_number(self) -> None:
         self.assertFalse(score_answer("0.15413", "Final answer: 18.2%", expected_is_percent=False))
         self.assertFalse(score_answer("105.0", "Final answer: 1.2%", expected_is_percent=False))
