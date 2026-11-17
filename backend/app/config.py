@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
 
 
+
+# Prompt cap floor: see max_prompt_chars below.
+MIN_PROMPT_CHARS = 12000
+
 def key_configured(key: str) -> bool:
     """True when a real key is set (not empty / not the .env.example placeholder)."""
     return bool(key) and "your-key" not in key
@@ -42,7 +46,9 @@ def settings() -> dict:
         ),
         # safety rails (cheap MVP defaults)
         "max_completion_tokens": int(os.getenv("MAX_COMPLETION_TOKENS", "600")),
-        "max_prompt_chars": int(os.getenv("MAX_PROMPT_CHARS", "6000")),
+        # The longest FinQA filing context is about 9,000 characters; below 12,000 the
+        # evidence a question needs gets cut out of the prompt, so lower values are raised.
+        "max_prompt_chars": max(MIN_PROMPT_CHARS, int(os.getenv("MAX_PROMPT_CHARS", str(MIN_PROMPT_CHARS)))),
         # System prompts are rendered from role templates in prompt chains.
         "max_system_chars": int(os.getenv("MAX_SYSTEM_CHARS", "3000")),
         "max_chain_steps": int(os.getenv("MAX_CHAIN_STEPS", "6")),

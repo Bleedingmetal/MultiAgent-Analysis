@@ -153,9 +153,11 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
         shown = [expected_display or ""] + [a for a in alternate_answers if a != expected_display]
         expected_display = " or ".join(x for x in shown if x)
 
-    pre = _truncate_middle(pre_join, 1400)
-    post = _truncate_middle(" ".join(item.get("post_text") or []), 1400)
-    table = _truncate_middle(_table_to_text(item.get("table") or []), 2500)
+    # The filing is sent whole. Cutting the middle of long passages removed the very
+    # sentence some questions depend on (IP/2006/page_30.pdf-2 lost its $465 million).
+    pre = pre_join
+    post = " ".join(item.get("post_text") or [])
+    table = _table_to_text(item.get("table") or [])
     context = (
         f"Pre-text:\n{pre}\n\nTable:\n{table}\n\nPost-text:\n{post}"
     ).strip()
