@@ -196,6 +196,15 @@ class FinQATaskTests(unittest.TestCase):
         self.assertTrue(score_answer("105.0", "Final answer: 105%", expected_is_percent=False))
         self.assertTrue(score_answer("6.76", "6.76%", expected_is_percent=False))
 
+    def test_task_search_covers_the_whole_benchmark(self) -> None:
+        from app.datasets.registry import search_tasks
+
+        # IP/2006/page_30.pdf-2 is past the first 30 tasks the picker lists
+        self.assertIn("IP/2006/page_30.pdf-2", [t.id for t in search_tasks("finqa", "brazilian paper")])
+        # a small misspelling still finds it
+        self.assertIn("IP/2006/page_30.pdf-2", [t.id for t in search_tasks("finqa", "brazillian")])
+        self.assertEqual(search_tasks("finqa", "zzzz nothing"), [])
+
     def test_number_formatting_does_not_change_the_score(self) -> None:
         # FinQA EOG/2018/page_75.pdf-1: gold 338928 (thousands)
         gold = "338928.0"

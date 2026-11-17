@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { CaretDown, MagnifyingGlass, Play, Sparkle } from "@phosphor-icons/react"
 
 import {
@@ -135,17 +135,45 @@ export function ConfigRunPanel({
     }
   }, [benchmarkId])
 
+  // Typing searches every task in the benchmark on the server, not just the 30 listed.
+  const [results, setResults] = useState<typeof tasks | null>(null)
+  const [searching, setSearching] = useState(false)
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) {
+      setResults(null)
+      setSearching(false)
+      return
+    }
+    let cancelled = false
+    setSearching(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await getDatasetTasks(benchmarkId, 50, q)
+        if (cancelled) return
+        setResults(
+          res.tasks.map((t) => ({
+            id: t.id,
+            question: t.question,
+            expected_answer: t.expected_answer,
+            expected_display: t.expected_display,
+          })),
+        )
+      } catch {
+        if (!cancelled) setResults([])
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, 250)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [query, benchmarkId])
+
   const selected = tasks.find((t) => t.id === taskId)
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return tasks
-    return tasks.filter(
-      (t) =>
-        t.question.toLowerCase().includes(q) ||
-        (t.expected_answer ?? "").toLowerCase().includes(q),
-    )
-  }, [tasks, query])
+  const filtered = query.trim() ? results ?? [] : tasks
 
   async function run(mode: RunMode) {
     setBusy(mode)
@@ -334,7 +362,7 @@ export function ConfigRunPanel({
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Filter tasks"
+                    placeholder="Search all tasks"
                     className="h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
                     autoFocus
                   />
@@ -342,7 +370,7 @@ export function ConfigRunPanel({
                 <ul className="max-h-[320px] overflow-y-auto p-1.5">
                   {filtered.length === 0 ? (
                     <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-                      No matches
+                      {searching ? "Searching all tasks…" : "No matches"}
                     </li>
                   ) : (
                     filtered.map((task) => {
@@ -352,6 +380,8 @@ export function ConfigRunPanel({
                           <button
                             type="button"
                             onClick={() => {
+                              // a search result may not be among the first 30: keep it in the list
+                              setTasks((prev) => (prev.some((t) => t.id === task.id) ? prev : [task, ...prev]))
                               setTaskId(task.id)
                               setPickerOpen(false)
                               setQuery("")

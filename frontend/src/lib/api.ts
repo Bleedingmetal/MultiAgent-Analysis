@@ -268,9 +268,11 @@ export function getDatasets() {
   return api<{ benchmarks: BenchmarkInfo[] }>("/api/datasets")
 }
 
-export function getDatasetTasks(benchmarkId: BenchmarkId, limit = 20) {
+/** The first `limit` tasks, or with `query`, matching tasks from the whole benchmark. */
+export function getDatasetTasks(benchmarkId: BenchmarkId, limit = 20, query?: string) {
+  const q = query?.trim() ? `&q=${encodeURIComponent(query.trim())}` : ""
   return api<{ benchmark_id: string; tasks: DatasetTask[] }>(
-    `/api/datasets/${benchmarkId}/tasks?limit=${limit}`,
+    `/api/datasets/${benchmarkId}/tasks?limit=${limit}${q}`,
   )
 }
 

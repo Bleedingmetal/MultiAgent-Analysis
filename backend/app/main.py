@@ -71,9 +71,14 @@ async def get_datasets():
 
 
 @app.get("/api/datasets/{benchmark_id}/tasks")
-async def get_tasks(benchmark_id: str, limit: int = 20):
+async def get_tasks(benchmark_id: str, limit: int = 20, q: str | None = None):
     try:
-        tasks = registry.list_tasks(benchmark_id, limit=limit)
+        # With q, search the whole benchmark; without it, the first `limit` tasks.
+        tasks = (
+            registry.search_tasks(benchmark_id, q, limit=limit)
+            if q and q.strip()
+            else registry.list_tasks(benchmark_id, limit=limit)
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {

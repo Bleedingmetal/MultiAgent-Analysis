@@ -376,6 +376,34 @@ def _all_benchmarks() -> list[dict[str, Any]]:
     return rows
 
 
+def _matches(task: Task, query: str) -> bool:
+    """Every word of the query appears in the task, allowing a small misspelling ("brazillian")."""
+    from difflib import SequenceMatcher
+
+    haystack = " ".join(
+        str(x or "") for x in (task.id, task.question, task.expected_answer, task.expected_display)
+    ).lower()
+    words = re.findall(r"[\w.%$]+", haystack)
+    for term in re.findall(r"[\w.%$]+", query.lower()):
+        if term in haystack:
+            continue
+        if len(term) >= 5 and any(
+            abs(len(w) - len(term)) <= 2 and SequenceMatcher(None, term, w).ratio() >= 0.85 for w in words
+        ):
+            continue
+        return False
+    return True
+
+
+def search_tasks(benchmark_id: str, query: str, limit: int = 50) -> list[Task]:
+    """Tasks whose id, question or answer match `query`, searched across the whole benchmark."""
+    if benchmark_id == "finqa":
+        pool = [_finqa_task(x, i) for i, x in enumerate(_load_finqa_raw())]
+    else:
+        pool = list_tasks(benchmark_id, limit=100_000)
+    return [t for t in pool if _matches(t, query)][:limit]
+
+
 def list_tasks(benchmark_id: str, limit: int = 20) -> list[Task]:
     if benchmark_id == "finqa":
         return [_finqa_task(x, i) for i, x in enumerate(_load_finqa_raw()[:limit])]
