@@ -76,6 +76,16 @@ the backend downloads any missing data every time it starts. `npm run setup` and
 `python backend/scripts/download_datasets.py --force`; one benchmark:
 `--only finqa|fab|tau2`. τ-bench v1 data ships inside its Python package.
 
+## Re-grading FinQA after a scoring fix
+
+When the FinQA checker changes, re-grade the runs you already have instead of paying
+for new ones. It re-checks each stored answer; no model is called.
+
+```
+npm run regrade:check   # show what would change
+npm run regrade         # apply it (backs up backend/data first), then restart the app
+```
+
 ## Budgets
 
 Every end-to-end run has a spend cap (default $1). Once a few results are in, the

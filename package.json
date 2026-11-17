@@ -5,6 +5,8 @@
     "dev": "node start.js",
     "start": "node start.js",
     "setup": "node start.js --setup",
-    "datasets": "node start.js --setup"
+    "datasets": "node start.js --setup",
+    "regrade": "node start.js --regrade",
+    "regrade:check": "node start.js --regrade --check"
   }
 }
