@@ -713,7 +713,14 @@ def score_answer(
             expected_number, got, percent_units=expected_in_percent_units
         )
     if expected_is_percent is False and got.is_percent:
-        return False
+        # FinQA's gold has no % sign, but a model may state the same quantity as a
+        # percent: "15.41%" for the ratio 0.15413, or "105%" for a change of 105.
+        # Accept it when either reading matches the gold within the usual tolerance;
+        # never combine a % with a scale word.
+        return got.scale == 1.0 and any(
+            _numeric_match(expected_number, candidate)
+            for candidate in (got.value / 100.0, got.value)
+        )
     return any(
         _numeric_match(expected_number, candidate)
         for candidate in _candidate_values(got)

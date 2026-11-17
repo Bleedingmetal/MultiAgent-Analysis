@@ -189,10 +189,16 @@ class FinQATaskTests(unittest.TestCase):
         )
         self.assertEqual(task.metadata["alternate_answers"], [])
 
-    def test_percentage_not_accepted_for_non_percentage_answer(self) -> None:
-        self.assertFalse(
-            score_answer("6.76", "6.76%", expected_is_percent=False)
-        )
+    def test_percent_form_accepted_when_gold_has_no_percent_sign(self) -> None:
+        # FinQA LMT/2014/page_91.pdf-4: a ratio of 0.15413 answered as 15.41%
+        self.assertTrue(score_answer("0.15413", "Final answer: 15.41%", expected_is_percent=False))
+        # FinQA VNO/2014/page_57.pdf-2: a change of 105 index points answered as 105%
+        self.assertTrue(score_answer("105.0", "Final answer: 105%", expected_is_percent=False))
+        self.assertTrue(score_answer("6.76", "6.76%", expected_is_percent=False))
+
+    def test_percent_form_still_needs_the_right_number(self) -> None:
+        self.assertFalse(score_answer("0.15413", "Final answer: 18.2%", expected_is_percent=False))
+        self.assertFalse(score_answer("105.0", "Final answer: 1.2%", expected_is_percent=False))
 
     def test_signs_and_numeric_threshold(self) -> None:
         self.assertTrue(

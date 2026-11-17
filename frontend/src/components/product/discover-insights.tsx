@@ -26,7 +26,7 @@ import type { Row } from "@/views/dashboard"
 type QuestionId = "best" | "cost" | "speed" | "consistent" | "multi"
 
 const QUESTIONS: { id: QuestionId; label: string; hint: string }[] = [
-  { id: "best", label: "Which architecture performs best?", hint: "Pass rate, with its 95% interval" },
+  { id: "best", label: "Which architecture performs best?", hint: "Pass rate, with its 95% range" },
   { id: "cost", label: "Which is most cost-efficient?", hint: "Cost per correct answer against accuracy" },
   { id: "speed", label: "Which is fastest?", hint: "Median and 95th-percentile time per task" },
   { id: "consistent", label: "How consistent are the results?", hint: "Repeated passes over the same tasks" },
@@ -76,8 +76,8 @@ export function DiscoverInsights({
   const q = QUESTIONS.find((x) => x.id === question)!
 
   return (
-    <section className="mt-10 overflow-hidden rounded-[20px] bg-card shadow-[0_1px_2px_rgba(0,23,53,0.04),0_24px_48px_-28px_rgba(0,23,53,0.22)]">
-      <div className="relative px-6 pt-5 pb-2 [background:radial-gradient(600px_160px_at_0%_0%,rgba(2,101,255,0.07),transparent_70%)]">
+    <section className="mt-4 overflow-hidden rounded-[16px] bg-card">
+      <div className="relative px-6 pt-5 pb-2">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <h3 className="min-w-0 text-[15px] font-semibold text-mm-dark">Discover insights</h3>
           {benches.length > 1 ? (
@@ -114,25 +114,25 @@ export function DiscoverInsights({
         </div>
       </div>
 
-      <div className="grid md:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
-        <ul className="flex gap-1 overflow-x-auto px-3 pb-3 md:block md:space-y-0.5 md:py-3 md:pl-3 md:pr-0" aria-label="Questions">
+      <div className="grid lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
+        <ul className="flex gap-1 overflow-x-auto px-3 pb-3 lg:block lg:space-y-0.5 lg:py-3 lg:pl-3 lg:pr-0" aria-label="Questions">
           {QUESTIONS.map((x) => {
             const on = x.id === question
             return (
-              <li key={x.id} className="shrink-0 md:shrink">
+              <li key={x.id} className="shrink-0 lg:shrink">
                 <button
                   type="button"
                   aria-pressed={on}
                   onClick={() => setQuestion(x.id)}
                   className={cn(
-                    "group relative flex w-full items-center gap-2 rounded-[12px] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
+                    "group relative flex w-full items-center gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
                     !on && "hover:bg-muted/60",
                   )}
                 >
                   {on ? (
                     <motion.span
                       layoutId="explore-question"
-                      className="absolute inset-0 rounded-[12px] bg-mm-charge/[0.08]"
+                      className="absolute inset-0 rounded-[10px] bg-muted"
                       transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 40 }}
                     />
                   ) : null}
@@ -149,7 +149,7 @@ export function DiscoverInsights({
           })}
         </ul>
 
-        <div className="min-w-0 px-6 pt-4 pb-5 md:pl-8" aria-live="polite">
+        <div className="min-w-0 px-6 pt-4 pb-5 lg:pl-8" aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={`${bench}:${question}`}
@@ -263,7 +263,7 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
         ) : (
           <>{label(top)} is the only configuration with a complete run so far.</>
         ),
-        note: "Bars are the pass rate; the bracket across each bar is its 95% interval, built on tasks.",
+        note: "Bars are the pass rate; the range beside each is its 95% interval, built on tasks.",
         chart: (
           <BarList
             c={c}
@@ -485,14 +485,6 @@ function BarList({ c, bars, footer }: { c: Ctx; bars: Bar[]; footer?: ReactNode 
                           animate={{ width: `${Math.max(1, (b.frac ?? 0) * 100)}%` }}
                           transition={{ duration: 0.5, ease: EASE, delay: i * 0.04 }}
                         />
-                        {b.range ? (
-                          <motion.span
-                            className="absolute top-[4px] h-[6px] border-x-2 border-foreground/80 bg-foreground/15"
-                            initial={c.reduce ? false : { opacity: 0 }}
-                            animate={{ opacity: 1, left: `${b.range[0] * 100}%`, width: `${(b.range[1] - b.range[0]) * 100}%` }}
-                            transition={{ duration: 0.5, ease: EASE, delay: 0.15 + i * 0.04 }}
-                          />
-                        ) : null}
                       </>
                     )}
                   </span>
@@ -596,7 +588,7 @@ function Scatter({ c, rows, frontier, cost, cheapest }: { c: Ctx; rows: Row[]; f
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.12 }}
                     className={cn(
-                      "pointer-events-none absolute bottom-[calc(100%+4px)] z-30 w-max max-w-[220px] rounded-[8px] border border-border bg-card px-2.5 py-1.5 text-left shadow-[0_8px_24px_-8px_rgba(0,23,53,0.25)]",
+                      "pointer-events-none absolute bottom-[calc(100%+4px)] z-30 w-max max-w-[220px] rounded-[10px] bg-card px-2.5 py-1.5 text-left shadow-[0_8px_24px_-8px_rgba(0,23,53,0.25)]",
                       flip ? "right-0" : "left-0",
                     )}
                   >

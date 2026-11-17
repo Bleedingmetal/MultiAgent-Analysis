@@ -133,6 +133,8 @@
     --shadow-inset: inset 0 1px 1px rgba(255, 255, 255, 0.04);
 }
 .dark .text-mm-dark { color: #e6ebf3; }
+/* the link blue lifted for 4.5:1 on the dark card */
+.dark .text-mm-charge { color: #5b9bff; }
 .dark .text-mm-blue { color: #9fc2ef; }
 .dark .bg-white { background-color: var(--card); }
 .dark .bg-\[\#f7f9fc\], .dark .hover\:bg-\[\#f7f9fc\]:hover,

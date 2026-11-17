@@ -125,12 +125,31 @@ function leaderboard(batches: BatchRun[]) {
 }
 
 /** The list's columns, shared by the header and every row. */
-const COLS = "grid w-full grid-cols-[minmax(0,1fr)_minmax(150px,38%)_56px] items-center gap-3 px-3 md:grid-cols-[minmax(170px,1fr)_minmax(200px,32%)_56px_76px_100px]"
-/** The one raised surface on the page: the exploration tool. Everything else sits on the page itself. */
-const surface = "rounded-[20px] bg-card shadow-[0_1px_2px_rgba(0,23,53,0.04),0_24px_48px_-28px_rgba(0,23,53,0.22)]"
+const COLS = "grid w-full grid-cols-[minmax(0,1fr)_minmax(150px,38%)_64px] items-center gap-3 px-3 lg:grid-cols-[minmax(170px,1fr)_minmax(200px,32%)_64px_80px_112px]"
+/** A panel: white on the page's blue-grey ground, one soft radius, no border and no shadow. Nested radii step down 16 → 10 → pill. */
+const surface = "rounded-[16px] bg-card"
+/** What floats (the popover) gets the one shadow on the page. */
+const floating = "rounded-[16px] bg-card shadow-[0_2px_8px_rgba(0,23,53,0.06),0_16px_40px_-16px_rgba(0,23,53,0.2)]"
 const btnPrimary = "inline-flex h-9 shrink-0 items-center rounded-full bg-foreground px-4 text-[12px] font-medium text-background hover:opacity-90"
 const btnQuiet = "inline-flex h-9 shrink-0 items-center rounded-full border border-border px-4 text-[12px] font-medium text-mm-dark hover:bg-muted/60"
 const pill = "rounded-full px-2 py-px text-[12px] leading-[16px] whitespace-nowrap"
+/**
+ * The headline panel never leaves an orphan: two benchmarks share a row from md, three sit in one
+ * row from lg (stacked below it), four go 2 × 2 on a tablet and four across from xl. Hairlines
+ * divide the columns only where they share one row.
+ */
+const HEADLINE_GRID: Record<number, string> = {
+  1: "",
+  2: "md:grid-cols-2 md:gap-0 md:divide-x md:divide-border/70",
+  3: "lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-border/70",
+  4: "md:grid-cols-2 xl:grid-cols-4 xl:gap-0 xl:divide-x xl:divide-border/70",
+}
+const HEADLINE_PAD: Record<number, string> = {
+  1: "",
+  2: "md:px-6 md:first:pl-0 md:last:pr-0",
+  3: "lg:px-6 lg:first:pl-0 lg:last:pr-0",
+  4: "xl:px-5 xl:first:pl-0 xl:last:pr-0",
+}
 /** A section's title, with its one-line aside, sitting directly on the page. */
 function Heading({ title, aside }: { title: string; aside?: React.ReactNode }) {
   return (
@@ -177,7 +196,7 @@ export default function Dashboard() {
   )
   const taskCount = useMemo(() => Object.fromEntries(datasets.map((d) => [d.id, d.task_count])), [datasets])
   const recent = useMemo(
-    () => [...batches].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5),
+    () => [...batches].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6),
     [batches],
   )
   const running = batches.filter((b) => b.status === "running" || b.status === "paused")
@@ -186,15 +205,9 @@ export default function Dashboard() {
   return (
     <div className={cn("mx-auto w-full max-w-[1180px] transition-[padding] duration-200", openId && "xl:pr-[440px]")}>
       {/* 1 · Introduction */}
-      <header className="flex items-start justify-between gap-6 px-6">
+      <header className="flex items-end justify-between gap-6 px-6">
         <div className="min-w-0 max-w-[76ch]">
           <h2 className="text-[24px] font-semibold tracking-[-0.01em] text-mm-dark">Agent Evaluation</h2>
-          <p className="mt-2 text-[17px] leading-snug text-mm-dark">
-            Does a multi-agent architecture beat a single agent on finance tasks, and at what price?
-            {benches.length ? (
-              <> Judged on {benches.map(benchmarkName).join(" and ")} by pass rate and cost per correct answer.</>
-            ) : null}
-          </p>
           <HowThisWorks benches={benches} />
           {error ? <p className="mt-1.5 text-[12px] text-[#b34800]">{error}</p> : null}
         </div>
@@ -203,9 +216,19 @@ export default function Dashboard() {
 
       {/* 2 · Research snapshot: one card per benchmark */}
       {benches.length ? (
-        <div className={cn("mt-10 grid gap-8 px-6", benches.length > 1 && "md:grid-cols-2 md:gap-0 md:divide-x md:divide-border/70")}>
+        <div
+          className={cn("mt-6 grid gap-8 p-6", surface, HEADLINE_GRID[Math.min(benches.length, 4)])}
+        >
           {benches.map((id) => (
-            <Snapshot key={id} id={id} rows={board.filter((r) => r.batch.benchmark_id === id)} total={taskCount[id]} onOpen={setOpenId} />
+            <Snapshot
+              key={id}
+              id={id}
+              rows={board.filter((r) => r.batch.benchmark_id === id)}
+              total={taskCount[id]}
+              onOpen={setOpenId}
+              layout={benches.length === 1 ? "solo" : benches.length === 2 ? "pair" : "compact"}
+              rowPad={HEADLINE_PAD[Math.min(benches.length, 4)]}
+            />
           ))}
         </div>
       ) : null}
@@ -221,7 +244,7 @@ export default function Dashboard() {
       {/* (shown even before any run exists; each question then explains what it needs) */}
 
       {/* 3 · Configurations compared */}
-      <section className="mt-12 px-6">
+      <section className={cn("mt-4 px-6 pt-5 pb-4", surface)}>
         <Heading title="Configurations compared" aside="latest complete run of each; partial runs listed last, never ranked" />
         {board.length ? (
           benches.map((id) => {
@@ -229,15 +252,15 @@ export default function Dashboard() {
             const best = group.find((r) => r.eligible)
             const baseline = group.find((r) => r.eligible && r.batch.architecture === "single-agent")
             return (
-              <div key={id} className="-mx-3 mt-4 [&+&]:mt-8">
+              <div key={id} className="-mx-3 mt-4 [&+&]:mt-7">
                 <div className={cn(COLS, "items-baseline border-l-2 border-transparent pb-2 text-[12px] text-muted-foreground")}>
                   <span className="font-medium text-mm-dark">{benchmarkName(id)}</span>
-                  <span>Pass rate · 95% interval</span>
+                  <span>Pass rate · 95% range</span>
                   <span className="text-right">n</span>
-                  <span className="hidden text-right md:block">$ / correct</span>
-                  <span className="hidden text-right md:block">Time p50–p95</span>
+                  <span className="hidden text-right lg:block">$ / correct</span>
+                  <span className="hidden text-right lg:block">Time p50–p95</span>
                 </div>
-                <ul className="border-t border-border/70">
+                <ul className="border-t border-border/70 [&>li:last-child>button]:border-b-0">
                   {group.map((r) => (
                     <ConfigRow
                       key={r.batch.id}
@@ -260,12 +283,12 @@ export default function Dashboard() {
         )}
       </section>
 
-      <div className="mt-12 grid grid-cols-[minmax(0,1fr)] items-start gap-12 px-6">
+      <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
         {/* 4 · Recent activity */}
-        <section className="min-w-0">
+        <section className={cn("flex min-w-0 flex-col px-6 pt-5 pb-4", surface)}>
           <Heading title="Recent activity" aside={asOf ? `as of ${when(asOf.toISOString())}` : undefined} />
           {recent.length ? (
-            <ul className="-mx-3 mt-3 max-w-[720px] divide-y divide-border/60 border-t border-border/70">
+            <ul className="-mx-3 mt-3 divide-y divide-border/60 border-t border-border/70">
               {recent.map((b) => (
                 <li key={b.id}>
                   <Link href={`/runs/e2e/${b.id}`} className="flex h-11 items-center gap-3 rounded-[10px] px-3 text-[12px] hover:bg-muted/50">
@@ -276,7 +299,7 @@ export default function Dashboard() {
                     <span className="font-data text-mm-dark">
                       {b.status === "running" || b.status === "paused" ? `${b.summary.done}/${b.summary.total}` : pct(b.summary.pass_rate, 1)}
                     </span>
-                    <span className="w-[7rem] shrink-0 whitespace-nowrap text-right font-data text-muted-foreground">{when(b.created_at)}</span>
+                    <span className="hidden w-[6.5rem] shrink-0 whitespace-nowrap text-right font-data text-muted-foreground sm:block">{when(b.created_at)}</span>
                   </Link>
                 </li>
               ))}
@@ -284,7 +307,7 @@ export default function Dashboard() {
           ) : (
             <p className="mt-3 text-[12px] text-muted-foreground">{loaded ? "No runs yet." : "Loading…"}</p>
           )}
-          <Link href="/runs" className="mt-3 inline-block text-[12px] font-medium text-mm-charge hover:underline">All runs</Link>
+          <Link href="/runs" className="mt-auto inline-block pt-3 text-[12px] font-medium text-mm-charge hover:underline">All runs</Link>
         </section>
 
         {/* 5 · Research coverage */}
@@ -322,7 +345,7 @@ function HowThisWorks({ benches }: { benches: string[] }) {
         {open ? "Hide how this works" : "How this works"}
       </button>
       {open ? (
-        <div className={cn("absolute left-0 top-7 z-20 max-h-[70vh] w-[min(92vw,520px)] overflow-y-auto p-5", surface)}>
+        <div className={cn("absolute left-0 top-7 z-20 max-h-[70vh] w-[min(92vw,520px)] overflow-y-auto p-6", floating)}>
           <dl className="space-y-3 text-[12px] leading-snug">
             {(benches.length ? benches : ["finqa", "tau2-retail"]).map((id) => (
               <div key={id}>
@@ -354,7 +377,12 @@ function HowThisWorks({ benches }: { benches: string[] }) {
 }
 
 /** Best multi-agent against best single agent on one benchmark, with n and the interval. */
-function Snapshot({ id, rows, total, onOpen }: { id: string; rows: Row[]; total?: number; onOpen: (id: string) => void }) {
+/**
+ * One benchmark's headline. The panel always keeps one row, and each count of benchmarks
+ * has its own composition: one is a wide strip (figure left, sentence right), two are
+ * half-width columns, three or four are compact columns with the sentence cut to its core.
+ */
+function Snapshot({ id, rows, total, onOpen, layout, rowPad }: { id: string; rows: Row[]; total?: number; onOpen: (id: string) => void; layout: "solo" | "pair" | "compact"; rowPad: string }) {
   const eligible = rows.filter((r) => r.eligible)
   const singles = eligible.filter((r) => r.batch.architecture === "single-agent")
   const multis = eligible.filter((r) => r.batch.architecture !== "single-agent")
@@ -367,48 +395,66 @@ function Snapshot({ id, rows, total, onOpen }: { id: string; rows: Row[]; total?
     ? multi.batch.summary.cost_per_pass_usd / single.batch.summary.cost_per_pass_usd
     : null
   const figure = multi ?? lead
-  return (
-    <section className={cn("min-w-0", "md:first:pr-8 md:last:pl-8")}>
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-[15px] font-semibold text-mm-dark">{benchmarkName(id)}</h3>
-        <span className="text-[12px] text-muted-foreground">
-          {lead ? `${lead.n} of ${total?.toLocaleString() ?? "?"} ${noun}${lead.passes > 1 ? `, ${lead.passes} passes` : ""}` : `${rows.length} partial ${rows.length === 1 ? "run" : "runs"}`}
-        </span>
-      </div>
-      {figure ? (
-        <p className="mt-3 flex items-baseline gap-3 font-data text-mm-dark">
-          <span className="text-[40px] leading-none tracking-[-0.02em]">{pct(figure.rate, 1)}</span>
-          <span className="text-[12px] text-muted-foreground">
-            {arch(figure.batch.architecture).label} · {bounds(figure)}
-            {single && multi ? <> · single agent {pct(single.rate, 1)}</> : null}
-          </span>
-        </p>
-      ) : null}
-      {single && multi ? (
-        <>
-          <p className="mt-3 text-[15px] leading-snug text-mm-dark tabular-nums">
-            <Delta a={multi.rate} b={single.rate} /> over the single agent&rsquo;s <Rate r={single} />
-            {sameModel(multi, single) ? ", same model" : ", a different model"}, at{" "}
-            {usd(multi.batch.summary.cost_per_pass_usd)} vs {usd(single.batch.summary.cost_per_pass_usd)} per correct answer
-            {ratio ? ratio >= 1 ? `, ${ratio.toFixed(1)}× the cost` : `, ${Math.round((1 - ratio) * 100)}% cheaper` : ""}.
-          </p>
-          <p className="mt-2 text-[12px] text-muted-foreground">
-            {overlap(multi, single) ? "The intervals overlap: not a settled difference at this n." : "The intervals do not overlap."}
-            {multis.length > 1 ? ` Best of ${multis.length} multi-agent configurations, latest complete run of each.` : " Latest complete run of each."}
-          </p>
-        </>
-      ) : lead ? (
-        <p className="mt-3 text-[15px] leading-snug text-mm-dark tabular-nums">
-          {lead.batch.configuration_name} at {usd(lead.batch.summary.cost_per_pass_usd)} per correct answer. No {single ? "multi-agent" : "single-agent"} run to compare against yet.
-        </p>
+  const compact = layout === "compact"
+  const count = lead ? `${lead.n} of ${total?.toLocaleString() ?? "?"} ${noun}${lead.passes > 1 ? ` × ${lead.passes}` : ""}` : `${rows.length} partial ${rows.length === 1 ? "run" : "runs"}`
+  const cost = ratio ? (ratio >= 1 ? `${ratio.toFixed(1)}× the cost` : `${Math.round((1 - ratio) * 100)}% cheaper`) : null
+
+  const sentence =
+    single && multi ? (
+      compact ? (
+        <><span className="whitespace-nowrap">{((multi.rate - single.rate) * 100 > 0 ? "+" : "") + ((multi.rate - single.rate) * 100).toFixed(1)} pts vs single</span>{cost ? <> · <span className="whitespace-nowrap">{cost}</span></> : null}</>
       ) : (
-        <p className="mt-3 text-[15px] leading-snug text-mm-dark">No complete run of at least {MIN_N} {noun} yet.</p>
-      )}
-      {lead ? (
-        <button type="button" onClick={() => onOpen((multi ?? lead).batch.id)} className="mt-3 text-[12px] font-medium text-mm-charge hover:underline">
-          Numbers
-        </button>
-      ) : null}
+        <><Delta a={multi.rate} b={single.rate} /> over the single agent{ratio ? (ratio >= 1 ? `, at ${cost} per correct answer` : `, ${cost} per correct answer`) : ""}.</>
+      )
+    ) : lead ? (
+      <>{usd(lead.batch.summary.cost_per_pass_usd)} per correct answer{compact ? "" : `. No ${single ? "multi-agent" : "single-agent"} run to compare against yet.`}</>
+    ) : (
+      <>No complete run yet.</>
+    )
+  const note = single && multi ? (overlap(multi, single) ? (compact ? "within noise" : "Not a settled difference at this n.") : (compact ? "clear gap" : "A clear difference at this n.")) : null
+
+  const header = (
+    <div className={cn("flex gap-x-3", compact ? "flex-col gap-y-0.5" : "items-baseline justify-between")}>
+      <h3 className="text-[15px] font-semibold text-mm-dark">{benchmarkName(id)}</h3>
+      <span className="text-[12px] text-muted-foreground">{count}</span>
+    </div>
+  )
+  const big = figure ? (
+    <p className="font-data text-mm-dark">
+      <span className={cn("leading-none tracking-[-0.02em]", compact ? "text-[28px]" : "text-[32px]")}>{pct(figure.rate, 1)}</span>
+      <span className={cn("text-[13px] text-muted-foreground", compact ? "mt-1 block font-sans" : "ml-2")}>{arch(figure.batch.architecture).label}</span>
+    </p>
+  ) : null
+  const numbers = lead ? (
+    <button type="button" onClick={() => onOpen((multi ?? lead).batch.id)} className="text-[12px] font-medium text-mm-charge hover:underline">
+      See more
+    </button>
+  ) : null
+
+  if (layout === "solo") {
+    // one benchmark: a wide strip, the figure on the left and its reading beside it
+    return (
+      <section className="grid min-w-0 items-center gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="min-w-0">
+          {header}
+          <div className="mt-3">{big}</div>
+        </div>
+        <div className="min-w-0 md:border-l md:border-border/70 md:pl-6">
+          <p className="text-[15px] leading-snug text-mm-dark tabular-nums">{sentence}</p>
+          {note ? <p className="mt-1.5 text-[12px] text-muted-foreground">{note}</p> : null}
+          <div className="mt-3">{numbers}</div>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className={cn("flex min-w-0 flex-col", rowPad)}>
+      {header}
+      <div className="mt-3">{big}</div>
+      <p className={cn("mt-3 leading-snug text-mm-dark tabular-nums", compact ? "text-[13px]" : "text-[15px]")}>{sentence}</p>
+      {note ? <p className="mt-1.5 text-[12px] text-muted-foreground">{note}</p> : null}
+      <div className="mt-auto pt-3">{numbers}</div>
     </section>
   )
 }
@@ -439,7 +485,7 @@ function ConfigRow({ row, best, baseline, delta, selected, onOpen }: { row: Row;
         aria-label={`${b.configuration_name}, ${arch(b.architecture).label}: ${pct(row.rate, 1)} of ${nLabel(row)}, interval ${bounds(row)}${row.eligible ? "" : ", partial"}`}
         className={cn(
           COLS,
-          "group border-l-2 border-b border-b-border/60 py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mm-charge/50",
+          "group rounded-[10px] border-l-2 border-b border-b-border/60 py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mm-charge/50",
           selected ? "border-l-mm-charge bg-muted/40" : "border-l-transparent",
         )}
       >
@@ -456,9 +502,9 @@ function ConfigRow({ row, best, baseline, delta, selected, onOpen }: { row: Row;
           <CaretRight className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" weight="bold" />
         </span>
         <Bar row={row} best={best} delta={delta} />
-        <span className="text-right font-data text-[12px] text-muted-foreground">{nLabel(row)}</span>
-        <span className="hidden text-right font-data text-[12px] text-mm-dark md:block">{usd(s.cost_per_pass_usd)}</span>
-        <span className="hidden text-right font-data text-[12px] text-mm-dark md:block">
+        <span className="text-right font-data text-[13px] text-muted-foreground">{nLabel(row)}</span>
+        <span className="hidden text-right font-data text-[13px] text-mm-dark lg:block">{usd(s.cost_per_pass_usd)}</span>
+        <span className="hidden text-right font-data text-[13px] text-mm-dark lg:block">
           {secs(s.p50_latency_sec)}<span className="text-muted-foreground">–{secs(s.p95_latency_sec)}</span>
         </span>
       </button>
@@ -473,7 +519,7 @@ function partialWhy(row: Row) {
   return `under ${MIN_N} tasks`
 }
 
-/** The pass rate as a bar, its 95% interval drawn as a bracket across it and printed beside it. */
+/** The pass rate as a bar; its 95% interval is printed beside it, under the rate. */
 function Bar({ row, best, delta }: { row: Row; best: boolean; delta: number | null }) {
   const title = `${pct(row.rate, 1)} of ${nLabel(row)}, 95% interval ${bounds(row)}${delta != null ? `; ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)} points against the baseline` : ""}`
   return (
@@ -483,12 +529,8 @@ function Bar({ row, best, delta }: { row: Row; best: boolean; delta: number | nu
           className={cn("block h-full rounded-r-[2px]", best ? "bg-mm-charge" : row.eligible ? "bg-muted-foreground/45" : "bg-muted-foreground/20")}
           style={{ width: `${Math.max(1, row.rate * 100)}%` }}
         />
-        <span
-          className="absolute top-[3px] h-[6px] border-x-2 border-foreground/80 bg-foreground/15"
-          style={{ left: `${row.low * 100}%`, width: `${Math.max(0, (row.high - row.low) * 100)}%` }}
-        />
       </span>
-      <span className={cn("w-[5.5rem] text-right font-data text-[12px] leading-tight", row.eligible ? "text-mm-dark" : "text-muted-foreground")}>
+      <span className={cn("w-[5.5rem] text-right font-data text-[13px] leading-tight", row.eligible ? "text-mm-dark" : "text-muted-foreground")}>
         {pct(row.rate, 1)}
         <span className="block text-muted-foreground">{bounds(row)}</span>
       </span>
@@ -515,7 +557,7 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
   const configs = [...new Map(board.map((r) => [r.batch.configuration_id, r.batch.configuration_name])).entries()]
   const cell = (cid: string, bid: string) => board.find((r) => r.batch.configuration_id === cid && r.batch.benchmark_id === bid)
   return (
-    <section className="min-w-0">
+    <section className={cn("flex min-w-0 flex-col px-6 pt-5 pb-4", surface)}>
       <Heading
         title="Research coverage"
         aside={
@@ -535,7 +577,7 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
                 const d = datasets.find((x) => x.id === id)
                 const ran = Math.max(0, ...board.filter((r) => r.eligible && r.batch.benchmark_id === id).map((r) => r.n))
                 return (
-                  <th key={id} className="px-3 py-2 text-right font-normal">
+                  <th key={id} className="py-2 pl-3 text-right font-normal">
                     {benchmarkName(id)}
                     <span className="block font-data">{d ? `${ran} of ${d.task_count.toLocaleString()}` : ""}</span>
                   </th>
@@ -551,10 +593,15 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
                   const r = cell(cid, bid)
                   const scored = datasets.find((x) => x.id === bid)?.scored ?? true
                   return (
-                    <td key={bid} className="px-3 py-2 text-right font-data">
+                    <td key={bid} className="py-1.5 pl-3 text-right font-data">
                       {r ? (
-                        <button type="button" onClick={() => onOpen(r.batch.id)} className={cn("hover:underline", r.eligible ? "text-mm-dark" : "text-muted-foreground")}>
-                          {pct(r.rate, 1)} <span className="text-muted-foreground">· {nLabel(r)}{r.eligible ? "" : " partial"}</span>
+                        <button
+                          type="button"
+                          onClick={() => onOpen(r.batch.id)}
+                          title={`${pct(r.rate, 1)} of ${nLabel(r)}${r.eligible ? "" : ", partial"}`}
+                          className={cn("rounded-[6px] px-1.5 py-0.5 hover:bg-muted/60", r.eligible ? "text-mm-dark" : "text-muted-foreground")}
+                        >
+                          {pct(r.rate, 1)}{r.eligible ? "" : <span className="text-muted-foreground"> partial</span>}
                         </button>
                       ) : (
                         <span className="text-muted-foreground/70">{scored ? "not run" : "not auto-scored"}</span>
@@ -570,6 +617,9 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
       ) : (
         <p className="mt-3 text-[12px] text-muted-foreground">{loaded ? "Nothing has run yet." : "Loading…"}</p>
       )}
+      <p className="mt-auto pt-3 text-[12px] text-muted-foreground">
+        Each cell is the latest complete run's pass rate on that benchmark; select one to open its run.
+      </p>
     </section>
   )
 }
@@ -618,7 +668,7 @@ function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row 
           exit={{ x: 440 }}
           transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
           aria-labelledby="overview-panel-title"
-          role="complementary" className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,380px)] flex-col xl:w-[440px] overflow-y-auto rounded-l-[20px] bg-card shadow-[-12px_0_40px_rgba(0,23,53,0.10)]"
+          role="complementary" className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,380px)] flex-col xl:w-[440px] overflow-y-auto rounded-l-[16px] bg-card shadow-[-8px_0_32px_rgba(0,23,53,0.10)]"
         >
           <div className="flex items-start justify-between gap-3 px-6 pt-5">
             <div className="min-w-0">

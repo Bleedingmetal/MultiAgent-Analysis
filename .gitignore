@@ -68,3 +68,6 @@ coverage/
 
 # tasteskill / hairline working files (design tooling, not part of the app)
 .taste-skill/
+
+# Backups written by backend/scripts/rescore_finqa.py
+backend/data/backup-*/
