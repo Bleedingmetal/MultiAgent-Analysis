@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from app.config import settings
 from app.datasets.finqa_program import (
+    ends_in_percent,
     execute_program,
     extract_program,
     format_result,
@@ -112,11 +113,16 @@ def _finqa_reasoning_comparison(
         comparison.parse_error = str(exc)
 
     if comparison.agent_result is not None:
+        # A program ending in ×100 produced a percent (6.485 for 0.06485): grade it as one.
+        result = comparison.agent_result
+        if ends_in_percent(agent_program) and result not in {"yes", "no"}:
+            result = f"{result}%"
         comparison.execution_matches_expected = bool(
             score_answer(
                 task.expected_answer,
-                comparison.agent_result,
+                result,
                 expected_is_percent=task.metadata.get("expected_is_percent"),
+                expected_in_percent_units=bool(task.metadata.get("expected_in_percent_units")),
             )
         )
     return comparison

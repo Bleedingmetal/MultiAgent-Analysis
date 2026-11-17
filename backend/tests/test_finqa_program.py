@@ -65,3 +65,31 @@ class FinQAProgramTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NestedProgramTests(unittest.TestCase):
+    """Models nest calls; the checker must read them the same as the flat form."""
+
+    def test_nested_call_runs_like_the_flat_program(self) -> None:
+        from app.datasets.finqa_program import execute_program, operation_sequence
+
+        nested = execute_program("multiply(divide(465, 7170), const_100)")
+        flat = execute_program("divide(465, 7170), multiply(#0, const_100)")
+        self.assertIsNone(nested.error)
+        self.assertAlmostEqual(nested.result, flat.result)
+        self.assertAlmostEqual(nested.result, 6.4853556485)
+        # the final x100 is a percent conversion, not a different calculation
+        self.assertEqual(operation_sequence("multiply(divide(465, 7170), const_100)"), ["divide"])
+
+    def test_references_after_nesting_are_renumbered(self) -> None:
+        from app.datasets.finqa_program import execute_program
+
+        # step 0 contains a nested step, so the original #0 now lives at index 1
+        run = execute_program("divide(subtract(2.60, 2.55), 2.55), multiply(#0, const_100)")
+        self.assertIsNone(run.error)
+        self.assertAlmostEqual(run.result, 1.9607843137)
+
+    def test_reference_to_a_missing_step_is_still_an_error(self) -> None:
+        from app.datasets.finqa_program import execute_program
+
+        self.assertIsNotNone(execute_program("multiply(divide(#0, #1), const_100)").error)

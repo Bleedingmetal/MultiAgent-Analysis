@@ -253,8 +253,11 @@ DATASET_SYSTEM_PROMPTS: dict[str, str] = {
         "Produce a concise, auditable calculation using the FinQA DSL. "
         "Supported operations are add, subtract, multiply, divide, exp, greater, "
         "table_sum, table_average, table_max, and table_min. "
-        "Use #0, #1, and so on to reference earlier operation results, and constants "
-        "such as const_100 when needed. Respond in three parts:\n"
+        "Write the numbers themselves into the program, as they appear in the evidence. "
+        "#0, #1 and so on refer only to the result of an earlier operation in the same "
+        "program (#0 is the first), never to a figure; use constants such as const_100 "
+        "when needed. One operation per step, not nested: "
+        "divide(465, 7170), multiply(#0, const_100). Respond in three parts:\n"
         "Reasoning: 2-5 short numbered steps, each on its own line — the evidence, "
         "the formula, the arithmetic.\n"
         "Program: one line of comma-separated FinQA operations.\n"
@@ -290,7 +293,8 @@ _FINQA_RESPONSE_FORMAT = (
     "2. <the formula, in plain words>\n"
     "3. <the arithmetic, e.g. (101.88 - 93.21) / 93.21 = 0.093>\n"
     "(2-5 short numbered steps, each on its own line)\n"
-    "Program: <one line of comma-separated FinQA operations>\n"
+    "Program: <one line of comma-separated FinQA operations with the actual numbers, "
+    "e.g. divide(465, 7170), multiply(#0, const_100)>\n"
     "Final answer: <bare number, percentage like 6.76%, or $94 million>"
 )
 _DEFAULT_RESPONSE_FORMAT = (

@@ -73,20 +73,51 @@ def _split_top_level(text: str) -> list[str]:
     return parts
 
 
+_CALL_RE = re.compile(r"([A-Za-z][\w-]*)\s*\((.*)\)", re.DOTALL)
+
+
 def parse_program(program: str) -> list[tuple[str, list[str]]]:
+    """Steps of a FinQA program, in order.
+
+    Models often nest calls, e.g. multiply(divide(465, 7170), const_100). A nested call
+    becomes its own step before the one that uses it, and every #n is renumbered, so
+    the nested and the flat form of a calculation parse to the same steps.
+    """
+    top = _split_top_level(program.strip().strip("`"))
+    if not top:
+        raise ValueError("Program is empty")
     calls: list[tuple[str, list[str]]] = []
-    for raw_call in _split_top_level(program.strip().strip("`")):
-        match = re.fullmatch(r"([A-Za-z][\w-]*)\s*\((.*)\)", raw_call)
+    position: dict[int, int] = {}  # a top-level step's #n -> its index once flattened
+
+    def emit(raw_call: str) -> int:
+        match = _CALL_RE.fullmatch(raw_call.strip())
         if not match:
             raise ValueError(f"Invalid operation: {raw_call}")
         operation = match.group(1).lower().replace("-", "_")
         if operation not in SUPPORTED_OPERATIONS:
             raise ValueError(f"Unsupported operation: {operation}")
-        arguments = [part.strip() for part in _split_top_level(match.group(2))]
+        arguments: list[str] = []
+        for part in _split_top_level(match.group(2)):
+            part = part.strip()
+            if _CALL_RE.fullmatch(part) and not operation.startswith("table_"):
+                arguments.append(f"#{emit(part)}")
+                continue
+            ref = re.fullmatch(r"#(\d+)", part)
+            if ref and int(ref.group(1)) in position:
+                part = f"#{position[int(ref.group(1))]}"
+            arguments.append(part)
         calls.append((operation, arguments))
-    if not calls:
-        raise ValueError("Program is empty")
+        return len(calls) - 1
+
+    for index, raw_call in enumerate(top):
+        position[index] = emit(raw_call)
     return calls
+
+
+def is_percent_conversion(call: tuple[str, list[str]]) -> bool:
+    """A final ×100, which turns a ratio into a percent without changing the calculation."""
+    operation, arguments = call
+    return operation == "multiply" and len(arguments) == 2 and "const_100" in [a.strip().lower() for a in arguments]
 
 
 def normalize_program(program: str) -> str:
@@ -98,7 +129,19 @@ def normalize_program(program: str) -> str:
 
 
 def operation_sequence(program: str) -> list[str]:
-    return [operation for operation, _ in parse_program(program)]
+    """The operations, ignoring a final ×100 that only expresses the result as a percent."""
+    calls = parse_program(program)
+    if len(calls) > 1 and is_percent_conversion(calls[-1]):
+        calls = calls[:-1]
+    return [operation for operation, _ in calls]
+
+
+def ends_in_percent(program: str) -> bool:
+    try:
+        calls = parse_program(program)
+    except ValueError:
+        return False
+    return len(calls) > 1 and is_percent_conversion(calls[-1])
 
 
 def _number(value: str) -> float:
