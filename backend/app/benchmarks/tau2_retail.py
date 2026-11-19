@@ -227,11 +227,46 @@ def _dump(x: Any) -> Any:
     return x
 
 
+# The simulated customer re-reads its instructions and the whole conversation on every
+# turn. Marking the system message and the latest message for Anthropic's prompt cache
+# bills those repeats at the cache-read rate; the prompt text itself is not changed.
+_CUSTOMER_CACHE_POINTS = [
+    {"location": "message", "role": "system"},
+    {"location": "message", "index": -1},
+]
+
+
+def _keep_cache_usage() -> None:
+    """Make τ² keep the cache-read and cache-write token counts it otherwise drops."""
+    import tau2.utils.llm_utils as llm_utils
+
+    if getattr(llm_utils.get_response_usage, "_keeps_cache", False):
+        return
+
+    def get_response_usage(response):  # type: ignore[no-untyped-def]
+        usage = response.get("usage")
+        if usage is None:
+            return None
+        details = getattr(usage, "prompt_tokens_details", None)
+        read = getattr(usage, "cache_read_input_tokens", None) or getattr(details, "cached_tokens", 0) or 0
+        write = getattr(usage, "cache_creation_input_tokens", 0) or 0
+        return {
+            "completion_tokens": usage.completion_tokens,
+            "prompt_tokens": usage.prompt_tokens,
+            "cache_read_tokens": int(read),
+            "cache_write_tokens": int(write),
+        }
+
+    get_response_usage._keeps_cache = True  # type: ignore[attr-defined]
+    llm_utils.get_response_usage = get_response_usage
+
+
 def run_task(config: AgentConfiguration, task: HarnessTask, *, mode: str, meter: RunMeter,
              model_override: str | None = None, parent_run_id: str | None = None) -> RunResult:
     s = settings()
     tau = find_tau_task(task.id)
     _point_judges_at(litellm_name(s["tau_judge_model"]))
+    _keep_cache_usage()
     env = get_environment()
     db_before = RetailDB.load(RETAIL_DB_PATH).model_dump(mode="json")
     agent = ConversationAgent(config, env.get_policy(), mode=mode, meter=meter, model_override=model_override)
@@ -241,8 +276,13 @@ def run_task(config: AgentConfiguration, task: HarnessTask, *, mode: str, meter:
         llm=litellm_name(s["tau_user_model"]),
         instructions=str(tau.user_scenario),
         tools=user_tools_for_task(env, tau),
-        # Anthropic rejects `temperature` for current Claude models; OpenAI accepts it
-        llm_args={} if s["tau_user_model"].lower().startswith("claude") else {"temperature": 0.0},
+        # Anthropic rejects `temperature` for current Claude models (and caches the
+        # customer's repeated context instead); OpenAI accepts it and caches by itself
+        llm_args=(
+            {"cache_control_injection_points": _CUSTOMER_CACHE_POINTS}
+            if s["tau_user_model"].lower().startswith("claude")
+            else {"temperature": 0.0}
+        ),
     )
     orchestrator = Orchestrator(
         domain="retail", agent=ConfigAgent(agent, env.get_tools(), env.get_policy()), user=user,
@@ -260,7 +300,13 @@ def run_task(config: AgentConfiguration, task: HarnessTask, *, mode: str, meter:
     final_text = next((m.content for m in reversed(messages) if isinstance(m, AssistantMessage) and m.content), "")
     # Price the customer's turns ourselves: litellm's table lags behind new model ids
     user_cost = sum(
-        cost_usd(s["tau_user_model"], int(m.usage.get("prompt_tokens") or 0), int(m.usage.get("completion_tokens") or 0))
+        cost_usd(
+            s["tau_user_model"],
+            int(m.usage.get("prompt_tokens") or 0),
+            int(m.usage.get("completion_tokens") or 0),
+            cache_read_tokens=int(m.usage.get("cache_read_tokens") or 0),
+            cache_write_tokens=int(m.usage.get("cache_write_tokens") or 0),
+        )
         for m in messages if isinstance(m, UserMessage) and getattr(m, "usage", None)
     ) or float(sim.user_cost or 0.0)
     meter.add_cost(user_cost)

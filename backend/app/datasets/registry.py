@@ -256,13 +256,10 @@ DATASET_SYSTEM_PROMPTS: dict[str, str] = {
         "Write the numbers themselves into the program, as they appear in the evidence. "
         "#0, #1 and so on refer only to the result of an earlier operation in the same "
         "program (#0 is the first), never to a figure; use constants such as const_100 "
-        "when needed. One operation per step, not nested: "
-        "divide(465, 7170), multiply(#0, const_100). Respond in three parts:\n"
-        "Reasoning: 2-5 short numbered steps, each on its own line — the evidence, "
-        "the formula, the arithmetic.\n"
-        "Program: one line of comma-separated FinQA operations.\n"
-        "Final answer: one quantity alone — bare number (e.g. 94), percentage (e.g. 6.76%), "
-        "or currency with scale (e.g. $94 million). "
+        "when needed, one operation per step, not nested. "
+        # The reply layout (Reasoning / Program / Final answer) is sent once, by
+        # response_format_for, with every call that writes the final answer.
+        "The Final answer is one quantity alone. "
         "A FinQA decimal ratio may be presented as its equivalent percentage "
         "(for example, 0.0676 and 6.76% are equivalent). Preserve negative and positive signs. "
         "Do not invent units. For yes/no, put yes or no as the Final answer."

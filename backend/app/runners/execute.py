@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from app.config import settings
 from app.datasets.finqa_program import (
+    declined,
     ends_in_percent,
     execute_program,
     extract_program,
@@ -94,6 +95,9 @@ def _finqa_reasoning_comparison(
     )
     if not agent_program:
         comparison.parse_error = "The response did not include a Program line."
+        return comparison
+    if declined(agent_program):
+        comparison.parse_error = "No program: the agent said the inputs were not in the evidence."
         return comparison
 
     execution = execute_program(

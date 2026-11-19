@@ -39,6 +39,23 @@ def rescore(run: RunResult) -> bool | None:
     return score_task_output(task, run.answer).success
 
 
+def refresh_comparison(run: RunResult) -> bool:
+    """Recompute the run's reasoning comparison with the current checker; True if it changed."""
+    if run.benchmark_id != "finqa" or not run.answer:
+        return False
+    try:
+        task = get_task("finqa", run.task_id)
+    except KeyError:
+        return False
+    fresh = score_task_output(task, run.answer).comparison
+    before = run.reasoning_comparison.model_dump() if run.reasoning_comparison else None
+    after = fresh.model_dump() if fresh else None
+    if before == after:
+        return False
+    run.reasoning_comparison = fresh
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write", action="store_true")
@@ -61,11 +78,17 @@ def main() -> None:
             continue
         runs = [RunResult.model_validate_json(line) for line in runs_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         changed: dict[str, bool | None] = {}
+        refreshed = sum(refresh_comparison(run) for run in runs)
         for run in runs:
             new = rescore(run)
             if new != run.success:
                 changed[run.id] = new
                 run.success = new
+        if refreshed and not changed:
+            print(f"{batch.id} {batch.configuration_name}: {refreshed} reasoning comparisons refreshed")
+            if args.write:
+                runs_path.write_text("".join(r.model_dump_json() + "\n" for r in runs), encoding="utf-8")
+            continue
         if not changed:
             continue
 
@@ -108,15 +131,17 @@ def main() -> None:
     if RUNS_FILE.exists():
         lines = [line for line in RUNS_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
         out, n = [], 0
+        refreshed = 0
         for line in lines:
             run = RunResult.model_validate_json(line)
+            refreshed += refresh_comparison(run)
             new = rescore(run)
             if new != run.success:
                 run.success = new
                 n += 1
             out.append(run.model_dump_json())
-        print(f"single runs: {n} changed")
-        if args.write and n:
+        print(f"single runs: {n} changed, {refreshed} reasoning comparisons refreshed")
+        if args.write and (n or refreshed):
             RUNS_FILE.write_text("".join(o + "\n" for o in out), encoding="utf-8")
 
 

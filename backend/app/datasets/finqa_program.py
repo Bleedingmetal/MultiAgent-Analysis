@@ -34,7 +34,14 @@ def extract_program(text: str) -> str | None:
     if not match:
         return None
     program = match.group(1).strip().strip("`")
+    # A note after the last operation ("divide(#0, 31.9) (proxy only)") is not part of it.
+    program = re.sub(r"\)\s+\([^()]*\)\s*\.?$", ")", program)
     return program or None
+
+
+def declined(program: str) -> bool:
+    """The model wrote no calculation ("none", "n/a ...") because it found no inputs."""
+    return bool(re.match(r"^\s*(none|n/?a)", program, re.IGNORECASE))
 
 
 def strip_program_from_reasoning(reasoning: str | None) -> str | None:

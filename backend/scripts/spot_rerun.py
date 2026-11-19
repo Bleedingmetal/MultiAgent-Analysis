@@ -1,4 +1,4 @@
-"""Re-run a few FinQA questions with the configuration a stored batch used.
+"""Re-run a few tasks (FinQA questions or τ² conversations) with the configuration a stored batch used.
 
 For checking a fix on the questions it touches, without a full batch:
 
@@ -37,7 +37,7 @@ def main() -> None:
     total = 0.0
     print(f"{batch.configuration_name} ({batch.architecture}, {', '.join(batch.models)}), mode {batch.mode}\n")
     for task_id in task_ids:
-        task = get_task("finqa", task_id)
+        task = get_task(batch.benchmark_id, task_id)
         meter = spend_guard.RunMeter()
         result = execute(config, task, mode=batch.mode, meter=meter)
         spend_guard.record_spend(result.cost_usd)
