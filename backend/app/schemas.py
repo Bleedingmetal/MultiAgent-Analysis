@@ -212,6 +212,8 @@ class RunResult(BaseModel):
     # Full raw model output (includes reasoning + final answer).
     answer: str
     success: bool | None = None
+    # Graded credit in [0, 1] for rubric benchmarks (FAB: Partial Credit; success is All-Pass)
+    score: float | None = None
     latency_sec: float
     prompt_tokens: int
     completion_tokens: int
@@ -270,6 +272,7 @@ class BatchAttempt(BaseModel):
     run_id: str | None = None
     scored_answer: str | None = None
     success: bool | None = None
+    score: float | None = None
     program_match: bool | None = None
     cost_usd: float = 0.0
     latency_sec: float = 0.0
@@ -328,6 +331,9 @@ class BatchSummary(BaseModel):
     # Of the fully answered questions: correct in every pass (pass^k) / in at least one (pass@k)
     pass_all_rate: float | None = None
     pass_any_rate: float | None = None
+    # Mean graded credit over scored answers (FAB: Partial Credit, the primary metric;
+    # pass_rate is then the All-Pass rate)
+    mean_score: float | None = None
     # Questions whose passes disagreed with each other
     mixed: int = 0
     # Each full pass on its own, so the spread between passes is visible

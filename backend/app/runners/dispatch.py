@@ -56,6 +56,12 @@ def execute(
             config, task, mode=mode, meter=meter,
             model_override=model_override, parent_run_id=parent_run_id,
         )
+    if task.benchmark_id == "fab":
+        # FAB needs tools in every architecture; the layer engine runs chain and routing
+        # layouts too, and is the runner that supports tools.
+        return run_pipeline(
+            config, task, meter=meter, model_override=model_override, parent_run_id=parent_run_id
+        )
     if mode == "prompt-chain":
         result = run_prompt_chain(
             config,

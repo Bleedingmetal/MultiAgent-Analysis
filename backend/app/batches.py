@@ -150,6 +150,7 @@ def summarize(batch: BatchRun, *, elapsed_sec: float, tokens: tuple[int, int]) -
                 avg_latency_sec=round(statistics.fmean(p_timed), 3) if p_timed else None,
             )
         )
+    graded = [a.score for a in attempts if a.score is not None and a.status in ("passed", "failed")]
     rates = [p.pass_rate for p in per_pass if p.pass_rate is not None and p.done == len(items)]
     return BatchSummary(
         total=len(items),
@@ -164,6 +165,7 @@ def summarize(batch: BatchRun, *, elapsed_sec: float, tokens: tuple[int, int]) -
         pass_rate=passed / scored if scored else None,
         pass_all_rate=all_right / len(complete) if complete else None,
         pass_any_rate=any_right / len(complete) if complete else None,
+        mean_score=round(statistics.fmean(graded), 6) if graded else None,
         mixed=sum(1 for i in items if i.status == "mixed"),
         per_pass=per_pass,
         pass_rate_min=min(rates) if rates else None,
@@ -215,6 +217,7 @@ def _attempt_from_result(pass_index: int, result: RunResult) -> BatchAttempt:
         run_id=result.id,
         scored_answer=result.scored_answer,
         success=result.success,
+        score=result.score,
         program_match=comparison.execution_matches_expected if comparison else None,
         cost_usd=result.cost_usd,
         latency_sec=result.latency_sec,

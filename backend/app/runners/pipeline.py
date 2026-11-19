@@ -181,6 +181,23 @@ class PipelineRun:
             tool_kind_for(n.name, n.metadata) for n in config.nodes if n.type == "tool"
         ]
         self.tools, self.tool_executor = build_toolset(tool_kinds, task)
+        self.max_tool_steps: int | None = None
+        self.fab = None
+        if task.benchmark_id == "fab":
+            # FAB is research: every agent gets the benchmark's tools (as tau gives its
+            # store tools), on top of any Tool nodes the configuration has.
+            from app.benchmarks.fab_tools import FabToolbox
+
+            self.fab = FabToolbox(before_call=meter.before_call)
+            own_executor = self.tool_executor
+            fab_names = set(self.fab.names)
+            self.tools = self.fab.specs + [t for t in self.tools if t.name not in fab_names]
+
+            def execute(name: str, args: dict) -> str:
+                return self.fab.execute(name, args) if name in fab_names else own_executor(name, args)
+
+            self.tool_executor = execute
+            self.max_tool_steps = self.s["fab_max_tool_steps"]
         self.final_ids = self._final_node_ids()
 
     # ---- structure -------------------------------------------------------
@@ -265,6 +282,8 @@ class PipelineRun:
     ) -> tuple[LLMResult, TraceStep]:
         spec = self.spec_for(node)
         t0 = time.perf_counter()
+        if self.fab:
+            self.fab.take_cost()  # retrieval spend is counted per agent turn
         result = complete(
             provider=spec.provider,
             model=spec.model,
@@ -274,8 +293,12 @@ class PipelineRun:
             max_tokens=spec.max_tokens,
             tools=self.tools if use_tools and self.tools else None,
             tool_executor=self.tool_executor if use_tools and self.tools else None,
+            max_tool_steps=self.max_tool_steps,
             before_call=self.meter.before_call,
         )
+        if self.fab:
+            # The documents an agent read through retrieve_information cost money too
+            result.cost_usd += self.fab.take_cost()
         self.meter.add_cost(result.cost_usd)
         step = TraceStep(
             index=0,
@@ -619,12 +642,38 @@ def run_pipeline(
     model_override: str | None = None,
     parent_run_id: str | None = None,
 ) -> RunResult:
+    if task.benchmark_id == "fab":
+        # A research loop is many round trips per agent
+        meter.max_calls = max(meter.max_calls or 0, settings()["fab_max_llm_calls"])
     run = PipelineRun(config, task, meter=meter, model_override=model_override)
     t0 = time.perf_counter()
     final = run.run()
     latency = time.perf_counter() - t0
 
     scored = score_task_output(task, final.text)
+    evaluation = None
+    score = None
+    grading_cost = 0.0
+    if task.benchmark_id == "fab":
+        from app.benchmarks.fab_grading import grade
+
+        evaluation = grade(
+            task.question, final.text, task.metadata["rubric"], meter=meter,
+            version=task.metadata.get("fab_version", "2.1"), commit=task.metadata.get("fab_commit"),
+        )
+        grading_cost = evaluation["grading_cost_usd"]
+        if "error" not in evaluation:
+            score = evaluation["partial_credit"]
+            scored.success = evaluation["all_pass"]
+            scored.note = (
+                f"Partial credit {score:.0%}; {evaluation['criteria_passed']} of "
+                f"{evaluation['criteria_total']} criteria"
+                + ("; a must-pass criterion failed" if evaluation["dealbreaker_failed"] else "")
+                + ("; the answer hedges" if evaluation["hedged"] else "")
+                + ". Approximate jury, not the official one."
+            )
+        else:
+            scored.note = evaluation["error"]
     llm_steps = [s for s in run.steps if s.model]
     models = list(dict.fromkeys(s.model for s in llm_steps if s.model))
     final_step = next(
@@ -653,10 +702,12 @@ def run_pipeline(
         label_disputed=scored.label_disputed,
         answer=final.text,
         success=scored.success,
+        score=score,
+        evaluation=evaluation,
         latency_sec=round(latency, 3),
         prompt_tokens=sum(s.prompt_tokens for s in run.steps),
         completion_tokens=sum(s.completion_tokens for s in run.steps),
-        cost_usd=round(sum(s.cost_usd for s in run.steps), 6),
+        cost_usd=round(sum(s.cost_usd for s in run.steps) + grading_cost, 6),
         note=(
             f"{meter.llm_calls} LLM calls across {len(agent_nodes)} nodes."
             + (f" {scored.note}" if scored.note else "")
