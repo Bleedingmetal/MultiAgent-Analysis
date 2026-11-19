@@ -254,6 +254,7 @@ export function getHealth() {
       spend_usd: number
       run_count: number
       daily_budget_usd: number
+      run_budget_usd?: number
       max_runs_per_day: number
       min_seconds_between_runs: number
       max_completion_tokens: number

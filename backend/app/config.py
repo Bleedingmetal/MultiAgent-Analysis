@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 
 # Explicit path: a bare load_dotenv() searches from the cwd in uvicorn's reload
 # worker, missing backend/.env and silently keeping stale OS-level keys.
-load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
+ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(ENV_FILE, override=True)
 
 
 
@@ -20,8 +21,33 @@ def key_configured(key: str) -> bool:
     return bool(key) and "your-key" not in key
 
 
-@lru_cache
+def _env_mtime() -> float | None:
+    try:
+        return ENV_FILE.stat().st_mtime
+    except OSError:
+        return None
+
+
+_loaded_mtime = _env_mtime()
+
+
 def settings() -> dict:
+    """The current settings. An edit to backend/.env takes effect on the next call, no restart."""
+    global _loaded_mtime
+    mtime = _env_mtime()
+    if mtime != _loaded_mtime:
+        _loaded_mtime = mtime
+        load_dotenv(ENV_FILE, override=True)
+        _settings.cache_clear()
+    return _settings()
+
+
+# kept so callers that clear settings (tests, dataset reload) still can
+settings.cache_clear = lambda: _settings.cache_clear()  # type: ignore[attr-defined]
+
+
+@lru_cache
+def _settings() -> dict:
     return {
         "openai_api_key": os.getenv("OPENAI_API_KEY", ""),
         "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY", ""),
@@ -53,6 +79,8 @@ def settings() -> dict:
         "max_system_chars": int(os.getenv("MAX_SYSTEM_CHARS", "3000")),
         "max_chain_steps": int(os.getenv("MAX_CHAIN_STEPS", "6")),
         "daily_budget_usd": float(os.getenv("DAILY_BUDGET_USD", "1.00")),
+        # The default spend cap filled in for an end-to-end run (one run of many questions)
+        "run_budget_usd": float(os.getenv("RUN_BUDGET_USD", "1.00")),
         "max_runs_per_day": int(os.getenv("MAX_RUNS_PER_DAY", "25")),
         "min_seconds_between_runs": float(
             os.getenv("MIN_SECONDS_BETWEEN_RUNS", "8")

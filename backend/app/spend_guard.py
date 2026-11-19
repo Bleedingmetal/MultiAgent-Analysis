@@ -63,6 +63,7 @@ def status() -> dict:
         "spend_usd": round(_state.spend_usd, 6),
         "run_count": _state.run_count,
         "daily_budget_usd": s["daily_budget_usd"],
+        "run_budget_usd": s["run_budget_usd"],
         "max_runs_per_day": s["max_runs_per_day"],
         "min_seconds_between_runs": s["min_seconds_between_runs"],
         "max_completion_tokens": s["max_completion_tokens"],

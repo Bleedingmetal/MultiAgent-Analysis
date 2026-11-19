@@ -14,6 +14,7 @@ import {
   continueBatch,
   createBatch,
   getBatch,
+  getHealth,
   listBatches,
   taskNoun,
 } from "@/lib/api"
@@ -55,7 +56,22 @@ export function BatchRunPanel({
   const datasetTotal = benchmark?.task_count ?? 0
   const activeBenchmarkId = benchmark?.id ?? benchmarkId
   const sizeOptions = SIZE_OPTIONS.filter((o) => o < datasetTotal)
+  // The default cap comes from RUN_BUDGET_USD in backend/.env; typing in the box overrides it.
   const [budget, setBudget] = useState("1.00")
+  const [budgetTouched, setBudgetTouched] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    getHealth()
+      .then((h) => {
+        const cap = h.spend?.run_budget_usd
+        if (!cancelled && !budgetTouched && cap != null && cap > 0) setBudget(cap.toFixed(2))
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [history, setHistory] = useState<BatchRun[]>([])
   const [batch, setBatch] = useState<BatchRun | null>(null)
   const [starting, setStarting] = useState(false)
@@ -240,7 +256,7 @@ export function BatchRunPanel({
               $
               <input
                 value={budget}
-                onChange={(e) => setBudget(e.target.value)}
+                onChange={(e) => { setBudgetTouched(true); setBudget(e.target.value) }}
                 inputMode="decimal"
                 className="ml-1 w-14 bg-transparent outline-none"
                 aria-label="Spend cap in dollars"
