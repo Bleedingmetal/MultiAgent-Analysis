@@ -47,7 +47,11 @@ def main() -> None:
         print(f"      question: {task.question}")
         print(f"      gold:     {task.expected_display or task.expected_answer}")
         print(f"      said:     {final_answer_span(result.answer or result.error or '')}")
-        print(f"      ${result.cost_usd:.4f}, {result.latency_sec:.1f}s\n")
+        agent_cost = sum(step.cost_usd for step in result.steps or [])
+        print(
+            f"      ${result.cost_usd:.5f} (agent ${agent_cost:.5f}, other ${result.cost_usd - agent_cost:.5f}), "
+            f"{result.prompt_tokens:,} in / {result.completion_tokens:,} out, {result.latency_sec:.1f}s\n"
+        )
     print(f"total ${total:.4f}")
 
 
