@@ -19,12 +19,14 @@ import {
   type BatchItem,
   type BatchRun,
   type BenchmarkId,
+  type RepeatabilityGroup,
   type RunMode,
   benchmarkName,
   cancelBatch,
   continueBatch,
   createBatch,
   getBatch,
+  getRepeatability,
   taskNoun,
 } from "@/lib/api"
 import { getConfiguration } from "@/lib/configuration-storage"
@@ -171,6 +173,22 @@ export default function BatchDetailPage() {
       cancelled = true
     }
   }, [id])
+
+  // Reliability and consistency pool every repeat of these questions under the same
+  // configuration, model and prompts, including other end-to-end runs.
+  const [repeat, setRepeat] = useState<RepeatabilityGroup | null>(null)
+  useEffect(() => {
+    if (!batch || batch.status === "running") return
+    let cancelled = false
+    getRepeatability(batch.benchmark_id, 3)
+      .then((res) => {
+        if (!cancelled) setRepeat(res.groups.find((g) => g.batch_ids.includes(batch.id)) ?? null)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [batch?.id, batch?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const running = batch?.status === "running"
   useEffect(() => {
@@ -340,6 +358,24 @@ export default function BatchDetailPage() {
                       (batch.passes ?? 1) > 1
                         ? `${batch.passes} · every pass ${pct(s.pass_all_rate, 0)} · any pass ${pct(s.pass_any_rate, 0)}`
                         : "1"
+                    }
+                  />
+                  <Field
+                    label="Reliability, pass^3"
+                    value={
+                      repeat?.reliability.value != null
+                        ? `${pct(repeat.reliability.value, 1)} · ${repeat.reliability.eligible_tasks} ${taskNoun(batch.benchmark_id, 2)} with 3+ tries`
+                        : "N/A · needs 3 tries per task"
+                    }
+                  />
+                  <Field
+                    label="Consistency"
+                    value={
+                      repeat?.consistency.combined != null
+                        ? `${pct(repeat.consistency.combined, 1)} · output ${pct(repeat.consistency.output, 0)}, execution ${pct(repeat.consistency.execution, 0)}`
+                        : repeat?.consistency.output != null
+                          ? `output ${pct(repeat.consistency.output, 1)} · no execution path`
+                          : "N/A · needs 2 tries per task"
                     }
                   />
                   <Field

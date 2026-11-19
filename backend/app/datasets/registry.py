@@ -98,9 +98,25 @@ def humanize_expected(
     return text or str(exe_ans)
 
 
+# Questions whose text FinQA's own test.json cuts off mid-sentence, so no agent can tell
+# what is being asked. Each is completed from its gold program and flagged as repaired.
+_FINQA_QUESTION_REPAIRS: dict[str, tuple[str, str]] = {
+    # gold program divide(11.8, 146.1): the 2010 forward contract receivable over the total
+    "CME/2010/page_91.pdf-2": (
+        "what percentage of total other current assets is represented by",
+        "what percentage of total other current assets is represented by the forward "
+        "contract receivable in 2010?",
+    ),
+}
+
+
 def _finqa_task(item: dict[str, Any], index: int) -> Task:
     qa = item.get("qa") or {}
     question = qa.get("question") or ""
+    repair = _FINQA_QUESTION_REPAIRS.get(str(item.get("id") or ""))
+    question_repaired = bool(repair and question.strip() == repair[0])
+    if question_repaired:
+        question = repair[1]
     expected = qa.get("exe_ans")
     if expected is None:
         expected = qa.get("answer")
@@ -182,6 +198,9 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
             "alternate_answers": alternate_answers,
             "unit_scale": unit_scale,
             "expected_display": expected_display,
+            # FinQA's question text was cut off in the source and completed from the gold program
+            "question_repaired": question_repaired,
+            "source_question": (qa.get("question") or "") if question_repaired else None,
         },
     )
 
@@ -208,35 +227,59 @@ def _tau2_tasks() -> list[Task]:
     return [harness_task(t) for t in tau_tasks()]
 
 
+# FAB v2.1, public split only (scripts/download_datasets.py pins and hash-checks it).
+# There is deliberately no fallback to the older v1.1 file in data/fab/public.csv.
+FAB_VERSION = "2.1"
+FAB_DIR = DATA_ROOT / "fab" / f"v{FAB_VERSION}"
+
+
+@lru_cache
+def fab_manifest() -> dict[str, Any]:
+    path = FAB_DIR / "manifest.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+@lru_cache
 def _load_fab_raw() -> list[dict[str, Any]]:
-    csv_path = DATA_ROOT / "fab" / "public.csv"
-    sample = DATA_ROOT / "fab" / "sample20.json"
-    if csv_path.exists():
-        with csv_path.open(encoding="utf-8") as f:
-            return list(csv.DictReader(f))
-    if sample.exists():
-        with sample.open(encoding="utf-8") as f:
-            return json.load(f)
-    return []
+    path = FAB_DIR / "public.csv"
+    if not path.exists():
+        return []
+    with path.open(encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
 
 
 def _fab_task(item: dict[str, Any], index: int) -> Task:
-    q = item.get("Question") or item.get("question") or ""
-    a = item.get("Answer") or item.get("answer")
-    qtype = item.get("Question Type") or item.get("type")
+    rubric = [
+        {
+            "id": i,
+            "criterion": c["criteria"],
+            "severity": float((c.get("modifiers") or {}).get("severity", 1.0)),
+            "must_pass": (c.get("modifiers") or {}).get("category") == "must_pass",
+        }
+        for i, c in enumerate(json.loads(item.get("Rubric") or "[]"))
+    ]
+    qtype = item.get("Question Type") or ""
+    must = sum(1 for c in rubric if c["must_pass"])
     return Task(
-        id=f"fab-{index:03d}",
+        id=f"fab21-{index:03d}",
         benchmark_id="fab",
-        question=q,
-        expected_answer=str(a) if a else None,
+        question=item.get("Question") or "",
+        # Graded against a rubric, not a single gold answer (see app.benchmarks.fab_grading)
+        expected_answer=None,
+        expected_display=f"Rubric: {len(rubric)} criteria, {must} must pass",
         context=(
-            "You are a finance research agent with access to SEC filings and web sources. "
-            f"Question type: {qtype or 'unknown'}. "
-            "Answer concisely with the key facts. If uncertain, say what filing you would check."
+            "Research this with your tools: search SEC EDGAR, open the filings and read them, "
+            "and calculate rather than estimate. SEC filings take precedence over other sources. "
+            "Give one conclusive answer for every part of the question; do not list alternative "
+            "values side by side. Round final figures to at least two decimal places. Cite the "
+            "filings (form, period, URL) you relied on."
         ),
         metadata={
             "question_type": qtype,
-            "rubric": item.get("Rubric"),
+            "expert_minutes": item.get("Expert time (mins)"),
+            "rubric": rubric,
+            "fab_version": FAB_VERSION,
+            "fab_commit": fab_manifest().get("commit"),
         },
     )
 
@@ -365,13 +408,18 @@ def _all_benchmarks() -> list[dict[str, Any]]:
         {
             "id": "fab",
             "name": "Finance Agent Benchmark",
+            "version": FAB_VERSION,
             "structure": "Breadth-first research",
             "role": "Research cell",
             "task_count": fab_n,
-            "scored": False,
+            "scored": True,
             "available": fab_n > 0,
             "default_system_prompt": system_prompt_for("fab"),
-            "notes": "vals-ai public validation questions. Open-ended; success not auto-scored yet.",
+            "notes": (
+                f"FAB v{FAB_VERSION} public split ({fab_n} questions; Validation and Test are private). "
+                "Rubric-graded: Partial Credit (primary) and All-Pass. The judge approximates the "
+                "official three-model jury, so scores are not leaderboard-comparable."
+            ),
         },
     ]
     return rows
@@ -420,7 +468,7 @@ def list_tasks(benchmark_id: str, limit: int = 20) -> list[Task]:
 # Fixed so every configuration is evaluated on the same questions.
 SAMPLE_SEED = 20260
 # Benchmarks with an automatic pass/fail scorer (end-to-end runs need one).
-SCORED_BENCHMARKS = {"finqa", "tau-retail", "tau2-retail"}
+SCORED_BENCHMARKS = {"finqa", "tau-retail", "tau2-retail", "fab"}
 
 
 def task_count(benchmark_id: str) -> int:

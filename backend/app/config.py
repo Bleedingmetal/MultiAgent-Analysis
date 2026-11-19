@@ -100,6 +100,19 @@ def _settings() -> dict:
         "tau_user_model": os.getenv("TAU_USER_MODEL", "claude-haiku-5-5"),
         "tau_judge_model": os.getenv("TAU_JUDGE_MODEL", "claude-haiku-5-5"),
         "tau_max_steps": int(os.getenv("TAU_MAX_STEPS", "60")),
+        # Finance Agent Benchmark v2.1. The official grader is a jury of three frontier
+        # models; FAB_JUDGE_MODELS sets ours (comma-separated, majority vote per criterion).
+        "fab_judge_models": [
+            m.strip() for m in os.getenv("FAB_JUDGE_MODELS", "claude-haiku-5-5").split(",") if m.strip()
+        ],
+        "fab_retrieval_model": os.getenv("FAB_RETRIEVAL_MODEL", "claude-haiku-5-5"),
+        "fab_max_tool_steps": int(os.getenv("FAB_MAX_TOOL_STEPS", "16")),
+        "fab_max_llm_calls": int(os.getenv("FAB_MAX_LLM_CALLS", "80")),
+        # SEC asks automated clients to identify themselves; set your organisation and contact
+        "sec_user_agent": os.getenv("SEC_USER_AGENT", "AgentEvaluation research-harness admin@example.org"),
+        # Optional: the official web_search (Tavily) and price_history (Tiingo) tools
+        "tavily_api_key": os.getenv("TAVILY_API_KEY", "").strip(),
+        "tiingo_api_key": (os.getenv("TIINGO_API_KEY") or os.getenv("PRICING_DATA_API_KEY") or "").strip(),
         "tau2_data_dir": Path(
             os.getenv("TAU2_DATA_DIR") or (Path(__file__).resolve().parents[1] / "data")
         ),

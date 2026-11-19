@@ -250,7 +250,7 @@ BatchItemStatus = Literal[
 class BatchRequest(BaseModel):
     configuration: AgentConfiguration
     mode: Literal["pipeline", "prompt-chain", "routing"] = "pipeline"
-    benchmark_id: Literal["finqa", "tau-retail", "tau2-retail"] = "finqa"
+    benchmark_id: Literal["finqa", "tau-retail", "tau2-retail", "fab"] = "finqa"
     # Number of questions; None = the whole dataset.
     size: int | None = Field(default=25, ge=1)
     # Stop starting new questions once the batch has spent this much.

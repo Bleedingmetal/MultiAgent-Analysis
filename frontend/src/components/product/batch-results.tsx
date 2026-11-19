@@ -221,21 +221,28 @@ function ItemDetail({ item }: { item: BatchItem }) {
     attempts.length > 1 ? (
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-[12px] text-muted-foreground">Pass</span>
-        {attempts.map((a, i) => (
-          <button
-            key={a.pass_index}
-            type="button"
-            onClick={() => setWhich(i)}
-            className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium",
-              i === which ? "border-mm-dark bg-mm-dark text-white" : "border-border/80 bg-white text-mm-dark hover:bg-[#f4f7fb]",
-            )}
-          >
-            {a.pass_index + 1}
-            <span className={cn("size-1.5 rounded-full", STATUS_STYLE[a.status].cell)} />
-            <span className="font-data">{a.scored_answer ?? STATUS_STYLE[a.status].label}</span>
-          </button>
-        ))}
+        {attempts.map((a, i) => {
+          const answer = a.scored_answer?.trim()
+          return (
+            <button
+              key={a.pass_index}
+              type="button"
+              onClick={() => setWhich(i)}
+              title={answer || STATUS_STYLE[a.status].label}
+              aria-pressed={i === which}
+              className={cn(
+                "inline-flex h-7 max-w-[13rem] cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[12px] font-medium",
+                i === which ? "border-mm-dark bg-mm-dark text-white" : "border-border/80 bg-white text-mm-dark hover:bg-[#f4f7fb]",
+              )}
+            >
+              <span className="shrink-0 tabular-nums">{a.pass_index + 1}</span>
+              <span className={cn("size-1.5 shrink-0 rounded-full", STATUS_STYLE[a.status].cell)} />
+              <span className={cn("min-w-0 truncate", answer && answer.length <= 24 && "font-data")}>
+                {answer || STATUS_STYLE[a.status].label}
+              </span>
+            </button>
+          )
+        })}
       </div>
     ) : null
 
@@ -375,7 +382,7 @@ function ItemRow({
           <span className="mt-1 flex flex-wrap gap-x-3 font-data text-[11px] text-muted-foreground">
             {item.expected_display != null || item.scored_answer != null ? (
               <>
-                <span>
+                <span className="max-w-[28ch] truncate" title={item.scored_answer ?? undefined}>
                   got{" "}
                   <span className={STATUS_STYLE[item.status].text}>
                     {item.scored_answer ?? "—"}

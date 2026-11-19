@@ -763,7 +763,7 @@ function Consistency({ always, any, passes }: { always: number; any: number; pas
   )
   return (
     <div className="px-6 pt-5">
-      <p className="mb-1.5 text-[12px] text-muted-foreground" title="A task flipped if it passed in at least one pass but not in all of them">Consistency over {passes} passes</p>
+      <p className="mb-1.5 text-[12px] text-muted-foreground" title="A task flipped if it passed in at least one pass but not in all of them">Outcomes across {passes} passes</p>
       <div className="flex h-[12px] w-full overflow-hidden rounded-[2px] bg-muted">
         {seg(always, "bg-mm-green", "Right every pass")}
         {seg(flipped, "bg-mm-yellow", "Flipped between passes")}

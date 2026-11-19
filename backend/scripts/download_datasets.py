@@ -19,9 +19,15 @@ DATA = ROOT / "data"
 FINQA_TEST_URL = (
     "https://raw.githubusercontent.com/czyssrs/FinQA/main/dataset/test.json"
 )
-FAB_CSV_URL = (
-    "https://raw.githubusercontent.com/vals-ai/finance-agent/main/data/public.csv"
-)
+# Finance Agent Benchmark v2.1, public split. Pinned to the commit that applied the
+# v2.1 data fixes (vals-ai/finance-agent-v2, 2026-11-18, "update questions"): the repo has
+# no release tags, so the commit and the file's hash are what identify the version.
+FAB_VERSION = "2.1"
+FAB_REPO = "vals-ai/finance-agent-v2"
+FAB_COMMIT = "25b6cab9bcb4f8f9857f2e1a6721732c85511c5c"
+FAB_CSV_URL = f"https://raw.githubusercontent.com/{FAB_REPO}/{FAB_COMMIT}/data/public.csv"
+FAB_SHA256 = "06be6a898f083132ffd1e16d2c20263c36e855084c91f19fdfc601cf6811f3be"
+FAB_ROWS = 27
 # tau2-bench keeps its domain data outside the package; tau-bench (v1) ships inside its package.
 TAU2_RAW_ROOT = "https://raw.githubusercontent.com/sierra-research/tau2-bench/main/data/tau2/"
 TAU2_RAW = TAU2_RAW_ROOT + "domains/retail/"
@@ -30,7 +36,6 @@ TAU2_RETAIL_FILES = ("db.json", "policy.md", "tasks.json", "split_tasks.json")
 # The customer simulator builds its guidelines from the English language pack.
 TAU2_PACK_FILES = ("multilingual/migration_manifest.json", "multilingual/telecom-caller-roles.json")
 TAU2_PACK_DIR = "multilingual/en"
-FAB_SAMPLE_SIZE = 20
 FINQA_SAMPLE_SIZE = 20
 
 
@@ -84,28 +89,54 @@ def download_finqa(force: bool) -> None:
     print(f"FinQA tasks available: {len(items)} (sample: {len(sample)})")
 
 
+def check_fab_v21(raw: bytes) -> list[dict]:
+    """Refuse anything that is not the pinned v2.1 public file (never substitute v1.1 or v2)."""
+    import hashlib
+
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != FAB_SHA256:
+        raise ValueError(
+            f"FAB public.csv does not match the pinned v{FAB_VERSION} file "
+            f"(sha256 {digest[:12]}, expected {FAB_SHA256[:12]}). Not using it."
+        )
+    rows = list(csv.DictReader(io.StringIO(raw.decode("utf-8"))))
+    if len(rows) != FAB_ROWS or "Rubric" not in rows[0]:
+        raise ValueError(f"FAB v{FAB_VERSION}: expected {FAB_ROWS} rows with a Rubric column")
+    for row in rows:
+        for c in json.loads(row["Rubric"]):
+            if not c.get("criteria") or "severity" not in (c.get("modifiers") or {}):
+                raise ValueError("FAB rubric criterion without text or severity")
+    return rows
+
+
 def download_fab(force: bool) -> None:
-    fab_dir = DATA / "fab"
+    fab_dir = DATA / "fab" / f"v{FAB_VERSION}"
     csv_path = fab_dir / "public.csv"
-    sample_path = fab_dir / "sample20.json"
-
-    if not csv_path.exists() or force:
-        print(f"fetching FAB from {FAB_CSV_URL}")
-        raw = fetch(FAB_CSV_URL).decode("utf-8")
-        write_if_needed(csv_path, raw, force=True, label="FAB public.csv")
-    else:
-        print(f"skip FAB public.csv (exists): {csv_path.relative_to(ROOT)}")
-        raw = csv_path.read_text(encoding="utf-8")
-
-    rows = list(csv.DictReader(io.StringIO(raw)))
-    sample = rows[:FAB_SAMPLE_SIZE]
-    write_if_needed(
-        sample_path,
-        json.dumps(sample, indent=2),
-        force=force or not sample_path.exists(),
-        label=f"FAB sample ({len(sample)} rows)",
-    )
-    print(f"FAB rows available: {len(rows)} (sample: {len(sample)})")
+    if csv_path.exists() and not force:
+        check_fab_v21(csv_path.read_bytes())
+        print(f"skip FAB v{FAB_VERSION} public.csv (exists, verified): {csv_path.relative_to(ROOT)}")
+        return
+    print(f"fetching FAB v{FAB_VERSION} from {FAB_CSV_URL}")
+    raw = fetch(FAB_CSV_URL)
+    rows = check_fab_v21(raw)
+    write_if_needed(csv_path, raw, force=True, label=f"FAB v{FAB_VERSION} public.csv")
+    manifest = {
+        "benchmark": "Finance Agent Benchmark",
+        "version": FAB_VERSION,
+        "split": "public",
+        "source": f"https://github.com/{FAB_REPO}/blob/{FAB_COMMIT}/data/public.csv",
+        "commit": FAB_COMMIT,
+        "commit_date": "2026-11-18",
+        "sha256": FAB_SHA256,
+        "questions": len(rows),
+        "criteria": sum(len(json.loads(r["Rubric"])) for r in rows),
+        "version_evidence": (
+            "No release tags upstream. This commit ('update questions', 2026-11-18) rewrote 5 "
+            "public questions on the v2.1 release date, matching the v2.1 note 'data fixes'."
+        ),
+    }
+    write_if_needed(fab_dir / "manifest.json", json.dumps(manifest, indent=2), force=True, label="FAB manifest")
+    print(f"FAB v{FAB_VERSION}: {len(rows)} questions, {manifest['criteria']} rubric criteria")
 
 
 def download_tau2_retail(force: bool) -> None:

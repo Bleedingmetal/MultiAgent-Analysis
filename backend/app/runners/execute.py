@@ -170,6 +170,12 @@ def score_task_output(task: Task, answer: str) -> ScoredOutput:
         # Lenient units here: annotations often drop the % sign.
         if success is False and any(score_answer(a, answer) for a in alternates):
             success = True
+    if task.metadata.get("question_repaired"):
+        repaired = (
+            "FinQA's own question text is cut off "
+            f"(\"{task.metadata.get('source_question')}\"); it was completed from the gold program."
+        )
+        note = f"{note} {repaired}" if note and success is not None else repaired
     return ScoredOutput(
         reasoning=reasoning,
         scored_answer=scored or None,

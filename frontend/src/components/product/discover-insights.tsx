@@ -19,7 +19,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowRight, CaretRight } from "@phosphor-icons/react"
 
 import { pct, secs, usd } from "@/components/product/batch-results"
-import { benchmarkName } from "@/lib/api"
+import { type RepeatabilityGroup, benchmarkName, getRepeatability } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import type { Row } from "@/views/dashboard"
 
@@ -29,7 +29,7 @@ const QUESTIONS: { id: QuestionId; label: string; hint: string }[] = [
   { id: "best", label: "Which architecture performs best?", hint: "Pass rate, with its 95% range" },
   { id: "cost", label: "Which is most cost-efficient?", hint: "Cost per correct answer against accuracy" },
   { id: "speed", label: "Which is fastest?", hint: "Median and 95th-percentile time per task" },
-  { id: "consistent", label: "How consistent are the results?", hint: "Repeated passes over the same tasks" },
+  { id: "consistent", label: "How reliable and consistent are they?", hint: "pass^k and consistency over every repeat of a task" },
   { id: "multi", label: "Do multi-agent systems beat a single agent?", hint: "Points gained or lost against the baseline" },
 ]
 
@@ -158,7 +158,9 @@ export function DiscoverInsights({
               exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: EASE }}
             >
-              {answer ? (
+              {question === "consistent" ? (
+                <Repeatability bench={bench} reduce={reduce} />
+              ) : answer ? (
                 <>
                   <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
                     <div className="shrink-0">
@@ -336,42 +338,8 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
       }
     }
 
-    case "consistent": {
-      const rep = rows.filter((r) => r.passes > 1 && r.batch.summary.pass_all_rate != null && r.batch.summary.pass_any_rate != null)
-      const always = (r: Row) => r.batch.summary.pass_all_rate as number
-      const any = (r: Row) => r.batch.summary.pass_any_rate as number
-      const sorted = [...rep].sort((a, b) => always(b) - always(a))
-      const top = sorted[0]
-      if (!top) return null
-      const flip = (r: Row) => Math.max(0, any(r) - always(r))
-      const flippiest = [...sorted].sort((a, b) => flip(b) - flip(a))[0]
-      return {
-        metric: { value: always(top), format: (v) => pct(v, 1), label: `right on every pass, ${name(top)}` },
-        headline: (
-          <>
-            Each task was run {top.passes} times. {label(top)} got the most tasks right every time; {flip(flippiest) > 0 ? `${label(flippiest)} flipped on ${pct(flip(flippiest), 1)} of tasks between passes.` : "nothing flipped between passes."}
-          </>
-        ),
-        note: "Only runs that repeat each task can speak to consistency; single-pass runs are left out.",
-        chart: (
-          <BarList
-            c={c}
-            bars={sorted.map((r, i) => ({
-              row: r,
-              lead: i === 0,
-              segments: [
-                { w: always(r), cls: "bg-mm-green", t: "Right every pass" },
-                { w: flip(r), cls: "bg-mm-yellow", t: "Flipped between passes" },
-                { w: Math.max(0, 1 - any(r)), cls: "bg-mm-orange", t: "Wrong every pass" },
-              ],
-              value: pct(always(r), 1),
-              sub: `${r.passes} passes`,
-            }))}
-            footer={<Legend items={[["bg-mm-green", "right every pass"], ["bg-mm-yellow", "flipped"], ["bg-mm-orange", "wrong every pass"]]} />}
-          />
-        ),
-      }
-    }
+    case "consistent":
+      return null // shown by <Repeatability>, which reads every repeat from the backend
 
     case "multi": {
       const single = rows.filter(isSingle).sort((a, b) => b.rate - a.rate)[0]
@@ -666,5 +634,152 @@ function Diverging({ c, single, multis, span }: { c: Ctx; single: Row; multis: R
         Zero line: {single.batch.configuration_name}, single agent at {pct(single.rate, 1)} ({interval(single)})
       </button>
     </div>
+  )
+}
+
+const KS = [2, 3, 5]
+
+/**
+ * Reliability (pass^k: every one of k attempts succeeds) and consistency (do repeats give
+ * the same answer and take the same path), per configuration, over every stored repeat.
+ */
+function Repeatability({ bench, reduce }: { bench: string; reduce: boolean }) {
+  const [k, setK] = useState(3)
+  const [groups, setGroups] = useState<RepeatabilityGroup[] | null>(null)
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    setGroups(null)
+    setError(false)
+    getRepeatability(bench, k)
+      .then((res) => !cancelled && setGroups(res.groups))
+      .catch(() => !cancelled && setError(true))
+    return () => {
+      cancelled = true
+    }
+  }, [bench, k])
+
+  // Most evidence first; a configuration leads only with enough tasks behind its number
+  const shown = (groups ?? [])
+    .filter((g) => g.reliability.value != null || g.consistency.output != null)
+    .sort((a, b) => b.reliability.eligible_tasks - a.reliability.eligible_tasks || b.consistency.tasks - a.consistency.tasks)
+  const hidden = (groups ?? []).length - shown.length
+  const MIN_TASKS = 10
+  const scored = shown.filter((g) => g.reliability.value != null)
+  const lead =
+    [...scored.filter((g) => g.reliability.eligible_tasks >= MIN_TASKS)].sort(
+      (a, b) => (b.reliability.value ?? 0) - (a.reliability.value ?? 0),
+    )[0] ?? scored[0]
+  const fmt = (v: number | null) => (v == null ? "N/A" : (v * 100).toFixed(1) + "%")
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <p className="min-w-[24ch] flex-1 text-[15px] leading-snug text-mm-dark">
+          {lead && lead.reliability.value != null ? (
+            <>
+              {lead.configuration_name} passes all {k} of {k} tries on {fmt(lead.reliability.value)} of tasks
+              {lead.consistency.combined != null ? `, and its repeats agree ${fmt(lead.consistency.combined)} of the time.` : "."}
+            </>
+          ) : groups ? (
+            <>No configuration has {k} scored tries at any task yet. Run with more passes, or lower k.</>
+          ) : error ? (
+            <>Could not load repeat data.</>
+          ) : (
+            <>Loading repeats…</>
+          )}
+        </p>
+        <div role="group" aria-label="k, the number of tries that must all pass" className="flex items-center gap-1 rounded-full bg-muted p-0.5 text-[12px]">
+          <span className="px-2 text-muted-foreground">k</span>
+          {KS.map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={v === k}
+              onClick={() => setK(v)}
+              className={cn(
+                "rounded-full px-2.5 py-1 font-medium",
+                v === k ? "bg-card text-mm-dark shadow-[0_1px_2px_rgba(0,23,53,0.12)]" : "text-muted-foreground hover:text-mm-dark",
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {shown.length ? (
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-[13px]">
+            <thead className="text-[12px] text-muted-foreground">
+              <tr>
+                <th className="pb-2 text-left font-normal">Configuration</th>
+                <th className="pb-2 pl-4 text-left font-normal" title={`Share of tasks where ${k} of its tries would all pass`}>
+                  Reliability, pass^{k}
+                </th>
+                <th className="pb-2 pl-4 text-left font-normal" title="0.7 × output agreement + 0.3 × execution-path similarity">
+                  Consistency
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((g, i) => (
+                <tr key={`${g.configuration_id}:${g.mode}:${g.condition}`} className="border-t border-border/60 align-top">
+                  <td className="py-2.5 pr-2">
+                    <span className="block font-medium text-mm-dark">{g.configuration_name}</span>
+                    <span className="block text-[12px] text-muted-foreground">
+                      {g.models} · up to {g.max_attempts_per_task} tries per task
+                    </span>
+                  </td>
+                  <td className="py-2.5 pl-4">
+                    <Meter value={g.reliability.value} lead={g === lead} reduce={reduce} delay={i} />
+                    <span className="mt-1 block text-[12px] text-muted-foreground">
+                      {g.reliability.value == null
+                        ? `needs ${k} tries per task`
+                        : `${g.reliability.eligible_tasks} of ${g.tasks} tasks have ${k}+ tries`}
+                    </span>
+                  </td>
+                  <td className="py-2.5 pl-4">
+                    <Meter value={g.consistency.combined ?? g.consistency.output} lead={false} reduce={reduce} delay={i} />
+                    <span className="mt-1 block text-[12px] text-muted-foreground">
+                      {g.consistency.output == null
+                        ? "needs 2 tries per task"
+                        : g.consistency.combined == null
+                          ? `output ${fmt(g.consistency.output)} · no execution path recorded`
+                          : `output ${fmt(g.consistency.output)} · execution ${fmt(g.consistency.execution)}`}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      <p className="mt-3 text-[12px] leading-snug text-muted-foreground">
+        Reliability counts a task only when it has at least {k} scored tries, and asks how often {k} of them would all pass, so it
+        can be lower than the pass rate. Consistency compares what repeats produced (the answer, or the store&rsquo;s end state)
+        and the path they took (tools or program steps), whether they passed or not. Tries count together only when the
+        configuration, model and prompts were identical.
+        {hidden ? ` ${hidden} other configuration${hidden === 1 ? " has" : "s have"} no task with repeats yet.` : ""}
+      </p>
+    </div>
+  )
+}
+
+function Meter({ value, lead, reduce, delay }: { value: number | null; lead: boolean; reduce: boolean; delay: number }) {
+  if (value == null) return <span className="font-data text-[13px] text-muted-foreground">N/A</span>
+  return (
+    <span className="flex items-center gap-2">
+      <span className="relative h-[10px] w-28 overflow-hidden rounded-full bg-muted">
+        <motion.span
+          className={cn("absolute inset-y-0 left-0 rounded-full", lead ? "bg-mm-charge" : "bg-muted-foreground/45")}
+          initial={reduce ? false : { width: 0 }}
+          animate={{ width: `${value * 100}%` }}
+          transition={{ duration: 0.5, ease: EASE, delay: delay * 0.04 }}
+        />
+      </span>
+      <span className="font-data text-[13px] text-mm-dark">{(value * 100).toFixed(1)}%</span>
+    </span>
   )
 }

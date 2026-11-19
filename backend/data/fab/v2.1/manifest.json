@@ -1,0 +1,12 @@
+{
+  "benchmark": "Finance Agent Benchmark",
+  "version": "2.1",
+  "split": "public",
+  "source": "https://github.com/vals-ai/finance-agent-v2/blob/25b6cab9bcb4f8f9857f2e1a6721732c85511c5c/data/public.csv",
+  "commit": "25b6cab9bcb4f8f9857f2e1a6721732c85511c5c",
+  "commit_date": "2026-11-18",
+  "sha256": "06be6a898f083132ffd1e16d2c20263c36e855084c91f19fdfc601cf6811f3be",
+  "questions": 27,
+  "criteria": 239,
+  "version_evidence": "No release tags upstream. This commit ('update questions', 2026-11-18) rewrote 5 public questions on the v2.1 release date, matching the v2.1 note 'data fixes'."
+}

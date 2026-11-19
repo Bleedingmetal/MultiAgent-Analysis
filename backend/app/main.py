@@ -11,7 +11,7 @@ from app.datasets import registry
 from app.llm import providers_status
 from app.runners.dispatch import CONFIG_ERRORS, execute, preflight
 from app.schemas import BatchRequest, BatchRun, RunRequest, RunResult
-from app import batches, spend_guard, store
+from app import batches, metrics, spend_guard, store
 
 app = FastAPI(title="Agent Evaluation API", version="0.1.0")
 
@@ -68,6 +68,15 @@ async def health_check():
 @app.get("/api/datasets")
 async def get_datasets():
     return {"benchmarks": registry.list_benchmarks()}
+
+
+@app.get("/api/metrics/repeatability")
+async def get_repeatability(benchmark: str | None = None, k: int = metrics.DEFAULT_K):
+    """Reliability (pass^k) and consistency per configuration, over every stored execution."""
+    if k < 1 or k > 20:
+        raise HTTPException(status_code=400, detail="k must be between 1 and 20")
+    runs = metrics.load_runs(batches.BATCHES_DIR, store.RUNS_FILE)
+    return {"k": k, "groups": metrics.repeatability(runs, benchmark_id=benchmark, k=k)}
 
 
 @app.get("/api/datasets/{benchmark_id}/tasks")

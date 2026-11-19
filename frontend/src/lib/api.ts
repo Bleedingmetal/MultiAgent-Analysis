@@ -454,3 +454,36 @@ export function continueBatch(batchId: string, budgetUsd?: number) {
     body: JSON.stringify({ budget_usd: budgetUsd ?? null }),
   })
 }
+
+
+/** Reliability (pass^k) and consistency for one configuration under one set of conditions. */
+export type RepeatabilityGroup = {
+  configuration_id: string
+  configuration_name: string
+  architecture: string
+  benchmark_id: string
+  mode: string
+  models: string
+  condition: string
+  tasks: number
+  attempts: number
+  max_attempts_per_task: number
+  /** the end-to-end runs whose questions are pooled here */
+  batch_ids: string[]
+  reliability: { k: number; value: number | null; eligible_tasks: number }
+  consistency: {
+    output: number | null
+    execution: number | null
+    combined: number | null
+    tasks: number
+    execution_tasks: number
+    weights: { output: number; execution: number }
+  }
+}
+
+/** pass^k and consistency over every stored execution of each task (no model calls). */
+export function getRepeatability(benchmark: string, k = 3) {
+  return api<{ k: number; groups: RepeatabilityGroup[] }>(
+    `/api/metrics/repeatability?benchmark=${encodeURIComponent(benchmark)}&k=${k}`,
+  )
+}
