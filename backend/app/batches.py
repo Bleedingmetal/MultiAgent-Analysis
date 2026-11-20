@@ -151,6 +151,13 @@ def summarize(batch: BatchRun, *, elapsed_sec: float, tokens: tuple[int, int]) -
             )
         )
     graded = [a.score for a in attempts if a.score is not None and a.status in ("passed", "failed")]
+    task_scores = [
+        statistics.fmean(s) for i in items
+        if (s := [a.score for a in i.attempts if a.score is not None and a.status in ("passed", "failed")])
+    ]
+    score_half = (
+        1.96 * statistics.stdev(task_scores) / len(task_scores) ** 0.5 if len(task_scores) > 1 else 0.0
+    )
     rates = [p.pass_rate for p in per_pass if p.pass_rate is not None and p.done == len(items)]
     return BatchSummary(
         total=len(items),
@@ -166,6 +173,8 @@ def summarize(batch: BatchRun, *, elapsed_sec: float, tokens: tuple[int, int]) -
         pass_all_rate=all_right / len(complete) if complete else None,
         pass_any_rate=any_right / len(complete) if complete else None,
         mean_score=round(statistics.fmean(graded), 6) if graded else None,
+        score_low=round(max(0.0, statistics.fmean(graded) - score_half), 6) if graded else None,
+        score_high=round(min(1.0, statistics.fmean(graded) + score_half), 6) if graded else None,
         mixed=sum(1 for i in items if i.status == "mixed"),
         per_pass=per_pass,
         pass_rate_min=min(rates) if rates else None,

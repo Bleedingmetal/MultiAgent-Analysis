@@ -7,7 +7,7 @@ import { LayoutGroup, motion, useReducedMotion } from "motion/react"
 
 import { BATCH_STATUS_LABEL, pct, secs } from "@/components/product/batch-results"
 import { Bezel, Reveal } from "@/components/product/ui-bits"
-import { type BatchRun, benchmarkName, listBatches, listRuns, type RunResult } from "@/lib/api"
+import { type BatchRun, benchmarkName, listBatches, listRuns, primaryAccuracy, type RunResult } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 type Row =
@@ -265,7 +265,7 @@ function BatchRow({
             className="inline-flex whitespace-nowrap rounded-full bg-muted px-2.5 py-0.5 font-data text-[11px] font-medium text-mm-dark"
             title={BATCH_STATUS_LABEL[batch.status]}
           >
-            {pct(s.pass_rate, 0)} · {s.passed}/{s.passed + s.failed}
+            {pct(primaryAccuracy(s), 0)} · {s.passed}/{s.passed + s.failed}
           </span>
         )}
       </td>

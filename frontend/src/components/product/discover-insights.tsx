@@ -248,6 +248,8 @@ function CountUp({ value, format, reduce }: { value: number; format: (v: number)
 
 function answerFor(id: QuestionId, c: Ctx): Answer | null {
   const { rows, archLabel } = c
+  // FAB is rubric-graded: its headline is partial credit, not a pass rate
+  const rateWord = rows[0]?.batch.summary.mean_score != null ? "partial credit" : "pass rate"
   const name = (r: Row) => r.batch.configuration_name
   const label = (r: Row) => `${name(r)} (${archLabel(r.batch.architecture)})`
 
@@ -257,7 +259,7 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
       const [top, next] = sorted
       if (!top) return null
       return {
-        metric: { value: top.rate, format: (v) => pct(v, 1), label: `pass rate, ${name(top)}` },
+        metric: { value: top.rate, format: (v) => pct(v, 1), label: `${rateWord}, ${name(top)}` },
         headline: next ? (
           <>
             {label(top)} leads. {label(next)} is next at {pct(next.rate, 1)}; {overlap(top, next) ? "their intervals overlap, so the order is not settled at this n." : "their intervals do not overlap."}
@@ -265,7 +267,7 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
         ) : (
           <>{label(top)} is the only configuration with a complete run so far.</>
         ),
-        note: "Bars are the pass rate; the range beside each is its 95% interval, built on tasks.",
+        note: `Bars are the ${rateWord}; the range beside each is its 95% interval, built on tasks.`,
         chart: (
           <BarList
             c={c}
@@ -293,7 +295,7 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
         metric: { value: cost(cheapest), format: (v) => usd(v), label: `per correct answer, ${name(cheapest)}` },
         headline: (
           <>
-            {label(cheapest)} is the cheapest per correct answer, at a {pct(cheapest.rate, 1)} pass rate.{" "}
+            {label(cheapest)} is the cheapest per correct answer, at {pct(cheapest.rate, 1)} {rateWord}.{" "}
             {dominant ? "No other configuration is both more accurate and cheaper." : "The dashed line joins configurations that no other beats on both cost and accuracy."}
           </>
         ),
@@ -357,7 +359,7 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
             {overlap(best, single) ? "The intervals overlap, so this is not a settled difference at this n." : "The intervals do not overlap."}
           </>
         ),
-        note: "Bars show each multi-agent configuration's pass rate minus the single agent's. Pale bars ran a different model, so the gap mixes two effects.",
+        note: `Bars show each multi-agent configuration's ${rateWord} minus the single agent's. Pale bars ran a different model, so the gap mixes two effects.`,
         chart: <Diverging c={c} single={single} multis={multis} span={span} />,
       }
     }

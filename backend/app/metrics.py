@@ -56,7 +56,7 @@ from app.schemas import RunResult
 OUTPUT_WEIGHT = 0.70
 EXECUTION_WEIGHT = 0.30
 DEFAULT_K = 3
-BENCHMARKS = {"finqa", "tau-retail", "tau2-retail"}
+BENCHMARKS = {"finqa", "tau-retail", "tau2-retail", "fab"}
 
 _DECLINED = re.compile(r"(not\s+determinable|cannot\s+be\s+determined|can't\s+be\s+determined|insufficient|^n/?a\b|^none\b)", re.I)
 
@@ -170,6 +170,14 @@ def tau_output(run: RunResult) -> frozenset:
     )
 
 
+def fab_output(run: RunResult) -> frozenset | None:
+    """FAB answers are prose; what they establish is which rubric criteria they meet."""
+    criteria = (run.evaluation or {}).get("criteria")
+    if not criteria:
+        return None
+    return frozenset(c["id"] for c in criteria if c.get("passed"))
+
+
 def output_consistency(runs: list[RunResult]) -> float | None:
     """Mean pairwise agreement of normalised final outputs (Raj et al. Eq. 1); None below 2 runs."""
     if len(runs) < 2:
@@ -177,6 +185,11 @@ def output_consistency(runs: list[RunResult]) -> float | None:
     if runs[0].benchmark_id == "finqa":
         outputs = [finqa_output(r) for r in runs]
         agree = finqa_outputs_agree
+    elif runs[0].benchmark_id == "fab":
+        outputs = [o for o in (fab_output(r) for r in runs) if o is not None]
+        if len(outputs) < 2:
+            return None
+        agree = lambda a, b: a == b  # noqa: E731
     else:
         outputs = [tau_output(r) for r in runs]
         agree = lambda a, b: a == b  # noqa: E731

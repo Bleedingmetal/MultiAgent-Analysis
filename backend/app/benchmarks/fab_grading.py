@@ -81,7 +81,7 @@ def score(rubric: list[dict[str, Any]], passed: dict[int, bool]) -> dict[str, An
     dealbreaker = any(c["must_pass"] and not passed.get(c["id"]) for c in rubric)
     partial = 0.0 if dealbreaker or not total else earned / total
     return {
-        "partial_credit": round(partial, 6),
+        "partial_credit": partial,
         "all_pass": bool(rubric) and all(passed.get(c["id"]) for c in rubric),
         "dealbreaker_failed": dealbreaker,
         "weighted_passed": earned,

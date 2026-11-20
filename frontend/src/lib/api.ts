@@ -168,6 +168,8 @@ export type RunResult = {
   label_disputed?: boolean
   answer: string
   success: boolean | null
+  // Rubric benchmarks (FAB): graded credit 0-1 (Partial Credit); success is All-Pass
+  score?: number | null
   latency_sec: number
   prompt_tokens: number
   completion_tokens: number
@@ -327,6 +329,7 @@ export type BatchAttempt = {
   run_id?: string | null
   scored_answer?: string | null
   success?: boolean | null
+  score?: number | null
   program_match?: boolean | null
   cost_usd: number
   latency_sec: number
@@ -375,6 +378,10 @@ export type BatchSummary = {
   passed: number
   failed: number
   pass_rate?: number | null
+  // FAB: mean Partial Credit, the primary metric (pass_rate is then the All-Pass rate)
+  mean_score?: number | null
+  score_low?: number | null
+  score_high?: number | null
   pass_all_rate?: number | null
   pass_any_rate?: number | null
   mixed?: number
@@ -486,4 +493,19 @@ export function getRepeatability(benchmark: string, k = 3) {
   return api<{ k: number; groups: RepeatabilityGroup[] }>(
     `/api/metrics/repeatability?benchmark=${encodeURIComponent(benchmark)}&k=${k}`,
   )
+}
+
+/** The headline accuracy of a run: graded credit where the benchmark has it (FAB), else pass rate. */
+export function primaryAccuracy(summary: Pick<BatchSummary, "pass_rate" | "mean_score">) {
+  return summary.mean_score ?? summary.pass_rate ?? null
+}
+
+/** One FAB rubric criterion as graded (see backend app/benchmarks/fab_grading.py). */
+export type FabCriterion = {
+  id: number
+  criterion: string
+  severity: number
+  must_pass: boolean
+  passed: boolean
+  votes: { model: string; pass: boolean; reason: string }[]
 }

@@ -32,6 +32,7 @@ import {
   getHealth,
   listBatches,
   taskNoun,
+  primaryAccuracy,
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -57,7 +58,7 @@ const PASS_MEANS: Record<string, string> = {
   finqa: "the numeric answer matches the filing's figure",
   "tau2-retail": "the store database ends in the state the task expects and the customer's questions were answered",
   "tau-retail": "the store database ends in the state the task expects",
-  fab: "the answer is accepted by the rubric",
+  fab: "partial credit: the severity-weighted share of rubric criteria met, or 0 if a must-pass criterion fails",
 }
 
 /** 95% Wilson interval for k of n, as a [low, high] fraction. */
@@ -89,6 +90,12 @@ function toRow(b: BatchRun): Row {
   const expected = b.size * passes
   const n = Math.min(b.size, Math.ceil(graded / passes))
   const eligible = b.status === "completed" && graded === expected && b.size >= MIN_N
+  if (b.summary.mean_score != null) {
+    // Rubric-graded (FAB): Partial Credit is the headline; the backend builds its interval
+    // on per-task means
+    const rate = b.summary.mean_score
+    return { batch: b, graded, expected, n, passes, eligible, rate, low: b.summary.score_low ?? rate, high: b.summary.score_high ?? rate }
+  }
   const rate = graded ? b.summary.passed / graded : 0
   const [low, high] = wilson(rate * n, n)
   return { batch: b, graded, expected, n, passes, eligible, rate, low, high }
@@ -255,7 +262,7 @@ export default function Dashboard() {
               <div key={id} className="-mx-3 mt-4 [&+&]:mt-7">
                 <div className={cn(COLS, "items-baseline border-l-2 border-transparent pb-2 text-[12px] text-muted-foreground")}>
                   <span className="font-medium text-mm-dark">{benchmarkName(id)}</span>
-                  <span>Pass rate · 95% range</span>
+                  <span>{id === "fab" ? "Partial credit" : "Pass rate"} · 95% range</span>
                   <span className="text-right">n</span>
                   <span className="hidden text-right lg:block">$ / correct</span>
                   <span className="hidden text-right lg:block">Time p50–p95</span>
@@ -297,7 +304,7 @@ export default function Dashboard() {
                       <span className="text-muted-foreground"> · {benchmarkName(b.benchmark_id)}, {b.size}{(b.passes ?? 1) > 1 ? ` × ${b.passes}` : ""}</span>
                     </span>
                     <span className="font-data text-mm-dark">
-                      {b.status === "running" || b.status === "paused" ? `${b.summary.done}/${b.summary.total}` : pct(b.summary.pass_rate, 1)}
+                      {b.status === "running" || b.status === "paused" ? `${b.summary.done}/${b.summary.total}` : pct(primaryAccuracy(b.summary), 1)}
                     </span>
                     <span className="hidden w-[6.5rem] shrink-0 whitespace-nowrap text-right font-data text-muted-foreground sm:block">{when(b.created_at)}</span>
                   </Link>

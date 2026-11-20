@@ -334,6 +334,9 @@ class BatchSummary(BaseModel):
     # Mean graded credit over scored answers (FAB: Partial Credit, the primary metric;
     # pass_rate is then the All-Pass rate)
     mean_score: float | None = None
+    # 95% interval on mean_score, built on per-question means (a question's passes are not independent)
+    score_low: float | None = None
+    score_high: float | None = None
     # Questions whose passes disagreed with each other
     mixed: int = 0
     # Each full pass on its own, so the spread between passes is visible

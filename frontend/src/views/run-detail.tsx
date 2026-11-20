@@ -7,6 +7,7 @@ import { ArrowLeft, Copy, Play } from "@phosphor-icons/react"
 
 import { ChainTraceView } from "@/components/product/chain-trace"
 import { ConversationView } from "@/components/product/conversation-view"
+import { FabRubric } from "@/components/product/fab-rubric"
 import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
 import { Bezel, Reveal } from "@/components/product/ui-bits"
 import { Button } from "@/components/ui/button"
@@ -246,6 +247,11 @@ export default function RunDetailPage() {
           {run.conversation ? (
             <div className="mt-6">
               <ConversationView run={run} />
+            </div>
+          ) : null}
+          {run.benchmark_id === "fab" ? (
+            <div className="mt-6">
+              <FabRubric run={run} />
             </div>
           ) : null}
           {run.reasoning_comparison ? (

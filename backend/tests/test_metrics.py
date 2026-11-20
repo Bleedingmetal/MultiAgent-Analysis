@@ -62,6 +62,13 @@ class OutputConsistencyTests(unittest.TestCase):
         self.assertEqual(metrics.output_consistency([a, b]), 1.0)
         self.assertEqual(metrics.output_consistency([a, c]), 0.0)
 
+    def test_fab_compares_the_criteria_met(self) -> None:
+        def fab(met: list[bool]) -> RunResult:
+            ev = {"criteria": [{"id": i, "passed": p} for i, p in enumerate(met)]}
+            return finqa_run("t", "prose", all(met)).model_copy(update={"benchmark_id": "fab", "evaluation": ev})
+        self.assertEqual(metrics.output_consistency([fab([True, False]), fab([True, False])]), 1.0)
+        self.assertEqual(metrics.output_consistency([fab([True, False]), fab([True, True])]), 0.0)
+
     def test_one_run_is_not_available(self) -> None:
         self.assertIsNone(metrics.output_consistency([finqa_run("t", "Final answer: 5", True)]))
 

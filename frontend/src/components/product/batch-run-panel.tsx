@@ -17,6 +17,7 @@ import {
   getHealth,
   listBatches,
   taskNoun,
+  primaryAccuracy,
 } from "@/lib/api"
 import type { AgentConfiguration } from "@/types/configuration"
 import {
@@ -334,7 +335,7 @@ export function BatchRunPanel({
                 >
                   <span className="text-mm-blue">{row.id}</span>
                   <span className="text-muted-foreground">{when(row.created_at)}</span>
-                  <span className="text-mm-dark">{pct(row.summary.pass_rate, 1)}</span>
+                  <span className="text-mm-dark">{pct(primaryAccuracy(row.summary), 1)}</span>
                   <span className="text-muted-foreground">
                     {row.summary.done}/{row.size}
                     {(row.passes ?? 1) > 1 ? ` × ${row.passes}` : ""} · {usd(row.summary.cost_usd)}

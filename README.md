@@ -76,6 +76,26 @@ the backend downloads any missing data every time it starts. `npm run setup` and
 `python backend/scripts/download_datasets.py --force`; one benchmark:
 `--only finqa|fab|tau2`. τ-bench v1 data ships inside its Python package.
 
+### Finance Agent Benchmark (FAB) v2.1
+
+- **Data:** the 27-question public split from `vals-ai/finance-agent-v2`, pinned to commit
+  `25b6cab` (2026-11-18, the v2.1 data fixes) and checked against its SHA-256. Setup refuses any
+  other file and never falls back to the old v1.1 questions. The Validation (450) and Test (449)
+  splits are private, so they aren't available here.
+- **Tools:** every agent gets research tools. These are SEC EDGAR search and filing lists (free,
+  in place of the official sec-api.io), page fetching, document retrieval and a calculator. Web
+  search turns on with `TAVILY_API_KEY`, and price history with `TIINGO_API_KEY` (a free Tiingo
+  key works). Without a price key, the questions that need market prices usually fail.
+- **Grading:** every rubric criterion is judged pass or fail, and hedged answers fail.
+  - **Partial Credit** (the headline number) is 0 if any must-pass criterion fails; otherwise it
+    is the severity-weighted share of criteria met.
+  - **All-Pass** means every criterion was met.
+  - Each judge's verdict and reason is stored on the run.
+- **Not official:** the judges are set by `FAB_JUDGE_MODELS` (default: Haiku 5.5, majority vote
+  per criterion). The official jury (three frontier models, unpublished prompt and aggregation)
+  isn't public, so scores compare our configurations with each other but not with the vals.ai
+  leaderboard.
+
 ## Re-grading FinQA after a scoring fix
 
 When the FinQA checker changes, re-grade the runs you already have instead of paying

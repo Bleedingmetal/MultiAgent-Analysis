@@ -25,9 +25,11 @@ import {
   isConversational,
   pipelineSteps,
   taskNoun,
+  primaryAccuracy,
 } from "@/lib/api"
 import { ChainTraceView } from "@/components/product/chain-trace"
 import { ConversationView } from "@/components/product/conversation-view"
+import { FabRubric } from "@/components/product/fab-rubric"
 import { FinQAReasoningComparisonView } from "@/components/product/finqa-reasoning-comparison"
 import { RunTrace } from "@/components/product/run-trace"
 import { Button } from "@/components/ui/button"
@@ -292,6 +294,17 @@ function ItemDetail({ item }: { item: BatchItem }) {
   return (
     <div className="space-y-4">
       {picker}
+      {run.benchmark_id === "fab" ? (
+        <>
+          <div className="rounded-xl bg-[#f4f7fb] px-4 py-3">
+            <p className="text-[12px] font-medium text-muted-foreground">Agent answer</p>
+            <p className="mt-1.5 whitespace-pre-line text-[14px] leading-relaxed text-mm-dark">
+              {run.scored_answer || run.answer || "No final answer"}
+            </p>
+          </div>
+          <FabRubric run={run} />
+        </>
+      ) : (
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl bg-[#f4f7fb] px-4 py-3">
           <p className="text-[12px] font-medium text-muted-foreground">Agent answer</p>
@@ -313,8 +326,9 @@ function ItemDetail({ item }: { item: BatchItem }) {
           </p>
         </div>
       </div>
+      )}
 
-      {run.label_disputed && run.note ? (
+      {(run.label_disputed || run.note?.includes("cut off")) && run.note ? (
         <p className="rounded-xl border border-mm-yellow/40 bg-mm-yellow/10 px-4 py-3 text-[13px] text-[#5c4600]">
           {run.note}
         </p>
@@ -551,12 +565,19 @@ export function BatchResults({
           ) : null}
           <div className="mt-2 flex items-baseline gap-3">
             <p className="text-[44px] font-semibold leading-none tracking-[-0.03em] text-mm-dark">
-              {pct(s.pass_rate, 1)}
+              {pct(primaryAccuracy(s), 1)}
             </p>
-            <p className="text-[13px] text-muted-foreground">
-              {passes > 1 ? `mean pass rate over ${passes} full passes` : "pass rate"} · {s.passed} of{" "}
-              {s.passed + s.failed} {unit(s.passed + s.failed)} {conv ? "completed" : "correct"}
-            </p>
+            {s.mean_score != null ? (
+              <p className="text-[13px] text-muted-foreground">
+                partial credit{passes > 1 ? ` over ${passes} full passes` : ""} · all criteria met in {s.passed} of{" "}
+                {s.passed + s.failed} ({pct(s.pass_rate, 0)})
+              </p>
+            ) : (
+              <p className="text-[13px] text-muted-foreground">
+                {passes > 1 ? `mean pass rate over ${passes} full passes` : "pass rate"} · {s.passed} of{" "}
+                {s.passed + s.failed} {unit(s.passed + s.failed)} {conv ? "completed" : "correct"}
+              </p>
+            )}
           </div>
           {passes > 1 ? (
             <p className="mt-2 text-[13px] text-mm-dark">
