@@ -7,3 +7,6 @@ runs/history.jsonl
 batches/
 runs/spend.json
 fab/v2.1/public.csv
+
+# Which configurations are hidden from the Overview (per machine)
+overview_hidden.json

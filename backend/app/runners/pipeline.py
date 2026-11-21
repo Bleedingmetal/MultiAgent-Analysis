@@ -645,6 +645,7 @@ def run_pipeline(
     if task.benchmark_id == "fab":
         # A research loop is many round trips per agent
         meter.max_calls = max(meter.max_calls or 0, settings()["fab_max_llm_calls"])
+        meter.max_cost_usd = settings()["fab_max_run_cost_usd"]
     run = PipelineRun(config, task, meter=meter, model_override=model_override)
     t0 = time.perf_counter()
     final = run.run()

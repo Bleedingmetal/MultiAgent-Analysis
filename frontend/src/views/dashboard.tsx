@@ -139,7 +139,6 @@ const surface = "rounded-[16px] bg-card"
 const floating = "rounded-[16px] bg-card shadow-[0_2px_8px_rgba(0,23,53,0.06),0_16px_40px_-16px_rgba(0,23,53,0.2)]"
 const btnPrimary = "inline-flex h-9 shrink-0 items-center rounded-full bg-foreground px-4 text-[12px] font-medium text-background hover:opacity-90"
 const btnQuiet = "inline-flex h-9 shrink-0 items-center rounded-full border border-border px-4 text-[12px] font-medium text-mm-dark hover:bg-muted/60"
-const pill = "rounded-full px-2 py-px text-[12px] leading-[16px] whitespace-nowrap"
 /**
  * The headline panel never leaves an orphan: two benchmarks share a row from md, three sit in one
  * row from lg (stacked below it), four go 2 × 2 on a tablet and four across from xl. Hairlines
@@ -252,7 +251,7 @@ export default function Dashboard() {
 
       {/* 3 · Configurations compared */}
       <section className={cn("mt-4 px-6 pt-5 pb-4", surface)}>
-        <Heading title="Configurations compared" aside="latest complete run of each; partial runs listed last, never ranked" />
+        <Heading title="Configurations compared" />
         {board.length ? (
           benches.map((id) => {
             const group = board.filter((r) => r.batch.benchmark_id === id)
@@ -273,7 +272,6 @@ export default function Dashboard() {
                       key={r.batch.id}
                       row={r}
                       best={r === best}
-                      baseline={r === baseline}
                       delta={baseline && r !== baseline && r.eligible && sameModel(r, baseline) && r.n === baseline.n ? r.rate - baseline.rate : null}
                       selected={openId === r.batch.id}
                       onOpen={() => setOpenId(r.batch.id)}
@@ -481,8 +479,11 @@ function Delta({ a, b }: { a: number; b: number }) {
   return <span className="whitespace-nowrap">{d > 0 ? "+" : ""}{d.toFixed(1)} points</span>
 }
 
-function ConfigRow({ row, best, baseline, delta, selected, onOpen }: { row: Row; best: boolean; baseline: boolean; delta: number | null; selected: boolean; onOpen: () => void }) {
+function ConfigRow({ row, best, delta, selected, onOpen }: { row: Row; best: boolean; delta: number | null; selected: boolean; onOpen: () => void }) {
   const b = row.batch, s = b.summary
+  const model = b.models.join(", ") || b.mode
+  // One quiet line: the architecture and its model, then why it is partial if it is
+  const extras = [model, !row.eligible ? `not ranked, ${partialWhy(row)}` : null].filter(Boolean)
   return (
     <li>
       <button
@@ -499,11 +500,9 @@ function ConfigRow({ row, best, baseline, delta, selected, onOpen }: { row: Row;
         <span className="flex min-w-0 items-center gap-2">
           <span className="min-w-0">
             <span className={cn("line-clamp-2 text-[15px] font-medium leading-tight", row.eligible ? "text-mm-dark" : "text-muted-foreground")}>{b.configuration_name}</span>
-            <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
+            <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
               <ArchBadge id={b.architecture} />
-              {baseline ? <span className={cn(pill, "border border-border")}>baseline</span> : null}
-              {!row.eligible ? <span className={cn(pill, "bg-muted")}>partial · {partialWhy(row)}</span> : null}
-              <span className="truncate">{b.models.join(", ") || b.mode}</span>
+              {extras.length ? ` · ${extras.join(" · ")}` : ""}
             </span>
           </span>
           <CaretRight className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" weight="bold" />
@@ -519,11 +518,15 @@ function ConfigRow({ row, best, baseline, delta, selected, onOpen }: { row: Row;
   )
 }
 
+/** Why a run isn't ranked, in plain words. */
 function partialWhy(row: Row) {
   const b = row.batch
-  if (b.status !== "completed") return b.status
-  if (row.graded < row.expected) return `${b.summary.errors ? `${b.summary.errors} errored, ` : ""}${row.graded} of ${row.expected} graded`
-  return `under ${MIN_N} tasks`
+  const missing = row.expected - row.graded
+  if (b.status === "running") return "still running"
+  if (b.status === "paused") return "paused"
+  if (b.summary.errors) return `${b.summary.errors} of ${b.size} ${b.summary.errors === 1 ? "question" : "questions"} didn't run`
+  if (missing > 0) return "stopped early"
+  return `only ${b.size} questions`
 }
 
 /** The pass rate as a bar; its 95% interval is printed beside it, under the rate. */
@@ -550,7 +553,7 @@ function ArchBadge({ id }: { id: string }) {
   if (!a.what) return <span>{a.label}</span>
   return (
     <Tooltip>
-      <TooltipTrigger render={<span className="cursor-help underline decoration-dotted decoration-muted-foreground/60 underline-offset-2" />}>{a.label}</TooltipTrigger>
+      <TooltipTrigger render={<span className="cursor-help" />}>{a.label}</TooltipTrigger>
       <TooltipContent className="max-w-[32ch] text-[12px] leading-snug">{a.what}</TooltipContent>
     </Tooltip>
   )
@@ -605,10 +608,10 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
                         <button
                           type="button"
                           onClick={() => onOpen(r.batch.id)}
-                          title={`${pct(r.rate, 1)} of ${nLabel(r)}${r.eligible ? "" : ", partial"}`}
+                          title={`${pct(r.rate, 1)} of ${nLabel(r)}${r.eligible ? "" : `; not ranked, ${partialWhy(r)}`}`}
                           className={cn("rounded-[6px] px-1.5 py-0.5 hover:bg-muted/60", r.eligible ? "text-mm-dark" : "text-muted-foreground")}
                         >
-                          {pct(r.rate, 1)}{r.eligible ? "" : <span className="text-muted-foreground"> partial</span>}
+                          {pct(r.rate, 1)}
                         </button>
                       ) : (
                         <span className="text-muted-foreground/70">{scored ? "not run" : "not auto-scored"}</span>
@@ -697,7 +700,7 @@ function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row 
             <p className="mt-1 text-[12px] text-muted-foreground">
               {s.passed} of {row.graded} {passes > 1 ? `answers (${row.n} ${taskNoun(b.benchmark_id, row.n)} × ${passes} passes)` : taskNoun(b.benchmark_id, row.graded)} passed; 95% interval on {row.n} {taskNoun(b.benchmark_id, row.n)}
               {baseline && baseline !== row && row.eligible && sameModel(row, baseline) && row.n === baseline.n ? <>, <Delta a={row.rate} b={baseline.rate} /> against the single-agent baseline</> : baseline === row ? ", the single-agent baseline" : baseline && baseline !== row && row.eligible ? (sameModel(row, baseline) ? ", a different task sample from the baseline, so no delta" : ", no same-model baseline to compare against") : ""}
-              {!row.eligible ? ` · partial: ${partialWhy(row)}, not ranked` : ""}
+              {!row.eligible ? ` · not ranked: ${partialWhy(row)}` : ""}
             </p>
           </div>
 
@@ -734,7 +737,7 @@ function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row 
                 ["Time per task", `${secs(s.p50_latency_sec)} median, ${secs(s.p95_latency_sec)} at the 95th`],
                 ["Tokens in / out", `${s.prompt_tokens.toLocaleString()} / ${s.completion_tokens.toLocaleString()}`],
                 ["Errors", String(s.errors)],
-                ["Status", `${row.eligible ? "complete" : `partial (${partialWhy(row)})`}${b.stop_reason ? `: ${b.stop_reason}` : ""}`],
+                ["Status", `${row.eligible ? "complete" : `not ranked (${partialWhy(row)})`}${b.stop_reason ? `: ${b.stop_reason}` : ""}`],
               ] as [string, string][]
             ).map(([label, value]) => (
               <div key={label} className="min-w-0">

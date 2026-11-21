@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -56,6 +57,30 @@ def refresh_comparison(run: RunResult) -> bool:
     return True
 
 
+# Scoring sentences an older scorer wrote into run notes; refreshed from the current one.
+_SCORING_NOTES = re.compile(
+    r"(Disputed label:.*?Any of these is accepted\.|FinQA gives more than one answer here.*?Any of them is accepted\."
+    r"|FinQA's own question text is cut off.*?gold program\.|FinQA's answer key .*?scored here as [^ ]+?\.)"
+)
+
+
+def refresh_labels(run: RunResult) -> bool:
+    """Bring the run's expected answer, alternate-answer flag and scoring note up to date."""
+    if run.benchmark_id != "finqa" or not run.answer:
+        return False
+    try:
+        task = get_task("finqa", run.task_id)
+    except KeyError:
+        return False
+    scored = score_task_output(task, run.answer)
+    base = " ".join(_SCORING_NOTES.sub("", run.note or "").split())
+    note = " ".join(x for x in (base, scored.note or "") if x) or None
+    before = (run.note, run.label_disputed, run.expected_display, run.expected_answer)
+    run.note, run.label_disputed = note, scored.label_disputed
+    run.expected_display, run.expected_answer = task.expected_display, task.expected_answer
+    return before != (run.note, run.label_disputed, run.expected_display, run.expected_answer)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write", action="store_true")
@@ -79,15 +104,45 @@ def main() -> None:
         runs = [RunResult.model_validate_json(line) for line in runs_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         changed: dict[str, bool | None] = {}
         refreshed = sum(refresh_comparison(run) for run in runs)
+        labels = {run.id: run for run in runs if refresh_labels(run)}
+        refreshed += len(labels)
+        if labels:
+            by_run = {r.id: r for r in runs}
+            for item in batch.items:
+                first = by_run.get(item.run_id or "")
+                if first is not None:
+                    item.expected_display = first.expected_display
+                    item.label_disputed = any(
+                        by_run[a.run_id].label_disputed for a in item.attempts if a.run_id in by_run
+                    ) or first.label_disputed
+            batch.summary.disputed = sum(1 for i in batch.items if i.label_disputed and i.attempts)
+        # Carry each run's (refreshed) calculation check into the batch's own tally
+        matches = {
+            r.id: r.reasoning_comparison.execution_matches_expected if r.reasoning_comparison else None
+            for r in runs
+        }
+        tally_changed = False
+        for item in batch.items:
+            for attempt in item.attempts:
+                if attempt.run_id in matches and attempt.program_match != matches[attempt.run_id]:
+                    attempt.program_match = matches[attempt.run_id]
+                    tally_changed = True
+            if item.attempts:
+                item.program_match = item.attempts[0].program_match
+        if tally_changed:
+            programs = [a.program_match for i in batch.items for a in i.attempts if a.program_match is not None]
+            batch.summary.program_match_rate = sum(programs) / len(programs) if programs else None
+            refreshed += 1
         for run in runs:
             new = rescore(run)
             if new != run.success:
                 changed[run.id] = new
                 run.success = new
         if refreshed and not changed:
-            print(f"{batch.id} {batch.configuration_name}: {refreshed} reasoning comparisons refreshed")
+            print(f"{batch.id} {batch.configuration_name}: {refreshed} notes or comparisons refreshed")
             if args.write:
                 runs_path.write_text("".join(r.model_dump_json() + "\n" for r in runs), encoding="utf-8")
+                meta.write_text(batch.model_dump_json(), encoding="utf-8")
             continue
         if not changed:
             continue
@@ -135,6 +190,7 @@ def main() -> None:
         for line in lines:
             run = RunResult.model_validate_json(line)
             refreshed += refresh_comparison(run)
+            refreshed += refresh_labels(run)
             new = rescore(run)
             if new != run.success:
                 run.success = new

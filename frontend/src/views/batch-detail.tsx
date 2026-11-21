@@ -385,7 +385,7 @@ export default function BatchDetailPage() {
                   <Field label="Latency p50 / p95" value={`${secs(s.p50_latency_sec)} / ${secs(s.p95_latency_sec)}`} />
                   {batch.benchmark_id === "finqa" ? (
                     <Field
-                      label="Disputed labels"
+                      label="More than one answer accepted"
                       value={s.disputed ? `${s.disputed} of ${s.done}` : "None"}
                     />
                   ) : null}

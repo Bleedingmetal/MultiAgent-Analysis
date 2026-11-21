@@ -520,6 +520,15 @@ def list_batches(configuration_id: str | None = None, limit: int = 20) -> list[B
     return rows[:limit]
 
 
+def all_batches() -> list[BatchRun]:
+    """Every batch with its per-question rows (no configuration snapshot), newest first."""
+    _ensure_loaded()
+    with _lock:
+        rows = [b.model_copy(update={"configuration": None}, deep=True) for b in _batches.values()]
+    rows.sort(key=lambda b: b.created_at, reverse=True)
+    return rows
+
+
 def get_run(run_id: str) -> RunResult | None:
     """Full run for one question of a batch."""
     _ensure_loaded()

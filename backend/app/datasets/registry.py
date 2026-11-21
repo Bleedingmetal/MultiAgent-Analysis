@@ -110,6 +110,20 @@ _FINQA_QUESTION_REPAIRS: dict[str, tuple[str, str]] = {
 }
 
 
+# Questions whose FinQA answer key is wrong against FinQA's own evidence. The corrected
+# value is scored and the run says so; the original stays visible.
+_FINQA_ANSWER_CORRECTIONS: dict[str, dict[str, Any]] = {
+    # Table: consulting and professional fees 2007 = 1.0, 2006 = 8.8. The gold program
+    # subtract(8.8, 1.0), divide(#0, 1.0) swaps the years (780%); 2006 -> 2007 is (1.0 - 8.8) / 8.8.
+    "ZBH/2007/page_67.pdf-1": {
+        "original": "780%",
+        "exe_ans": (1.0 - 8.8) / 8.8,
+        "answer": "-88.64%",
+        "reason": "FinQA's answer key swaps 2006 and 2007 (the table has 1.0 for 2007 and 8.8 for 2006)",
+    },
+}
+
+
 def _finqa_task(item: dict[str, Any], index: int) -> Task:
     qa = item.get("qa") or {}
     question = qa.get("question") or ""
@@ -120,10 +134,17 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
     expected = qa.get("exe_ans")
     if expected is None:
         expected = qa.get("answer")
-    expected_s = None if expected is None else str(expected)
     answer_text = qa.get("answer")
     steps = qa.get("steps") or []
     final_step_result = str(steps[-1].get("res") or "") if steps else ""
+    correction = _FINQA_ANSWER_CORRECTIONS.get(str(item.get("id") or ""))
+    if correction and str(answer_text) != correction["original"]:
+        correction = None  # the source changed; do not apply a stale fix
+    if correction:
+        expected = correction["exe_ans"]
+        answer_text = correction["answer"]
+        final_step_result = correction["answer"]
+    expected_s = None if expected is None else str(expected)
     expected_is_percent = "%" in str(answer_text or "") or "%" in final_step_result
     display_answer = str(answer_text) if answer_text else final_step_result or None
     gold_blob = " ".join((qa.get("gold_inds") or {}).values())
@@ -200,6 +221,11 @@ def _finqa_task(item: dict[str, Any], index: int) -> Task:
             "expected_display": expected_display,
             # FinQA's question text was cut off in the source and completed from the gold program
             "question_repaired": question_repaired,
+            "answer_corrected": bool(correction),
+            "correction_note": (
+                f"{correction['reason']}; it expects {correction['original']}, scored here as {correction['answer']}."
+                if correction else None
+            ),
             "source_question": (qa.get("question") or "") if question_repaired else None,
         },
     )

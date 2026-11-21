@@ -71,3 +71,9 @@ coverage/
 
 # Backups written by backend/scripts/rescore_finqa.py
 backend/data/backup-*/
+
+# Impeccable design skill (installed with `npx impeccable install`; the skill, its
+# Claude agents and hooks live in .claude/, ignored above) and the files it writes
+/PRODUCT.md
+/DESIGN.md
+/.impeccable/

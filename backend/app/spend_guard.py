@@ -165,6 +165,8 @@ class RunMeter:
     # Per-run call cap; None = MAX_LLM_CALLS_PER_RUN. Multi-turn benchmarks raise it,
     # since one conversation is many round trips.
     max_calls: int | None = None
+    # Per-run cost cap; None = MAX_RUN_COST_USD. FAB research runs use FAB_MAX_RUN_COST_USD.
+    max_cost_usd: float | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def before_call(self) -> None:
@@ -173,10 +175,9 @@ class RunMeter:
             cap = self.max_calls or s["max_llm_calls_per_run"]
             if self.llm_calls >= cap:
                 raise RuntimeError(f"Run stopped: hit the per-run LLM call cap ({cap}).")
-            if self.cost_usd >= s["max_run_cost_usd"]:
-                raise RuntimeError(
-                    f"Run stopped: hit MAX_RUN_COST_USD (${s['max_run_cost_usd']:.2f})."
-                )
+            cost_cap = self.max_cost_usd or s["max_run_cost_usd"]
+            if self.cost_usd >= cost_cap:
+                raise RuntimeError(f"Run stopped: hit the per-run cost cap (${cost_cap:.2f}).")
             if _state.spend_usd + self.cost_usd >= s["daily_budget_usd"]:
                 raise RuntimeError(
                     f"Run stopped: daily spend cap (${s['daily_budget_usd']:.2f}) reached mid-run."

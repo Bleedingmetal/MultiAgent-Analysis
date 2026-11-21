@@ -108,6 +108,8 @@ def _settings() -> dict:
         "fab_retrieval_model": os.getenv("FAB_RETRIEVAL_MODEL", "claude-haiku-5-5"),
         "fab_max_tool_steps": int(os.getenv("FAB_MAX_TOOL_STEPS", "16")),
         "fab_max_llm_calls": int(os.getenv("FAB_MAX_LLM_CALLS", "80")),
+        # Per-question cost cap for FAB (multi-agent research reads several filings per agent)
+        "fab_max_run_cost_usd": float(os.getenv("FAB_MAX_RUN_COST_USD", "0.30")),
         # SEC asks automated clients to identify themselves; set your organisation and contact
         "sec_user_agent": os.getenv("SEC_USER_AGENT", "AgentEvaluation research-harness admin@example.org"),
         # Optional: the official web_search (Tavily) and price_history (Tiingo) tools

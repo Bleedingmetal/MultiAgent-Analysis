@@ -21,7 +21,7 @@ import { ArrowRight, CaretRight } from "@phosphor-icons/react"
 import { pct, secs, usd } from "@/components/product/batch-results"
 import { type RepeatabilityGroup, benchmarkName, getRepeatability } from "@/lib/api"
 import { cn } from "@/lib/utils"
-import type { Row } from "@/views/dashboard"
+import type { Row } from "@/views/compare"
 
 type QuestionId = "best" | "cost" | "speed" | "consistent" | "multi"
 

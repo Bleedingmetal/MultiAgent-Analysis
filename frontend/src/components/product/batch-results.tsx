@@ -328,7 +328,7 @@ function ItemDetail({ item }: { item: BatchItem }) {
       </div>
       )}
 
-      {(run.label_disputed || run.note?.includes("cut off")) && run.note ? (
+      {(run.note?.includes("cut off") || run.note?.includes("answer key")) && run.note ? (
         <p className="rounded-xl border border-mm-yellow/40 bg-mm-yellow/10 px-4 py-3 text-[13px] text-[#5c4600]">
           {run.note}
         </p>
@@ -418,11 +418,8 @@ function ItemRow({
               </span>
             ) : null}
             {item.label_disputed ? (
-              <span
-                className="rounded-full bg-mm-yellow/20 px-1.5 text-[#7a5d00]"
-                title="FinQA's gold program and its own step annotation disagree; either answer is accepted"
-              >
-                disputed label
+              <span title="FinQA gives more than one answer for this question; any of them is accepted">
+                accepts either
               </span>
             ) : null}
           </span>
@@ -641,16 +638,11 @@ export function BatchResults({
         <Stat
           label="Cost"
           value={usd(s.cost_usd)}
-          hint={
-            running && s.projected_cost_usd != null
-              ? `about ${usd(s.projected_cost_usd)} when done`
-              : `${usd(s.avg_cost_usd)} per ${conv ? "conversation" : passes > 1 ? "answer" : "question"}`
-          }
+          hint={running && s.projected_cost_usd != null ? `about ${usd(s.projected_cost_usd)} when done` : undefined}
         />
         <Stat
           label={conv ? "Per completed conversation" : "Per correct answer"}
           value={usd(s.cost_per_pass_usd)}
-          hint={conv ? "cost ÷ conversations that passed" : "cost ÷ correct answers"}
         />
         <Stat
           label={`Time per ${noun(1)}`}
@@ -661,19 +653,18 @@ export function BatchResults({
           <Stat
             label="Did not finish"
             value={String(s.errors)}
-            hint={s.errors ? "stopped before the grader ran" : "every conversation reached the grader"}
+            hint={s.errors ? "stopped before the grader ran" : undefined}
           />
         ) : s.mean_score != null ? (
           <Stat
             label="All criteria met"
             value={pct(s.pass_rate, 0)}
-            hint={`All-Pass: ${s.passed} of ${s.passed + s.failed} answers`}
           />
         ) : (
           <Stat
             label="Calculation matched FinQA"
             value={pct(s.program_match_rate, 0)}
-            hint={s.errors ? `${s.errors} errored` : "of answers with a program"}
+            hint={s.errors ? `${s.errors} errored` : undefined}
           />
         )}
       </dl>

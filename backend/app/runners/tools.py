@@ -32,7 +32,15 @@ _FUNCS: dict[str, Callable[..., Any]] = {
     "sqrt": math.sqrt,
     "log": math.log,
     "exp": math.exp,
+    "ln": math.log,
+    "pow": lambda a, b: _check_pow(a, b),
 }
+
+
+def _check_pow(base: float, exponent: float) -> float:
+    if abs(exponent) > 100:
+        raise ValueError("exponent too large")
+    return base**exponent
 
 
 def _eval_node(node: ast.AST) -> float:
@@ -58,7 +66,10 @@ def _eval_node(node: ast.AST) -> float:
 
 
 def calculate(expression: str) -> str:
-    expr = expression.replace(",", "").replace("%", "/100").strip()
+    # Drop thousands separators only (1,234,567), so pow(a, b) and max(a, b) keep their commas;
+    # ^ is the power sign most people write
+    expr = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", expression)
+    expr = expr.replace("^", "**").replace("%", "/100").strip()
     if len(expr) > 300:
         return "error: expression too long"
     try:
@@ -94,8 +105,8 @@ _SPECS: dict[str, ToolSpec] = {
     "calculator": ToolSpec(
         name="calculator",
         description=(
-            "Evaluate an arithmetic expression exactly. Supports + - * / **, parentheses, "
-            "and abs, round, min, max, sum, sqrt, log, exp. A trailing % means percent "
+            "Evaluate an arithmetic expression exactly. Supports + - * / ** (or ^), parentheses, "
+            "and abs, round, min, max, sum, sqrt, log, ln, exp, pow. A trailing % means percent "
             "(5% = 0.05). Example: (5829 - 5735) / 5735"
         ),
         parameters={

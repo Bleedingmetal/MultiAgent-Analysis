@@ -68,6 +68,14 @@ class JuryTests(unittest.TestCase):
 
 
 class ToolTests(unittest.TestCase):
+    def test_calculator_handles_powers_and_multi_argument_functions(self) -> None:
+        from app.runners.tools import calculate
+        self.assertEqual(calculate("(5048/4086)^(1/3)-1"), calculate("pow(5048/4086, 1/3) - 1"))
+        self.assertAlmostEqual(float(calculate("(5048/4086)^(1/3)-1")), 0.07301796857)
+        self.assertEqual(calculate("1,234,567 + 1"), "1234568")  # thousands separators still dropped
+        self.assertEqual(calculate("max(3, 7)"), "7")
+        self.assertTrue(calculate("2^1000").startswith("error"))
+
     def test_html_to_text_keeps_tables_and_drops_hidden_xbrl(self) -> None:
         html = "<html><head><title>x</title></head><body><ix:header>hidden</ix:header><p>Revenue</p>" \
                "<table><tr><td>2025</td><td>$4,000</td></tr></table><script>bad()</script></body></html>"

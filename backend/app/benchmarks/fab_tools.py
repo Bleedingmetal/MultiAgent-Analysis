@@ -114,7 +114,15 @@ def edgar_search(
     forms = [f.strip().upper() for f in (form_types or []) if f and f.strip()]
     company = _cik_for(ticker) if ticker else None
     if ticker and not company:
-        return f"error: unknown ticker {ticker}"
+        # Not a current SEC ticker (delisted, acquired or renamed): search the filings' text
+        # for it instead of giving up, so older filings of a company that no longer trades stay reachable
+        bare = ticker.upper().split(":")[-1].strip()
+        if not query.strip():
+            return (
+                f"{bare} is not a current SEC ticker (it may be delisted or acquired). "
+                "Search by company name with `query`, e.g. \"Chart Industries\"."
+            )
+        query = f"{query} {bare}"
     rows: list[dict[str, Any]] = []
     if query.strip():
         params = {"q": query}
@@ -240,7 +248,10 @@ _SPECS: dict[str, ToolSpec] = {
     ),
     "calculator": ToolSpec(
         name="calculator",
-        description="Evaluate an arithmetic expression exactly, e.g. (5829 - 5735) / 5735.",
+        description=(
+            "Evaluate an arithmetic expression exactly. + - * / and ** or ^ for powers, parentheses, "
+            "abs, round, min, max, sum, sqrt, log, ln, exp, pow. E.g. (5048 / 4086) ^ (1/3) - 1"
+        ),
         parameters={
             "type": "object",
             "properties": {"expression": {"type": "string"}},

@@ -11,7 +11,7 @@ from app.datasets import registry
 from app.llm import providers_status
 from app.runners.dispatch import CONFIG_ERRORS, execute, preflight
 from app.schemas import BatchRequest, BatchRun, RunRequest, RunResult
-from app import batches, metrics, spend_guard, store
+from app import batches, metrics, overview, spend_guard, store
 
 app = FastAPI(title="Agent Evaluation API", version="0.1.0")
 
@@ -68,6 +68,24 @@ async def health_check():
 @app.get("/api/datasets")
 async def get_datasets():
     return {"benchmarks": registry.list_benchmarks()}
+
+
+@app.get("/api/overview")
+def get_overview():
+    """Where each task stands, what changed, and what needs attention (see app.overview)."""
+    counts = {b["id"]: b["task_count"] for b in registry.list_benchmarks(include_missing=True)}
+    return overview.build(batches.all_batches(), counts)
+
+
+class HideBody(BaseModel):
+    configuration_id: str
+    hidden: bool = True
+
+
+@app.post("/api/overview/hidden")
+def set_overview_hidden(body: HideBody):
+    """Keep a configuration (a test or scratch setup) off the Overview, or bring it back."""
+    return {"hidden_configuration_ids": sorted(overview.set_hidden(body.configuration_id, body.hidden))}
 
 
 @app.get("/api/metrics/repeatability")

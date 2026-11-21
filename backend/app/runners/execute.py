@@ -128,6 +128,11 @@ def _finqa_reasoning_comparison(
                 expected_is_percent=task.metadata.get("expected_is_percent"),
                 expected_in_percent_units=bool(task.metadata.get("expected_in_percent_units")),
             )
+        ) or any(
+            # FinQA gives more than one answer for some questions (its program is sometimes
+            # broken); the calculation matches when it reaches any answer the grader accepts
+            score_answer(alt, f"Final answer: {result}")
+            for alt in task.metadata.get("alternate_answers") or []
         )
     return comparison
 
@@ -164,12 +169,15 @@ def score_task_output(task: Task, answer: str) -> ScoredOutput:
     note = None if success is not None else "Open-ended task; success not auto-scored in MVP."
     if alternates:
         note = (
-            f"Disputed label: FinQA's gold program gives {task.expected_answer}, but the "
-            f"dataset also gives {' / '.join(alternates)}. Any of these is accepted."
+            f"FinQA gives more than one answer here ({task.expected_answer} from its program, "
+            f"{' / '.join(alternates)} in its annotations). Any of them is accepted."
         )
         # Lenient units here: annotations often drop the % sign.
         if success is False and any(score_answer(a, answer) for a in alternates):
             success = True
+    if task.metadata.get("answer_corrected"):
+        fixed = str(task.metadata.get("correction_note"))
+        note = f"{note} {fixed}" if note and success is not None else fixed
     if task.metadata.get("question_repaired"):
         repaired = (
             "FinQA's own question text is cut off "
