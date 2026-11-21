@@ -209,6 +209,8 @@ export type BenchmarkInfo = {
   role: string
   task_count: number
   scored: boolean
+  // Dataset version, where the source publishes versions (FAB: "2.1")
+  version?: string
   available?: boolean
   default_system_prompt?: string
   notes: string

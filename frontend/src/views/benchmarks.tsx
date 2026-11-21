@@ -104,10 +104,24 @@ export default function Benchmarks() {
                       <dt className="text-muted-foreground">Tasks</dt>
                       <dd className="mt-0.5 text-mm-dark">{info ? info.task_count.toLocaleString() : apiDown ? "—" : "…"}</dd>
                     </div>
+                    {info?.version ? (
+                      <div>
+                        <dt className="text-muted-foreground">Version</dt>
+                        <dd className="mt-0.5 text-mm-dark">v{info.version} public split</dd>
+                      </div>
+                    ) : null}
                     <div>
                       <dt className="text-muted-foreground">Scoring</dt>
                       <dd className="mt-0.5 text-mm-dark">
-                        {info ? (info.scored ? "automatic pass / fail" : "not auto-scored") : apiDown ? "—" : "…"}
+                        {info
+                          ? !info.scored
+                            ? "not auto-scored"
+                            : info.id === "fab"
+                              ? "rubric · partial credit"
+                              : "automatic pass / fail"
+                          : apiDown
+                            ? "—"
+                            : "…"}
                       </dd>
                     </div>
                     <div>

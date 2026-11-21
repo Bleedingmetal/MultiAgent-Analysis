@@ -663,6 +663,12 @@ export function BatchResults({
             value={String(s.errors)}
             hint={s.errors ? "stopped before the grader ran" : "every conversation reached the grader"}
           />
+        ) : s.mean_score != null ? (
+          <Stat
+            label="All criteria met"
+            value={pct(s.pass_rate, 0)}
+            hint={`All-Pass: ${s.passed} of ${s.passed + s.failed} answers`}
+          />
         ) : (
           <Stat
             label="Calculation matched FinQA"
