@@ -1,787 +1,591 @@
 "use client"
 
 /*
- * Overview. One question, answered per benchmark: does a multi-agent architecture beat a
- * single agent, and at what price? The page is a lede, a snapshot card per benchmark, the
- * ranked list of configurations, then what ran lately and what has not run at all.
+ * Overview: a quick look before diving in, or a last look after a session.
  *
- * Data rules (from the design review): a configuration is judged once per benchmark, by its
- * latest complete run; a run counts only when it finished and graded every task it was given,
- * with at least MIN_N tasks. Anything else is shown as partial and never leads. Pass rates
- * carry n and a 95% Wilson interval. Nothing is averaged across benchmarks.
+ * 1. One headline per task: its best result, and single vs multi-agent compared only on the
+ *    questions both ran (from /api/overview, paired question by question).
+ * 2. Discover insights: the questions panel, the page's centrepiece.
+ * 3. What changed, and what needs attention (shown only when something does).
  *
- * Disclosure: a row opens a side panel that stays open while other rows are clicked, so two
- * configurations are two clicks apart. The panel slides, nothing else animates.
+ * The full leaderboard and coverage table live on Compare. Every number opens its evidence in
+ * the side panel shared with Compare.
  */
 
 import Link from "next/link"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { useEffect, useMemo, useRef, useState } from "react"
-import type React from "react"
-import { CaretRight, X } from "@phosphor-icons/react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { STATUS_STYLE, pct, secs, usd, when } from "@/components/product/batch-results"
+import { pct, usd, when } from "@/components/product/batch-results"
 import { DiscoverInsights } from "@/components/product/discover-insights"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   type BatchRun,
-  type BenchmarkInfo,
+  type Overview,
+  type OverviewAttention,
+  type OverviewTask,
   benchmarkName,
-  getBatch,
-  getDatasets,
   getHealth,
+  getOverview,
   listBatches,
+  planSettle,
+  runSettle,
+  type SettlePlan,
+  setOverviewHidden,
   taskNoun,
-  primaryAccuracy,
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { HowThisWorks, type Row, SidePanel, arch, btnPrimary, btnQuiet, leaderboard, surface } from "@/views/compare"
 
 type Health = Awaited<ReturnType<typeof getHealth>>
 
-/** A run counts for the leaderboard only with this many tasks graded. */
-const MIN_N = 10
 const BENCH_ORDER = ["finqa", "tau2-retail", "tau-retail", "fab"]
-const FINISHED = new Set<BatchRun["status"]>(["completed", "stopped", "cancelled", "interrupted", "failed"])
-
-const ARCH: Record<string, { label: string; what: string }> = {
-  "single-agent": { label: "Single agent", what: "One model call answers the task on its own. The baseline every other architecture is measured against." },
-  "prompt-chaining": { label: "Prompt chain", what: "Fixed steps in sequence; each model call works from the previous step's output." },
-  routing: { label: "Routing", what: "A router reads the task and hands it to one specialist prompt." },
-  parallelization: { label: "Parallel", what: "Several model calls work at once and their answers are merged." },
-  "evaluator-optimizer": { label: "Evaluator", what: "One model drafts an answer, a second critiques it, and the draft is revised until the critic accepts it." },
-  "autonomous-agent": { label: "Autonomous", what: "The model plans its own steps and calls tools until it decides it is done." },
-  custom: { label: "Custom", what: "A hand-built graph of model calls." },
+/** Tasks in plain words; the benchmark is named beside them. */
+const TASK: Record<string, string> = {
+  finqa: "Financial calculation",
+  "tau2-retail": "Customer service with tools",
+  "tau-retail": "Customer service",
+  fab: "Finance research",
 }
-const arch = (id: string) => ARCH[id] ?? { label: id, what: "" }
+const task = (id: string) => TASK[id] ?? benchmarkName(id)
+/** Short benchmark names, so every headline stays on one line and the figures line up. */
+const SHORT: Record<string, string> = { finqa: "FinQA", "tau2-retail": "τ²-bench", "tau-retail": "τ-bench", fab: "FAB v2.1" }
+const byBench = (a: string, b: string) => (BENCH_ORDER.indexOf(a) + 1 || 99) - (BENCH_ORDER.indexOf(b) + 1 || 99)
 
-const PASS_MEANS: Record<string, string> = {
-  finqa: "the numeric answer matches the filing's figure",
-  "tau2-retail": "the store database ends in the state the task expects and the customer's questions were answered",
-  "tau-retail": "the store database ends in the state the task expects",
-  fab: "partial credit: the severity-weighted share of rubric criteria met, or 0 if a must-pass criterion fails",
-}
-
-/** 95% Wilson interval for k of n, as a [low, high] fraction. */
-function wilson(k: number, n: number): [number, number] {
-  if (!n) return [0, 0]
-  const z = 1.96, p = k / n, d = 1 + (z * z) / n
-  const c = (p + (z * z) / (2 * n)) / d
-  const h = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d
-  return [Math.max(0, c - h), Math.min(1, c + h)]
-}
-
-export type Row = {
-  batch: BatchRun
-  /** answers graded: tasks × passes */
-  graded: number
-  expected: number
-  /** tasks graded: the n the interval is built on, since a task's passes are not independent */
-  n: number
-  passes: number
-  eligible: boolean
-  rate: number
-  low: number
-  high: number
-}
-
-function toRow(b: BatchRun): Row {
-  const passes = b.passes ?? 1
-  const graded = b.summary.passed + b.summary.failed
-  const expected = b.size * passes
-  const n = Math.min(b.size, Math.ceil(graded / passes))
-  const eligible = b.status === "completed" && graded === expected && b.size >= MIN_N
-  if (b.summary.mean_score != null) {
-    // Rubric-graded (FAB): Partial Credit is the headline; the backend builds its interval
-    // on per-task means
-    const rate = b.summary.mean_score
-    return { batch: b, graded, expected, n, passes, eligible, rate, low: b.summary.score_low ?? rate, high: b.summary.score_high ?? rate }
-  }
-  const rate = graded ? b.summary.passed / graded : 0
-  const [low, high] = wilson(rate * n, n)
-  return { batch: b, graded, expected, n, passes, eligible, rate, low, high }
-}
-
-/** "69–85": the interval the rate sits in, which is not symmetric. */
-function bounds(r: Row) {
-  return `${(r.low * 100).toFixed(0)}–${(r.high * 100).toFixed(0)}`
-}
-/** "50 × 2" for a two-pass run, "20" for one pass. */
-function nLabel(r: Row) {
-  if (!r.eligible && r.graded < r.expected) return `${r.graded} of ${r.expected}`
-  return r.passes > 1 ? `${r.n} × ${r.passes}` : String(r.n)
-}
-/** Whether two rows ran the same model, so a delta between them means something. */
-const sameModel = (a: Row, b: Row) => a.batch.models.join() === b.batch.models.join()
-
-/**
- * The row each configuration is judged by, per benchmark: its latest eligible run, or failing
- * that its latest finished run with anything graded, marked partial. Eligible rows rank first.
- */
-function leaderboard(batches: BatchRun[]) {
-  const byKey = new Map<string, Row>()
-  const sorted = [...batches].sort((a, c) => c.created_at.localeCompare(a.created_at))
-  for (const b of sorted) {
-    if (!FINISHED.has(b.status)) continue
-    const row = toRow(b)
-    if (!row.graded) continue
-    const key = `${b.configuration_id}::${b.benchmark_id}`
-    const have = byKey.get(key)
-    if (!have || (!have.eligible && row.eligible)) byKey.set(key, row)
-  }
-  return [...byKey.values()].sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.rate - a.rate || b.graded - a.graded)
-}
-
-/** The list's columns, shared by the header and every row. */
-const COLS = "grid w-full grid-cols-[minmax(0,1fr)_minmax(150px,38%)_64px] items-center gap-3 px-3 lg:grid-cols-[minmax(170px,1fr)_minmax(200px,32%)_64px_80px_112px]"
-/** A panel: white on the page's blue-grey ground, one soft radius, no border and no shadow. Nested radii step down 16 → 10 → pill. */
-const surface = "rounded-[16px] bg-card"
-/** What floats (the popover) gets the one shadow on the page. */
-const floating = "rounded-[16px] bg-card shadow-[0_2px_8px_rgba(0,23,53,0.06),0_16px_40px_-16px_rgba(0,23,53,0.2)]"
-const btnPrimary = "inline-flex h-9 shrink-0 items-center rounded-full bg-foreground px-4 text-[12px] font-medium text-background hover:opacity-90"
-const btnQuiet = "inline-flex h-9 shrink-0 items-center rounded-full border border-border px-4 text-[12px] font-medium text-mm-dark hover:bg-muted/60"
-/**
- * The headline panel never leaves an orphan: two benchmarks share a row from md, three sit in one
- * row from lg (stacked below it), four go 2 × 2 on a tablet and four across from xl. Hairlines
- * divide the columns only where they share one row.
- */
+/** The headline panel keeps every task in one row from lg (two on md, stacked on phones). */
 const HEADLINE_GRID: Record<number, string> = {
   1: "",
-  2: "md:grid-cols-2 md:gap-0 md:divide-x md:divide-border/70",
-  3: "lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-border/70",
-  4: "md:grid-cols-2 xl:grid-cols-4 xl:gap-0 xl:divide-x xl:divide-border/70",
+  2: "md:grid-cols-2 md:divide-x md:divide-border/70",
+  3: "xl:grid-cols-3 xl:divide-x xl:divide-border/70",
+  4: "md:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-border/70",
 }
-const HEADLINE_PAD: Record<number, string> = {
-  1: "",
-  2: "md:px-6 md:first:pl-0 md:last:pr-0",
-  3: "lg:px-6 lg:first:pl-0 lg:last:pr-0",
-  4: "xl:px-5 xl:first:pl-0 xl:last:pr-0",
-}
-/** A section's title, with its one-line aside, sitting directly on the page. */
-function Heading({ title, aside }: { title: string; aside?: React.ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-      <h3 className="text-[15px] font-semibold text-mm-dark">{title}</h3>
-      {aside ? <span className="text-[12px] text-muted-foreground">{aside}</span> : null}
-    </div>
-  )
-}
+const link =
+  "cursor-pointer rounded-[4px] font-medium text-mm-charge hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/40"
 
 export default function Dashboard() {
+  const [overview, setOverview] = useState<Overview | null>(null)
   const [batches, setBatches] = useState<BatchRun[]>([])
   const [health, setHealth] = useState<Health | null>(null)
-  const [datasets, setDatasets] = useState<BenchmarkInfo[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [loaded, setLoaded] = useState(false)
-  const [asOf, setAsOf] = useState<Date | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([listBatches(undefined, 200), getHealth(), getDatasets().catch(() => ({ benchmarks: [] as BenchmarkInfo[] }))])
-      .then(([b, h, d]) => {
-        if (cancelled) return
+  const load = useCallback(() => {
+    setError(null)
+    return Promise.all([getOverview(), listBatches(undefined, 200), getHealth()])
+      .then(([o, b, h]) => {
+        setOverview(o)
         setBatches(b.batches)
         setHealth(h)
-        setDatasets(d.benchmarks)
-        setAsOf(new Date())
       })
-      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "Could not load"))
-      .finally(() => !cancelled && setLoaded(true))
-    return () => {
-      cancelled = true
-    }
+      .catch((e) => setError(e instanceof Error ? e.message : "Could not load the overview"))
   }, [])
+  useEffect(() => {
+    void load()
+  }, [load])
+  // While runs go (top-ups settling a comparison included), keep the page current
+  const busy = !!overview && (overview.running > 0 || !!overview.settling)
+  useEffect(() => {
+    if (!busy) return
+    const t = window.setTimeout(() => void load(), 4000)
+    return () => window.clearTimeout(t)
+  }, [busy, overview, load])
 
-  const board = useMemo(() => leaderboard(batches), [batches])
-  const benches = useMemo(
-    () =>
-      [...new Set(board.map((r) => r.batch.benchmark_id))].sort(
-        (a, b) => (BENCH_ORDER.indexOf(a) + 1 || 99) - (BENCH_ORDER.indexOf(b) + 1 || 99),
-      ),
-    [board],
+  const hidden = useMemo(() => new Set(overview?.hidden_configuration_ids ?? []), [overview])
+  // Hidden configurations (tests, scratch setups) stay off the Overview; Compare shows them all.
+  // Top-up runs only supplement a comparison, so they never rank.
+  const board = useMemo(
+    () => leaderboard(batches.filter((b) => !hidden.has(b.configuration_id) && b.purpose !== "top-up")),
+    [batches, hidden],
   )
-  const taskCount = useMemo(() => Object.fromEntries(datasets.map((d) => [d.id, d.task_count])), [datasets])
-  const recent = useMemo(
-    () => [...batches].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6),
-    [batches],
-  )
-  const running = batches.filter((b) => b.status === "running" || b.status === "paused")
+  const tasks = useMemo(() => [...(overview?.tasks ?? [])].sort((a, b) => byBench(a.benchmark_id, b.benchmark_id)), [overview])
+  const benches = tasks.map((t) => t.benchmark_id)
   const open = openId ? board.find((r) => r.batch.id === openId) ?? null : null
+  const openBaseline = open
+    ? board.find((r) => r.eligible && r.batch.benchmark_id === open.batch.benchmark_id && r.batch.architecture === "single-agent") ?? null
+    : null
 
+  async function hide(configurationId: string) {
+    await setOverviewHidden(configurationId, true).catch(() => undefined)
+    setOpenId(null)
+    void load()
+  }
+  async function showAll() {
+    await Promise.all([...hidden].map((id) => setOverviewHidden(id, false))).catch(() => undefined)
+    void load()
+  }
+
+  const loading = !overview && !error
   return (
     <div className={cn("mx-auto w-full max-w-[1180px] transition-[padding] duration-200", openId && "xl:pr-[440px]")}>
-      {/* 1 · Introduction */}
-      <header className="flex items-end justify-between gap-6 px-6">
-        <div className="min-w-0 max-w-[76ch]">
-          <h2 className="text-[24px] font-semibold tracking-[-0.01em] text-mm-dark">Agent Evaluation</h2>
-          <HowThisWorks benches={benches} />
-          {error ? <p className="mt-1.5 text-[12px] text-[#b34800]">{error}</p> : null}
+      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6">
+        <h2 className="text-[24px] font-semibold tracking-[-0.01em] text-mm-dark">Agent Evaluation</h2>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <HowThisWorks benches={benches} className="" />
+          {health?.spend ? (
+            <span className="text-[12px] text-muted-foreground">
+              {usd(health.spend.remaining_budget_usd)} of today&rsquo;s {usd(health.spend.daily_budget_usd)} left
+            </span>
+          ) : null}
+          <Link href="/configurations" className={cn(btnPrimary, "cursor-pointer")}>
+            Run an evaluation
+          </Link>
         </div>
-        <Link href="/configurations" className={btnPrimary}>Run an evaluation</Link>
       </header>
 
-      {/* 2 · Research snapshot: one card per benchmark */}
-      {benches.length ? (
-        <div
-          className={cn("mt-6 grid gap-8 p-6", surface, HEADLINE_GRID[Math.min(benches.length, 4)])}
-        >
-          {benches.map((id) => (
-            <Snapshot
-              key={id}
-              id={id}
-              rows={board.filter((r) => r.batch.benchmark_id === id)}
-              total={taskCount[id]}
-              onOpen={setOpenId}
-              layout={benches.length === 1 ? "solo" : benches.length === 2 ? "pair" : "compact"}
-              rowPad={HEADLINE_PAD[Math.min(benches.length, 4)]}
-            />
-          ))}
+      {error ? (
+        <div className={cn("mt-6 flex flex-wrap items-center justify-between gap-3 px-6 py-5 text-[13px]", surface)}>
+          <span className="text-mm-dark">The overview couldn&rsquo;t load: {error}</span>
+          <button type="button" onClick={() => void load()} className={cn(btnQuiet, "cursor-pointer")}>
+            Try again
+          </button>
         </div>
       ) : null}
 
-      {/* 2b · Discover insights: pick a question, get the chart that answers it */}
-      <DiscoverInsights
-        board={board}
-        benches={benches.length ? benches : datasets.length ? datasets.map((d) => d.id) : ["finqa", "tau2-retail", "fab"]}
-        selectedId={openId}
-        onOpen={setOpenId}
-        archLabel={(a) => arch(a).label}
-      />
-      {/* (shown even before any run exists; each question then explains what it needs) */}
+      {/* 1 · Where each task stands */}
+      {loading ? (
+        <div className={cn("mt-6 grid gap-8 p-6 lg:grid-cols-3", surface)} aria-hidden>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="space-y-3">
+              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+              <div className="h-8 w-28 animate-pulse rounded bg-muted" />
+              <div className="h-3 w-56 animate-pulse rounded bg-muted" />
+            </div>
+          ))}
+        </div>
+      ) : tasks.length ? (
+        <div className={cn("mt-6 grid gap-x-0 gap-y-10 px-6 py-7", surface, HEADLINE_GRID[Math.min(tasks.length, 4)])}>
+          {tasks.map((t) => (
+            <Headline key={t.benchmark_id} t={t} rows={board.filter((r) => r.batch.benchmark_id === t.benchmark_id)} onOpen={setOpenId} />
+          ))}
+        </div>
+      ) : overview ? (
+        <div className={cn("mt-6 px-6 py-8 text-[13px] text-mm-dark", surface)}>
+          No complete runs yet. Run a configuration on a benchmark to see where things stand.
+        </div>
+      ) : null}
 
-      {/* 3 · Configurations compared */}
-      <section className={cn("mt-4 px-6 pt-5 pb-4", surface)}>
-        <Heading title="Configurations compared" />
-        {board.length ? (
-          benches.map((id) => {
-            const group = board.filter((r) => r.batch.benchmark_id === id)
-            const best = group.find((r) => r.eligible)
-            const baseline = group.find((r) => r.eligible && r.batch.architecture === "single-agent")
-            return (
-              <div key={id} className="-mx-3 mt-4 [&+&]:mt-7">
-                <div className={cn(COLS, "items-baseline border-l-2 border-transparent pb-2 text-[12px] text-muted-foreground")}>
-                  <span className="font-medium text-mm-dark">{benchmarkName(id)}</span>
-                  <span>{id === "fab" ? "Partial credit" : "Pass rate"} · 95% range</span>
-                  <span className="text-right">n</span>
-                  <span className="hidden text-right lg:block">$ / correct</span>
-                  <span className="hidden text-right lg:block">Time p50–p95</span>
-                </div>
-                <ul className="border-t border-border/70 [&>li:last-child>button]:border-b-0">
-                  {group.map((r) => (
-                    <ConfigRow
-                      key={r.batch.id}
-                      row={r}
-                      best={r === best}
-                      delta={baseline && r !== baseline && r.eligible && sameModel(r, baseline) && r.n === baseline.n ? r.rate - baseline.rate : null}
-                      selected={openId === r.batch.id}
-                      onOpen={() => setOpenId(r.batch.id)}
-                    />
-                  ))}
-                </ul>
-              </div>
-            )
-          })
-        ) : (
-          <p className="mt-4 rounded-[16px] border border-dashed border-border px-4 py-8 text-center text-[12px] text-muted-foreground">
-            {loaded ? "No end-to-end runs yet. Open a configuration and run it on FinQA or τ²-bench." : "Loading…"}
-          </p>
-        )}
-      </section>
+      {/* 2 · Discover insights: pick a question, get the chart that answers it */}
+      {benches.length ? (
+        <DiscoverInsights board={board} benches={benches} selectedId={openId} onOpen={setOpenId} archLabel={(a) => arch(a).label} tabLabel={task} />
+      ) : null}
 
-      <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-        {/* 4 · Recent activity */}
-        <section className={cn("flex min-w-0 flex-col px-6 pt-5 pb-4", surface)}>
-          <Heading title="Recent activity" aside={asOf ? `as of ${when(asOf.toISOString())}` : undefined} />
-          {recent.length ? (
+      {/* 3 · What changed, and what needs attention */}
+      {overview && overview.recent.length ? (
+        <div className={cn("mt-4 grid grid-cols-[minmax(0,1fr)] gap-4", overview.attention.length > 0 && "lg:grid-cols-2")}>
+          <section className={cn("min-w-0 px-6 pt-5 pb-4", surface)} aria-labelledby="changed-title">
+            <h3 id="changed-title" className="text-[15px] font-semibold text-mm-dark">
+              What changed
+            </h3>
             <ul className="-mx-3 mt-3 divide-y divide-border/60 border-t border-border/70">
-              {recent.map((b) => (
-                <li key={b.id}>
-                  <Link href={`/runs/e2e/${b.id}`} className="flex h-11 items-center gap-3 rounded-[10px] px-3 text-[12px] hover:bg-muted/50">
-                    <span className="min-w-0 flex-1 truncate text-mm-dark">
-                      {b.configuration_name}
-                      <span className="text-muted-foreground"> · {benchmarkName(b.benchmark_id)}, {b.size}{(b.passes ?? 1) > 1 ? ` × ${b.passes}` : ""}</span>
+              {overview.recent.map((r) => (
+                <li key={r.batch_id}>
+                  <Link
+                    href={`/runs/e2e/${r.batch_id}`}
+                    className="flex min-h-12 cursor-pointer items-center gap-3 rounded-[10px] px-3 py-2 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] text-mm-dark">{r.configuration_name}</span>
+                      <span className="block truncate text-[12px] text-muted-foreground">
+                        {arch(r.architecture).label} · {task(r.benchmark_id)}
+                      </span>
                     </span>
-                    <span className="font-data text-mm-dark">
-                      {b.status === "running" || b.status === "paused" ? `${b.summary.done}/${b.summary.total}` : pct(primaryAccuracy(b.summary), 1)}
+                    <span className="shrink-0 text-right">
+                      <span className="block font-data text-[13px] text-mm-dark">
+                        {r.status === "running" || r.status === "paused" ? `${r.done} of ${r.total}` : pct(r.accuracy, 1)}
+                      </span>
+                      {r.not_finished ? (
+                        <span className="block text-[12px] text-muted-foreground">{r.not_finished}</span>
+                      ) : r.change != null && Math.abs(r.change) >= 0.0005 ? (
+                        <span className="block font-data text-[12px] text-muted-foreground">
+                          {r.change > 0 ? "+" : "−"}
+                          {Math.abs(r.change * 100).toFixed(1)} points
+                        </span>
+                      ) : null}
                     </span>
-                    <span className="hidden w-[6.5rem] shrink-0 whitespace-nowrap text-right font-data text-muted-foreground sm:block">{when(b.created_at)}</span>
+                    <span className="hidden w-[6.5rem] shrink-0 text-right text-[12px] text-muted-foreground sm:block">{when(r.created_at)}</span>
                   </Link>
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="mt-3 text-[12px] text-muted-foreground">{loaded ? "No runs yet." : "Loading…"}</p>
-          )}
-          <Link href="/runs" className="mt-auto inline-block pt-3 text-[12px] font-medium text-mm-charge hover:underline">All runs</Link>
-        </section>
+            <Link href="/runs" className={cn("mt-3 inline-block text-[12px]", link)}>
+              All runs
+            </Link>
+          </section>
 
-        {/* 5 · Research coverage */}
-        <Coverage board={board} datasets={datasets} health={health} running={running} loaded={loaded} onOpen={setOpenId} />
-      </div>
-
-      <SidePanel row={open} baseline={open ? board.find((r) => r.eligible && r.batch.benchmark_id === open.batch.benchmark_id && r.batch.architecture === "single-agent") ?? null : null} onClose={() => setOpenId(null)} />
-    </div>
-  )
-}
-
-/** The definitions, in a popover under the lede. */
-function HowThisWorks({ benches }: { benches: string[] }) {
-  const [open, setOpen] = useState(false)
-  const box = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false)
-    const onDown = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false)
-    window.addEventListener("keydown", onKey)
-    window.addEventListener("pointerdown", onDown)
-    return () => {
-      window.removeEventListener("keydown", onKey)
-      window.removeEventListener("pointerdown", onDown)
-    }
-  }, [open])
-  return (
-    <div ref={box} className="relative mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="text-[12px] font-medium text-mm-charge hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/40"
-      >
-        {open ? "Hide how this works" : "How this works"}
-      </button>
-      {open ? (
-        <div className={cn("absolute left-0 top-7 z-20 max-h-[70vh] w-[min(92vw,520px)] overflow-y-auto p-6", floating)}>
-          <dl className="space-y-3 text-[12px] leading-snug">
-            {(benches.length ? benches : ["finqa", "tau2-retail"]).map((id) => (
-              <div key={id}>
-                <dt className="font-medium text-mm-dark">A pass on {benchmarkName(id)}</dt>
-                <dd className="text-muted-foreground">{PASS_MEANS[id] ?? "the checker accepts the answer"}.</dd>
-              </div>
-            ))}
-            <div>
-              <dt className="font-medium text-mm-dark">Cost per correct answer</dt>
-              <dd className="text-muted-foreground">Everything the run spent on model calls, divided by the answers it got right.</dd>
-            </div>
-            <div>
-              <dt className="font-medium text-mm-dark">n and the interval</dt>
-              <dd className="text-muted-foreground">How many tasks were graded (× passes, when a run repeats them), and the 95% interval the pass rate sits in; repeated passes of one task are not independent, so the interval is built on tasks. A run counts for the leaderboard only when it finished every task it was given, with at least {MIN_N} tasks; others are marked partial.</dd>
-            </div>
-            <div>
-              <dt className="font-medium text-mm-dark">Architectures</dt>
-              <dd className="text-muted-foreground">
-                {Object.values(ARCH).filter((a) => a.what).map((a) => (
-                  <span key={a.label} className="block"><span className="text-mm-dark">{a.label}</span>: {a.what}</span>
+          {overview.attention.length ? (
+            <section className={cn("min-w-0 px-6 pt-5 pb-4", surface)} aria-labelledby="attention-title">
+              <h3 id="attention-title" className="text-[15px] font-semibold text-mm-dark">
+                Needs attention
+              </h3>
+              <ul className="mt-3 divide-y divide-border/60 border-t border-border/70">
+                {overview.attention.map((a) => (
+                  <Attention
+                    key={`${a.kind}-${a.benchmark_id}-${"batch_id" in a ? a.batch_id : ""}`}
+                    a={a}
+                    busy={busy}
+                    onSettled={() => void load()}
+                    onHide={(batchId) => {
+                      const b = batches.find((x) => x.id === batchId)
+                      if (b) void hide(b.configuration_id)
+                    }}
+                  />
                 ))}
-              </dd>
-            </div>
-          </dl>
+              </ul>
+            </section>
+          ) : null}
         </div>
       ) : null}
+
+      {hidden.size ? (
+        <p className="mt-4 px-6 text-[12px] text-muted-foreground">
+          {hidden.size} {hidden.size === 1 ? "configuration is" : "configurations are"} hidden from the Overview.{" "}
+          <button type="button" onClick={() => void showAll()} className={link}>
+            Show all
+          </button>
+        </p>
+      ) : null}
+
+      <SidePanel
+        row={open}
+        baseline={openBaseline}
+        onClose={() => setOpenId(null)}
+        actions={
+          open ? (
+            <button type="button" onClick={() => void hide(open.batch.configuration_id)} className={cn(btnQuiet, "cursor-pointer")}>
+              Hide from Overview
+            </button>
+          ) : null
+        }
+      />
     </div>
   )
 }
 
-/** Best multi-agent against best single agent on one benchmark, with n and the interval. */
+type Side = { label: string; value: number | null; batchId?: string; note?: string; lead: boolean }
+
 /**
- * One benchmark's headline. The panel always keeps one row, and each count of benchmarks
- * has its own composition: one is a wide strip (figure left, sentence right), two are
- * half-width columns, three or four are compact columns with the sentence cut to its core.
+ * One task in three rows: the task; single vs multi-agent as two numbers, on the questions both
+ * ran (the higher one in full ink, each opening its run); and one line of context. The rows sit
+ * on a subgrid so they line up across tasks.
  */
-function Snapshot({ id, rows, total, onOpen, layout, rowPad }: { id: string; rows: Row[]; total?: number; onOpen: (id: string) => void; layout: "solo" | "pair" | "compact"; rowPad: string }) {
-  const eligible = rows.filter((r) => r.eligible)
-  const singles = eligible.filter((r) => r.batch.architecture === "single-agent")
-  const multis = eligible.filter((r) => r.batch.architecture !== "single-agent")
-  const single = singles[0]
-  // the best multi-agent run on the same model as the baseline, so the delta is like for like
-  const multi = single ? multis.find((r) => sameModel(r, single)) ?? multis[0] : multis[0]
-  const lead = eligible[0]
-  const noun = taskNoun(id, 2)
-  const ratio = multi && single && single.batch.summary.cost_per_pass_usd && multi.batch.summary.cost_per_pass_usd
-    ? multi.batch.summary.cost_per_pass_usd / single.batch.summary.cost_per_pass_usd
-    : null
-  const figure = multi ?? lead
-  const compact = layout === "compact"
-  const count = lead ? `${lead.n} of ${total?.toLocaleString() ?? "?"} ${noun}${lead.passes > 1 ? ` × ${lead.passes}` : ""}` : `${rows.length} partial ${rows.length === 1 ? "run" : "runs"}`
-  const cost = ratio ? (ratio >= 1 ? `${ratio.toFixed(1)}× the cost` : `${Math.round((1 - ratio) * 100)}% cheaper`) : null
-
-  const sentence =
-    single && multi ? (
-      compact ? (
-        <><span className="whitespace-nowrap">{((multi.rate - single.rate) * 100 > 0 ? "+" : "") + ((multi.rate - single.rate) * 100).toFixed(1)} pts vs single</span>{cost ? <> · <span className="whitespace-nowrap">{cost}</span></> : null}</>
-      ) : (
-        <><Delta a={multi.rate} b={single.rate} /> over the single agent{ratio ? (ratio >= 1 ? `, at ${cost} per correct answer` : `, ${cost} per correct answer`) : ""}.</>
-      )
-    ) : lead ? (
-      <>{usd(lead.batch.summary.cost_per_pass_usd)} per correct answer{compact ? "" : `. No ${single ? "multi-agent" : "single-agent"} run to compare against yet.`}</>
-    ) : (
-      <>No complete run yet.</>
-    )
-  const note = single && multi ? (overlap(multi, single) ? (compact ? "within noise" : "Not a settled difference at this n.") : (compact ? "clear gap" : "A clear difference at this n.")) : null
-
-  const header = (
-    <div className={cn("flex gap-x-3", compact ? "flex-col gap-y-0.5" : "items-baseline justify-between")}>
-      <h3 className="text-[15px] font-semibold text-mm-dark">{benchmarkName(id)}</h3>
-      <span className="text-[12px] text-muted-foreground">{count}</span>
-    </div>
-  )
-  const big = figure ? (
-    <p className="font-data text-mm-dark">
-      <span className={cn("leading-none tracking-[-0.02em]", compact ? "text-[28px]" : "text-[32px]")}>{pct(figure.rate, 1)}</span>
-      <span className={cn("text-[13px] text-muted-foreground", compact ? "mt-1 block font-sans" : "ml-2")}>{arch(figure.batch.architecture).label}</span>
-    </p>
-  ) : null
-  const numbers = lead ? (
-    <button type="button" onClick={() => onOpen((multi ?? lead).batch.id)} className="text-[12px] font-medium text-mm-charge hover:underline">
-      See more
-    </button>
-  ) : null
-
-  if (layout === "solo") {
-    // one benchmark: a wide strip, the figure on the left and its reading beside it
-    return (
-      <section className="grid min-w-0 items-center gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <div className="min-w-0">
-          {header}
-          <div className="mt-3">{big}</div>
-        </div>
-        <div className="min-w-0 md:border-l md:border-border/70 md:pl-6">
-          <p className="text-[15px] leading-snug text-mm-dark tabular-nums">{sentence}</p>
-          {note ? <p className="mt-1.5 text-[12px] text-muted-foreground">{note}</p> : null}
-          <div className="mt-3">{numbers}</div>
-        </div>
-      </section>
-    )
-  }
-
+function Headline({ t, rows, onOpen }: { t: OverviewTask; rows: Row[]; onOpen: (batchId: string) => void }) {
+  const { sides, line, detail, partial } = compareSides(t, rows)
   return (
-    <section className={cn("flex min-w-0 flex-col", rowPad)}>
-      {header}
-      <div className="mt-3">{big}</div>
-      <p className={cn("mt-3 leading-snug text-mm-dark tabular-nums", compact ? "text-[13px]" : "text-[15px]")}>{sentence}</p>
-      {note ? <p className="mt-1.5 text-[12px] text-muted-foreground">{note}</p> : null}
-      <div className="mt-auto pt-3">{numbers}</div>
+    <section className="row-span-3 grid min-w-0 grid-rows-subgrid gap-y-2.5 xl:px-7 xl:first:pl-0 xl:last:pr-0">
+      <p className="truncate text-[13px] text-muted-foreground">
+        {task(t.benchmark_id)} · {SHORT[t.benchmark_id] ?? benchmarkName(t.benchmark_id)}
+        {t.approximate ? (
+          <span className="cursor-help" title="Graded by our judge, not the official one; not comparable with the vals.ai leaderboard">
+            , approximate grading
+          </span>
+        ) : null}
+      </p>
+      <div className="grid grid-cols-2 gap-x-6">
+        {sides.map((side) => {
+          const figure = (
+            <>
+              <span className="block text-[12px] text-muted-foreground">{side.label}</span>
+              <span
+                className={cn(
+                  "mt-0.5 block text-[26px] font-semibold leading-none tracking-[-0.01em] tabular-nums",
+                  side.value == null ? "text-muted-foreground/70" : "text-mm-dark",
+                )}
+              >
+                {side.value == null ? "—" : pct(side.value, 1)}
+              </span>
+              {side.note ? <span className="mt-1 block text-[12px] text-muted-foreground">{side.note}</span> : null}
+            </>
+          )
+          return side.batchId ? (
+            <button
+              key={side.label}
+              type="button"
+              onClick={() => onOpen(side.batchId!)}
+              className="cursor-pointer self-start rounded-[6px] text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/40"
+              aria-label={`${side.label}: ${side.value == null ? "no result" : pct(side.value, 1)}. Open its run`}
+            >
+              {figure}
+            </button>
+          ) : (
+            <div key={side.label}>{figure}</div>
+          )
+        })}
+      </div>
+      <p className="text-[13px] leading-snug text-pretty text-mm-dark" title={detail}>
+        {line}
+        {partial ? (
+          <>
+            {" "}
+            <button type="button" onClick={() => onOpen(partial.batch.id)} className={link}>
+              Open it
+            </button>
+          </>
+        ) : null}
+      </p>
     </section>
   )
 }
 
-const overlap = (a: Row, b: Row) => a.low <= b.high && b.low <= a.high
-
-function Rate({ r }: { r: Row }) {
-  return (
-    <span className="whitespace-nowrap">
-      {pct(r.rate, 1)} <span className="text-muted-foreground">({bounds(r)})</span>
-    </span>
-  )
+/** Single vs multi-agent as two numbers, on the questions both ran where they overlap. */
+function compareSides(t: OverviewTask, rows: Row[]) {
+  const noun = taskNoun(t.benchmark_id, 2)
+  const single = t.single, multi = t.multi
+  const c = t.comparison
+  const partial = !multi ? rows.find((r) => !r.eligible && r.batch.architecture !== "single-agent") : undefined
+  if (c && c.comparable) {
+    const multiLeads = c.difference > 0
+    const cost = costClause(
+      multiLeads ? c.multi_cost_per_correct_usd : c.single_cost_per_correct_usd,
+      multiLeads ? c.single_cost_per_correct_usd : c.multi_cost_per_correct_usd,
+    ).replace(/^, /, "")
+    return {
+      sides: [
+        { label: "Single agent", value: c.single_accuracy, batchId: single?.batch_id, lead: c.difference <= 0 },
+        { label: `Multi-agent (${arch(multi!.architecture).label})`, value: c.multi_accuracy, batchId: multi?.batch_id, lead: c.difference >= 0 },
+      ] as Side[],
+      // "Same 10 questions · single agent cost about a third as much"
+      line: `Same ${c.shared} ${noun}${cost ? ` · ${multiLeads ? "multi-agent" : "single agent"} cost ${asMuch(cost)}` : ""}`,
+      detail: c.more_questions
+        ? `About ${c.more_questions} more ${taskNoun(t.benchmark_id, c.more_questions)} would settle it${c.cost_to_settle_usd ? ` (about ${usd(c.cost_to_settle_usd)})` : ""}.`
+        : undefined,
+      partial: undefined,
+    }
+  }
+  return {
+    sides: [
+      { label: "Single agent", value: single?.accuracy ?? null, batchId: single?.batch_id, lead: true },
+      {
+        label: multi ? `Multi-agent (${arch(multi.architecture).label})` : "Multi-agent",
+        value: multi?.accuracy ?? null,
+        batchId: multi?.batch_id,
+        lead: !single,
+      },
+    ] as Side[],
+    line: !t.best
+      ? "No complete run yet."
+      : partial
+        ? `The multi-agent run didn’t finish (${partialReason(partial)}).`
+        : !multi
+          ? "No multi-agent run yet."
+          : !single
+            ? "No single-agent run yet."
+            : `They haven’t run the same ${noun} yet, so these aren’t compared.`,
+    detail: undefined,
+    partial,
+  }
 }
 
-function Delta({ a, b }: { a: number; b: number }) {
-  const d = (a - b) * 100
-  return <span className="whitespace-nowrap">{d > 0 ? "+" : ""}{d.toFixed(1)} points</span>
+/** "at about a third of the cost" -> "about a third as much"; "at 2.1× the cost" -> "2.1× as much". */
+function asMuch(clause: string) {
+  return clause
+    .replace(/^at /, "")
+    .replace("about the same cost", "about the same")
+    .replace(/ of the cost$/, " as much")
+    .replace(/ the cost$/, " as much")
 }
 
-function ConfigRow({ row, best, delta, selected, onOpen }: { row: Row; best: boolean; delta: number | null; selected: boolean; onOpen: () => void }) {
-  const b = row.batch, s = b.summary
-  const model = b.models.join(", ") || b.mode
-  // One quiet line: the architecture and its model, then why it is partial if it is
-  const extras = [model, !row.eligible ? `not ranked, ${partialWhy(row)}` : null].filter(Boolean)
+function partialReason(r: Row) {
+  const s = r.batch.summary
+  if (s.errors) return `${s.errors} of ${r.batch.size} didn’t run`
+  return "it stopped early"
+}
+
+function costClause(lead: number | null, other: number | null) {
+  if (!lead || !other) return ""
+  const r = lead / other
+  if (r > 0.9 && r < 1.1) return ", at about the same cost"
+  if (r >= 1.1) return `, at ${r.toFixed(1)}× the cost`
+  const fractions: [number, string][] = [
+    [1 / 2, "half"],
+    [1 / 3, "a third of"],
+    [1 / 4, "a quarter of"],
+    [1 / 5, "a fifth of"],
+  ]
+  const near = fractions.find(([f]) => Math.abs(r - f) / f < 0.15)
+  return near ? `, at about ${near[1]} the cost` : `, at ${Math.round(r * 100)}% of the cost`
+}
+
+/** "stopped early: Reached the $0.00 spend cap for this run." -> "stopped early (reached …)" */
+function reason(text: string) {
+  const m = text.match(/^stopped early: (.+?)\.?$/)
+  return m ? `stopped early (${m[1].charAt(0).toLowerCase()}${m[1].slice(1)})` : text
+}
+
+/** One attention item: a plain sentence and one action. */
+function Attention({
+  a,
+  busy,
+  onHide,
+  onSettled,
+}: {
+  a: OverviewAttention
+  busy: boolean
+  onHide: (batchId: string) => void
+  onSettled: () => void
+}) {
+  const row = "flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3 text-[13px] leading-snug"
+  if (a.kind === "unfinished") {
+    return (
+      <li className={row}>
+        <span className="min-w-0 flex-1 text-pretty text-mm-dark">
+          {a.configuration_name} on {task(a.benchmark_id)}: {reason(a.reason)}.
+        </span>
+        <span className="flex shrink-0 items-center gap-3 text-[12px]">
+          <Link href={`/runs/e2e/${a.batch_id}`} className={link}>
+            Open run
+          </Link>
+          <button type="button" onClick={() => onHide(a.batch_id)} className="cursor-pointer text-muted-foreground hover:text-mm-dark hover:underline">
+            Hide
+          </button>
+        </span>
+      </li>
+    )
+  }
+  if (a.kind === "too-close") {
+    return <TooClose a={a} row={row} busy={busy} onSettled={onSettled} />
+  }
   return (
-    <li>
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-pressed={selected}
-        aria-label={`${b.configuration_name}, ${arch(b.architecture).label}: ${pct(row.rate, 1)} of ${nLabel(row)}, interval ${bounds(row)}${row.eligible ? "" : ", partial"}`}
-        className={cn(
-          COLS,
-          "group rounded-[10px] border-l-2 border-b border-b-border/60 py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mm-charge/50",
-          selected ? "border-l-mm-charge bg-muted/40" : "border-l-transparent",
-        )}
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0">
-            <span className={cn("line-clamp-2 text-[15px] font-medium leading-tight", row.eligible ? "text-mm-dark" : "text-muted-foreground")}>{b.configuration_name}</span>
-            <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
-              <ArchBadge id={b.architecture} />
-              {extras.length ? ` · ${extras.join(" · ")}` : ""}
-            </span>
-          </span>
-          <CaretRight className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" weight="bold" />
-        </span>
-        <Bar row={row} best={best} delta={delta} />
-        <span className="text-right font-data text-[13px] text-muted-foreground">{nLabel(row)}</span>
-        <span className="hidden text-right font-data text-[13px] text-mm-dark lg:block">{usd(s.cost_per_pass_usd)}</span>
-        <span className="hidden text-right font-data text-[13px] text-mm-dark lg:block">
-          {secs(s.p50_latency_sec)}<span className="text-muted-foreground">–{secs(s.p95_latency_sec)}</span>
-        </span>
-      </button>
+    <li className={row}>
+      <span className="min-w-0 flex-1 text-pretty text-mm-dark">
+        {task(a.benchmark_id)}: single and multi-agent haven&rsquo;t run the same {taskNoun(a.benchmark_id, 2)} yet.
+      </span>
+      <Link href="/runs" className={cn("shrink-0 text-[12px]", link)}>
+        Open runs
+      </Link>
     </li>
   )
 }
 
-/** Why a run isn't ranked, in plain words. */
-function partialWhy(row: Row) {
-  const b = row.batch
-  const missing = row.expected - row.graded
-  if (b.status === "running") return "still running"
-  if (b.status === "paused") return "paused"
-  if (b.summary.errors) return `${b.summary.errors} of ${b.size} ${b.summary.errors === 1 ? "question" : "questions"} didn't run`
-  if (missing > 0) return "stopped early"
-  return `only ${b.size} questions`
+/** "Runs 8 more FinQA questions on A (B already has them). About $0.0037." */
+function planSentence(p: SettlePlan) {
+  const noun = (n: number) => `${SHORT[p.benchmark_id] ?? benchmarkName(p.benchmark_id)} ${taskNoun(p.benchmark_id, n)}`
+  const todo = p.sides.filter((s) => s.missing > 0)
+  const done = p.sides.filter((s) => s.missing === 0)
+  let what: string
+  if (todo.length === 2 && todo[0].missing === todo[1].missing) {
+    what = `Runs ${todo[0].missing} more ${noun(todo[0].missing)} on each of ${todo[0].configuration_name} and ${todo[1].configuration_name}.`
+  } else if (todo.length === 2) {
+    what = `Runs ${todo[0].missing} more ${noun(todo[0].missing)} on ${todo[0].configuration_name} and ${todo[1].missing} on ${todo[1].configuration_name}.`
+  } else if (todo.length === 1) {
+    const t = todo[0]
+    what = `Runs ${t.missing} more ${noun(t.missing)} on ${t.configuration_name}${done.length ? ` (${done[0].configuration_name} already has them)` : ""}.`
+  } else {
+    return "Both sides already have these questions."
+  }
+  return `${what} About ${usd(p.total_estimated_cost_usd)}.`
 }
 
-/** The pass rate as a bar; its 95% interval is printed beside it, under the rate. */
-function Bar({ row, best, delta }: { row: Row; best: boolean; delta: number | null }) {
-  const title = `${pct(row.rate, 1)} of ${nLabel(row)}, 95% interval ${bounds(row)}${delta != null ? `; ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)} points against the baseline` : ""}`
-  return (
-    <span className="flex items-center gap-3" title={title}>
-      <span className="relative h-[12px] flex-1 overflow-hidden rounded-r-[2px] bg-muted">
-        <span
-          className={cn("block h-full rounded-r-[2px]", best ? "bg-mm-charge" : row.eligible ? "bg-muted-foreground/45" : "bg-muted-foreground/20")}
-          style={{ width: `${Math.max(1, row.rate * 100)}%` }}
-        />
-      </span>
-      <span className={cn("w-[5.5rem] text-right font-data text-[13px] leading-tight", row.eligible ? "text-mm-dark" : "text-muted-foreground")}>
-        {pct(row.rate, 1)}
-        <span className="block text-muted-foreground">{bounds(row)}</span>
-      </span>
-    </span>
-  )
+function plainError(e: unknown) {
+  const m = e instanceof Error ? e.message : "Something went wrong."
+  return /[.!?]$/.test(m) ? m : `${m}.`
 }
 
-function ArchBadge({ id }: { id: string }) {
-  const a = arch(id)
-  if (!a.what) return <span>{a.label}</span>
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span className="cursor-help" />}>{a.label}</TooltipTrigger>
-      <TooltipContent className="max-w-[32ch] text-[12px] leading-snug">{a.what}</TooltipContent>
-    </Tooltip>
-  )
-}
+type SettleState =
+  | { step: "idle" }
+  | { step: "planning" }
+  | { step: "plan"; plan: SettlePlan }
+  | { step: "starting"; plan: SettlePlan }
+  | { step: "running"; batchId: string; seenBusy: boolean }
+  | { step: "error"; message: string }
 
-/** Configurations × benchmarks: the latest eligible pass rate with n, or that it has not run. */
-function Coverage({ board, datasets, health, running, loaded, onOpen }: { board: Row[]; datasets: BenchmarkInfo[]; health: Health | null; running: BatchRun[]; loaded: boolean; onOpen: (id: string) => void }) {
-  const benches = (datasets.length ? datasets.map((d) => d.id) : [...new Set(board.map((r) => r.batch.benchmark_id))]).sort(
-    (a, b) => (BENCH_ORDER.indexOf(a) + 1 || 99) - (BENCH_ORDER.indexOf(b) + 1 || 99),
-  )
-  const configs = [...new Map(board.map((r) => [r.batch.configuration_id, r.batch.configuration_name])).entries()]
-  const cell = (cid: string, bid: string) => board.find((r) => r.batch.configuration_id === cid && r.batch.benchmark_id === bid)
-  return (
-    <section className={cn("flex min-w-0 flex-col px-6 pt-5 pb-4", surface)}>
-      <Heading
-        title="Research coverage"
-        aside={
-          <>
-            {running.length ? `${running.length} ${running.length === 1 ? "batch" : "batches"} running · ` : ""}
-            {health?.spend ? `${usd(health.spend.remaining_budget_usd)} of today's ${usd(health.spend.daily_budget_usd)} budget left` : loaded ? "budget unknown" : "…"}
-          </>
-        }
-      />
-      {configs.length ? (
-        <div className="mt-3 overflow-x-auto border-t border-border/70">
-        <table className="w-full text-[12px] whitespace-nowrap">
-          <thead className="text-muted-foreground">
-            <tr>
-              <th className="py-2 pr-3 text-left font-normal">Configuration</th>
-              {benches.map((id) => {
-                const d = datasets.find((x) => x.id === id)
-                const ran = Math.max(0, ...board.filter((r) => r.eligible && r.batch.benchmark_id === id).map((r) => r.n))
-                return (
-                  <th key={id} className="py-2 pl-3 text-right font-normal">
-                    {benchmarkName(id)}
-                    <span className="block font-data">{d ? `${ran} of ${d.task_count.toLocaleString()}` : ""}</span>
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {configs.map(([cid, name]) => (
-              <tr key={cid} className="border-t border-border/60">
-                <td className="py-2 pr-3 text-mm-dark">{name}</td>
-                {benches.map((bid) => {
-                  const r = cell(cid, bid)
-                  const scored = datasets.find((x) => x.id === bid)?.scored ?? true
-                  return (
-                    <td key={bid} className="py-1.5 pl-3 text-right font-data">
-                      {r ? (
-                        <button
-                          type="button"
-                          onClick={() => onOpen(r.batch.id)}
-                          title={`${pct(r.rate, 1)} of ${nLabel(r)}${r.eligible ? "" : `; not ranked, ${partialWhy(r)}`}`}
-                          className={cn("rounded-[6px] px-1.5 py-0.5 hover:bg-muted/60", r.eligible ? "text-mm-dark" : "text-muted-foreground")}
-                        >
-                          {pct(r.rate, 1)}
-                        </button>
-                      ) : (
-                        <span className="text-muted-foreground/70">{scored ? "not run" : "not auto-scored"}</span>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      ) : (
-        <p className="mt-3 text-[12px] text-muted-foreground">{loaded ? "Nothing has run yet." : "Loading…"}</p>
-      )}
-      <p className="mt-auto pt-3 text-[12px] text-muted-foreground">
-        Each cell is the latest complete run's pass rate on that benchmark; select one to open its run.
-      </p>
-    </section>
-  )
-}
+const quietButton =
+  "cursor-pointer rounded-[4px] text-muted-foreground hover:text-mm-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/40"
 
-/** Everything about one configuration's run, in a panel that stays while other rows are clicked. */
-function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row | null; onClose: () => void }) {
-  const [full, setFull] = useState<BatchRun | null>(null)
-  const heading = useRef<HTMLHeadingElement>(null)
-  const opener = useRef<HTMLElement | null>(null)
-  const reduce = useReducedMotion()
-  const id = row?.batch.id
+/** A too-close comparison and "Settle it": the plan opens inline, then the missing questions run. */
+function TooClose({
+  a,
+  row,
+  busy,
+  onSettled,
+}: {
+  a: Extract<OverviewAttention, { kind: "too-close" }>
+  row: string
+  busy: boolean
+  onSettled: () => void
+}) {
+  const [state, setState] = useState<SettleState>({ step: "idle" })
+  const more = a.more_questions
+
+  // When the top-ups are done, reload so the comparison takes them in
   useEffect(() => {
-    setFull(null)
-    if (!id) return
-    // remember what opened the panel (a row, a link, a cell), so closing puts focus back on it
-    const active = document.activeElement as HTMLElement | null
-    if (active && active !== heading.current && !heading.current?.parentElement?.parentElement?.contains(active)) opener.current = active
-    let cancelled = false
-    getBatch(id).then((b) => !cancelled && setFull(b)).catch(() => undefined)
-    heading.current?.focus()
-    return () => {
-      cancelled = true
+    if (state.step !== "running") return
+    if (busy && !state.seenBusy) setState({ ...state, seenBusy: true })
+    else if (!busy && state.seenBusy) {
+      setState({ step: "idle" })
+      onSettled()
     }
-  }, [id])
-  useEffect(() => {
-    if (id) return
-    if (opener.current && document.body.contains(opener.current)) opener.current.focus()
-    opener.current = null
-  }, [id])
-  useEffect(() => {
-    if (!id) return
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [id, onClose])
+  }, [busy, state, onSettled])
 
-  const b = row?.batch, s = b?.summary
-  const passes = b?.passes ?? 1
+  async function plan() {
+    setState({ step: "planning" })
+    try {
+      setState({ step: "plan", plan: await planSettle(a.benchmark_id) })
+    } catch (e) {
+      setState({ step: "error", message: plainError(e) })
+    }
+  }
+  async function run(p: SettlePlan) {
+    setState({ step: "starting", plan: p })
+    try {
+      const res = await runSettle(a.benchmark_id)
+      setState({ step: "running", batchId: res.batch_id, seenBusy: false })
+      onSettled() // reload now, so the page sees the run going
+    } catch (e) {
+      setState({ step: "error", message: plainError(e) })
+    }
+  }
+
   return (
-    <AnimatePresence>
-      {row && b && s ? (
-        <motion.aside
-          key="panel"
-          initial={reduce ? false : { x: 440 }}
-          animate={{ x: 0 }}
-          exit={{ x: 440 }}
-          transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
-          aria-labelledby="overview-panel-title"
-          role="complementary" className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,380px)] flex-col xl:w-[440px] overflow-y-auto rounded-l-[16px] bg-card shadow-[-8px_0_32px_rgba(0,23,53,0.10)]"
+    <li className={row}>
+      <span className="min-w-0 flex-1 text-pretty text-mm-dark">
+        {task(a.benchmark_id)}: single vs multi-agent is too close to call.
+        {more ? ` About ${more} more ${taskNoun(a.benchmark_id, more)} would settle it.` : ""}
+      </span>
+      {state.step === "idle" || state.step === "planning" ? (
+        <button
+          type="button"
+          onClick={() => void plan()}
+          disabled={state.step === "planning"}
+          className={cn("shrink-0 text-[12px] disabled:cursor-wait disabled:opacity-60", link)}
         >
-          <div className="flex items-start justify-between gap-3 px-6 pt-5">
-            <div className="min-w-0">
-              <h3 ref={heading} id="overview-panel-title" tabIndex={-1} className="truncate text-[15px] font-semibold text-mm-dark outline-none">{b.configuration_name}</h3>
-              <p className="mt-0.5 text-[12px] text-muted-foreground">
-                {arch(b.architecture).label} · {b.models.join(", ") || b.mode} · {benchmarkName(b.benchmark_id)}, {b.size} {taskNoun(b.benchmark_id, b.size)}
-                {passes > 1 ? ` × ${passes} passes` : ""} · {when(b.created_at)}
-              </p>
-            </div>
-            <button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-mm-dark">
-              <X className="size-4" weight="bold" />
-            </button>
-          </div>
-
-          <div className="px-6 pt-5">
-            <p className="font-data text-[24px] leading-none text-mm-dark">
-              {pct(row.rate, 1)} <span className="text-[15px] text-muted-foreground">({bounds(row)})</span>
-            </p>
-            <p className="mt-1 text-[12px] text-muted-foreground">
-              {s.passed} of {row.graded} {passes > 1 ? `answers (${row.n} ${taskNoun(b.benchmark_id, row.n)} × ${passes} passes)` : taskNoun(b.benchmark_id, row.graded)} passed; 95% interval on {row.n} {taskNoun(b.benchmark_id, row.n)}
-              {baseline && baseline !== row && row.eligible && sameModel(row, baseline) && row.n === baseline.n ? <>, <Delta a={row.rate} b={baseline.rate} /> against the single-agent baseline</> : baseline === row ? ", the single-agent baseline" : baseline && baseline !== row && row.eligible ? (sameModel(row, baseline) ? ", a different task sample from the baseline, so no delta" : ", no same-model baseline to compare against") : ""}
-              {!row.eligible ? ` · not ranked: ${partialWhy(row)}` : ""}
-            </p>
-          </div>
-
-          <div className="px-6 pt-5">
-            <p className="mb-1.5 text-[12px] text-muted-foreground">Outcome per {taskNoun(b.benchmark_id, 1)}, in run order</p>
-            {full?.items.length ? (
-              <div className="flex flex-wrap gap-[3px]" aria-label="Outcome per task">
-                {full.items.map((item) => (
-                  <Link
-                    key={item.index}
-                    href={`/runs/e2e/${b.id}#batch-item-${item.index}`}
-                    title={`#${item.index + 1} · ${STATUS_STYLE[item.status].label}`}
-                    className={cn("size-[10px] rounded-[2px] hover:ring-2 hover:ring-mm-dark/40", STATUS_STYLE[item.status].cell)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="h-[10px] w-40 animate-pulse rounded-[2px] bg-muted" />
-            )}
-            <p className="mt-1.5 text-[12px] text-muted-foreground">
-              {s.passed} passed · {s.failed} failed{s.errors ? ` · ${s.errors} errored` : ""}
-            </p>
-          </div>
-
-          {passes > 1 && s.pass_all_rate != null && s.pass_any_rate != null ? (
-            <Consistency always={s.pass_all_rate} any={s.pass_any_rate} passes={passes} />
-          ) : null}
-
-          <dl className="mx-6 mt-5 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-4 text-[12px]">
-            {(
-              [
-                ["Cost per correct answer", usd(s.cost_per_pass_usd)],
-                ["Total cost", `${usd(s.cost_usd)} of a ${usd(b.budget_usd)} cap`],
-                ["Time per task", `${secs(s.p50_latency_sec)} median, ${secs(s.p95_latency_sec)} at the 95th`],
-                ["Tokens in / out", `${s.prompt_tokens.toLocaleString()} / ${s.completion_tokens.toLocaleString()}`],
-                ["Errors", String(s.errors)],
-                ["Status", `${row.eligible ? "complete" : `not ranked (${partialWhy(row)})`}${b.stop_reason ? `: ${b.stop_reason}` : ""}`],
-              ] as [string, string][]
-            ).map(([label, value]) => (
-              <div key={label} className="min-w-0">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="mt-0.5 font-data text-mm-dark">{value}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <div className="mt-auto flex flex-wrap gap-2 border-t border-border px-6 py-5 pt-5">
-            <Link href={`/runs/e2e/${b.id}`} className={btnPrimary}>Open the full run</Link>
-            <Link href={`/configurations/${b.configuration_id}`} className={btnQuiet}>Open the configuration</Link>
-          </div>
-        </motion.aside>
+          Settle it
+        </button>
       ) : null}
-    </AnimatePresence>
-  )
-}
-
-/** Three segments: right in every pass, flipped between passes, wrong in every pass. */
-function Consistency({ always, any, passes }: { always: number; any: number; passes: number }) {
-  const flipped = Math.max(0, any - always), never = Math.max(0, 1 - any)
-  const reduce = useReducedMotion()
-  const seg = (w: number, cls: string, label: string) => (
-    <motion.span
-      key={label}
-      className={cn("h-full", cls)}
-      initial={reduce ? false : { width: 0 }}
-      animate={{ width: `${w * 100}%` }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      title={`${label}: ${pct(w, 1)}`}
-    />
-  )
-  return (
-    <div className="px-6 pt-5">
-      <p className="mb-1.5 text-[12px] text-muted-foreground" title="A task flipped if it passed in at least one pass but not in all of them">Outcomes across {passes} passes</p>
-      <div className="flex h-[12px] w-full overflow-hidden rounded-[2px] bg-muted">
-        {seg(always, "bg-mm-green", "Right every pass")}
-        {seg(flipped, "bg-mm-yellow", "Flipped between passes")}
-        {seg(never, "bg-mm-orange", "Wrong every pass")}
-      </div>
-      <p className="mt-1.5 font-data text-[12px] text-muted-foreground">
-        {pct(always, 1)} right every pass · {pct(flipped, 1)} flipped · {pct(never, 1)} wrong every pass
-      </p>
-    </div>
+      {state.step === "running" ? (
+        <span className="shrink-0 text-[12px] text-muted-foreground">
+          Running ·{" "}
+          <Link href={`/runs/e2e/${state.batchId}`} className={link}>
+            open run
+          </Link>
+        </span>
+      ) : null}
+      {state.step === "plan" || state.step === "starting" ? (
+        <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+          <span className="min-w-0 flex-1 text-pretty text-muted-foreground">{planSentence(state.plan)}</span>
+          <span className="flex shrink-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void run(state.plan)}
+              disabled={state.step === "starting" || state.plan.sides.every((s) => s.missing === 0)}
+              className={cn(
+                btnPrimary,
+                "h-8 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/40 disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+            >
+              {state.step === "starting" ? "Starting…" : "Run it"}
+            </button>
+            <button type="button" onClick={() => setState({ step: "idle" })} className={cn("text-[12px]", quietButton)}>
+              Cancel
+            </button>
+          </span>
+        </div>
+      ) : null}
+      {state.step === "error" ? (
+        <div className="flex w-full flex-wrap items-baseline gap-x-4 gap-y-1 pt-1">
+          <span className="min-w-0 flex-1 text-pretty text-mm-dark">{state.message}</span>
+          <button type="button" onClick={() => setState({ step: "idle" })} className={cn("shrink-0 text-[12px]", quietButton)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+    </li>
   )
 }

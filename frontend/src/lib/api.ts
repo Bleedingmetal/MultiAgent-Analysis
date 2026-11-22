@@ -415,6 +415,8 @@ export type BatchRun = {
   budget_usd: number
   concurrency: number
   passes?: number
+  /** "top-up": extra questions run to settle an Overview comparison, not a run of its own */
+  purpose?: "evaluation" | "top-up" | string
   status: BatchStatus
   stop_reason?: string | null
   budget_ack?: boolean
@@ -510,4 +512,207 @@ export type FabCriterion = {
   must_pass: boolean
   passed: boolean
   votes: { model: string; pass: boolean; reason: string }[]
+}
+
+/** One run's headline figures on the Overview (backend app/overview.py). */
+export type OverviewFigures = {
+  batch_id: string
+  configuration_id: string
+  configuration_name: string
+  architecture: string
+  models: string[]
+  accuracy: number | null
+  cost_per_correct_usd: number | null
+  time_per_question_sec: number | null
+  questions: number
+  passes: number
+  created_at: string
+}
+
+/** A question one side got right and the other didn't, on the shared questions. */
+export type OverviewDiffQuestion = {
+  task_id: string
+  question: string
+  single: number
+  multi: number
+  single_item: number
+  multi_item: number
+  /** The run each item is in (a top-up run, for questions added to settle the comparison) */
+  single_batch_id?: string
+  multi_batch_id?: string
+}
+
+/** Single vs multi-agent, paired on the questions both runs graded. */
+export type OverviewComparison =
+  | { comparable: false; shared: number }
+  | {
+      comparable: true
+      shared: number
+      single_accuracy: number
+      multi_accuracy: number
+      difference: number
+      verdict: "settled" | "too-close" | "even"
+      more_questions: number | null
+      single_cost_per_correct_usd: number | null
+      multi_cost_per_correct_usd: number | null
+      cost_to_settle_usd: number | null
+      multi_lost: OverviewDiffQuestion[]
+      multi_won: OverviewDiffQuestion[]
+    }
+
+export type OverviewTask = {
+  benchmark_id: string
+  task_count: number | null
+  complete_runs: number
+  best: OverviewFigures | null
+  single: OverviewFigures | null
+  multi: OverviewFigures | null
+  comparison: OverviewComparison | null
+  approximate: boolean
+}
+
+export type OverviewRecent = {
+  batch_id: string
+  configuration_name: string
+  architecture: string
+  benchmark_id: string
+  status: string
+  done: number
+  total: number
+  accuracy: number | null
+  change: number | null
+  created_at: string
+  not_finished: string | null
+}
+
+export type OverviewAttention =
+  | { kind: "unfinished"; batch_id: string; configuration_name: string; benchmark_id: string; reason: string }
+  | { kind: "too-close"; benchmark_id: string; single_batch_id: string; multi_batch_id: string; more_questions: number | null; cost_usd: number | null }
+  | { kind: "not-comparable"; benchmark_id: string; shared: number; single_batch_id: string; multi_batch_id: string }
+
+export type Overview = {
+  tasks: OverviewTask[]
+  recent: OverviewRecent[]
+  attention: OverviewAttention[]
+  hidden_configuration_ids: string[]
+  running: number
+  /** Top-up runs to settle a comparison are still to start or going */
+  settling?: boolean
+}
+
+/** Where each task stands, what changed, what needs attention. */
+export function getOverview() {
+  return api<Overview>("/api/overview")
+}
+
+/** Keep a configuration off the Overview (it stays under Runs and Compare), or bring it back. */
+export function setOverviewHidden(configurationId: string, hidden: boolean) {
+  return api<{ hidden_configuration_ids: string[] }>("/api/overview/hidden", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ configuration_id: configurationId, hidden }),
+  })
+}
+
+/** What settling a too-close comparison takes: the questions each side is missing, and the cost. */
+export type SettlePlan = {
+  benchmark_id: string
+  target_questions: number
+  sides: { side: "single" | "multi"; configuration_name: string; batch_id: string; missing: number; estimated_cost_usd: number }[]
+  total_estimated_cost_usd: number
+}
+
+/** The plan only; nothing runs. */
+export function planSettle(benchmarkId: string) {
+  return api<SettlePlan>("/api/overview/settle", {
+    method: "POST",
+    body: JSON.stringify({ benchmark_id: benchmarkId, confirm: false }),
+  })
+}
+
+/** Starts the top-up runs (spends money); returns at once with the first run's id. */
+export function runSettle(benchmarkId: string) {
+  return api<{ started: boolean; batch_id: string; plan: SettlePlan }>("/api/overview/settle", {
+    method: "POST",
+    body: JSON.stringify({ benchmark_id: benchmarkId, confirm: true }),
+  })
+}
+
+/** Configurations kept off the Overview. */
+export function getOverviewHidden() {
+  return api<{ hidden_configuration_ids: string[] }>("/api/overview/hidden")
+}
+
+// ── The Lab ────────────────────────────────────────────────────────────────
+
+/** Something the Lab finds worth investigating, with the pair of runs to open. */
+export type LabProblem = {
+  kind: "failures" | "flaky" | "too-close" | "unfinished"
+  title: string
+  detail: string
+  benchmark_id: string
+  configuration_id: string | null
+  batch_id: string | null
+  other_batch_id: string | null
+}
+
+/** One run as a point on the trade-off map. Accuracy is a fraction. */
+export type LabRunPoint = {
+  batch_id: string
+  configuration_id: string
+  configuration_name: string
+  architecture: string
+  models: string[]
+  created_at: string
+  questions: number
+  passes: number
+  complete: boolean
+  accuracy: number | null
+  cost_per_correct_usd: number | null
+  time_per_question_sec: number | null
+}
+
+/** A question one run got right and the other got wrong. */
+export type LabFlip = {
+  task_id: string
+  question: string
+  a_score: number
+  b_score: number
+  a_answer: string | null
+  b_answer: string | null
+  a_run_id: string | null
+  b_run_id: string | null
+}
+
+/** What changed from run a (before) to run b (after), on the questions both ran. */
+export type LabDiff = {
+  a: LabRunPoint
+  b: LabRunPoint
+  shared: number
+  comparable: boolean
+  /** Null when the runs share no questions. */
+  accuracy: { a: number | null; b: number | null; points: number | null; relative: number | null }
+  cost_per_correct: { a: number | null; b: number | null; relative: number | null }
+  time_per_question: { a: number | null; b: number | null; relative: number | null; seconds: number | null }
+  verdict: "real" | "too-close" | "no-change" | "not-comparable"
+  more_questions: number | null
+  cost_to_settle_usd: number | null
+  fixed: LabFlip[]
+  broke: LabFlip[]
+  still_wrong: number
+  still_right: number
+  changes: { what: string; before: string | null; after: string | null }[]
+  same_config: boolean
+}
+
+export function getLabProblems() {
+  return api<{ problems: LabProblem[] }>("/api/lab/problems")
+}
+
+export function getLabRuns(benchmarkId: string) {
+  return api<{ benchmark_id: string; runs: LabRunPoint[] }>(`/api/lab/runs?benchmark=${encodeURIComponent(benchmarkId)}`)
+}
+
+export function getLabDiff(beforeBatchId: string, afterBatchId: string) {
+  return api<LabDiff>(`/api/lab/diff?a=${encodeURIComponent(beforeBatchId)}&b=${encodeURIComponent(afterBatchId)}`)
 }

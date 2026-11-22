@@ -262,6 +262,10 @@ class BatchRequest(BaseModel):
     # representative: the same model gives different answers on different runs.
     passes: int = Field(default=1, ge=1, le=10)
     confirm: bool = False
+    # Run exactly these questions (by task id) instead of the first `size` of the sample
+    task_ids: list[str] | None = None
+    # "top-up": extra questions that settle an Overview comparison; never a run of its own
+    purpose: Literal["evaluation", "top-up"] = "evaluation"
 
 
 class BatchAttempt(BaseModel):
@@ -371,6 +375,7 @@ class BatchRun(BaseModel):
     budget_usd: float
     concurrency: int
     passes: int = 1
+    purpose: Literal["evaluation", "top-up"] = "evaluation"
     status: BatchStatus = "running"
     stop_reason: str | None = None
     # True once the user chose to continue past the projected-overspend pause

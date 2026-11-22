@@ -55,12 +55,18 @@ export function DiscoverInsights({
   selectedId,
   onOpen,
   archLabel,
+  onComparePage = false,
+  tabLabel = benchmarkName,
 }: {
   board: Row[]
   benches: string[]
   selectedId: string | null
   onOpen: (id: string) => void
   archLabel: (architecture: string) => string
+  /** On the Compare page itself, so the link to the full comparison is left out. */
+  onComparePage?: boolean
+  /** How each benchmark tab is named (the Overview names tasks in plain words). */
+  tabLabel?: (benchmarkId: string) => string
 }) {
   const reduce = useReducedMotion() ?? false
   const [question, setQuestion] = useState<QuestionId>("best")
@@ -81,7 +87,7 @@ export function DiscoverInsights({
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <h3 className="min-w-0 text-[15px] font-semibold text-mm-dark">Discover insights</h3>
           {benches.length > 1 ? (
-            <div role="tablist" aria-label="Benchmark" className="relative flex shrink-0 gap-0.5 rounded-full bg-muted p-0.5">
+            <div role="tablist" aria-label="Benchmark" className="relative flex max-w-full shrink-0 gap-0.5 overflow-x-auto rounded-full bg-muted p-0.5 [scrollbar-width:none]">
               {benches.map((id) => {
                 const on = id === bench
                 return (
@@ -92,7 +98,7 @@ export function DiscoverInsights({
                     type="button"
                     onClick={() => setChosen(id)}
                     className={cn(
-                      "relative rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
+                      "relative shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
                       on ? "text-mm-dark" : "text-muted-foreground hover:text-mm-dark",
                     )}
                   >
@@ -103,13 +109,13 @@ export function DiscoverInsights({
                         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 38 }}
                       />
                     ) : null}
-                    <span className="relative">{benchmarkName(id)}</span>
+                    <span className="relative">{tabLabel(id)}</span>
                   </button>
                 )
               })}
             </div>
           ) : (
-            <span className="text-[12px] text-muted-foreground">{benchmarkName(bench)}</span>
+            <span className="text-[12px] text-muted-foreground">{tabLabel(bench)}</span>
           )}
         </div>
       </div>
@@ -125,19 +131,11 @@ export function DiscoverInsights({
                   aria-pressed={on}
                   onClick={() => setQuestion(x.id)}
                   className={cn(
-                    "group relative flex w-full items-center gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
-                    !on && "hover:bg-muted/60",
+                    "group relative flex w-full cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50",
                   )}
                 >
-                  {on ? (
-                    <motion.span
-                      layoutId="explore-question"
-                      className="absolute inset-0 rounded-[10px] bg-muted"
-                      transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 40 }}
-                    />
-                  ) : null}
                   <span className="relative min-w-0 flex-1">
-                    <span className={cn("block text-[13px] leading-snug", on ? "font-medium text-mm-dark" : "text-mm-dark")}>{x.label}</span>
+                    <span className={cn("block text-[13px] leading-snug transition-colors", on ? "font-semibold text-mm-dark" : "text-muted-foreground group-hover:text-mm-dark")}>{x.label}</span>
                   </span>
                   <CaretRight
                     weight="bold"
@@ -164,15 +162,14 @@ export function DiscoverInsights({
                 <>
                   <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
                     <div className="shrink-0">
-                      <p className="font-data text-[34px] leading-none tracking-[-0.02em] text-mm-dark">
+                      <p className="text-[26px] font-semibold leading-none tracking-[-0.01em] tabular-nums text-mm-dark">
                         <CountUp value={answer.metric.value} format={answer.metric.format} reduce={reduce} />
                       </p>
-                      <p className="mt-1.5 max-w-[26ch] text-[12px] text-muted-foreground">{answer.metric.label}</p>
                     </div>
-                    <p className="min-w-[24ch] flex-1 text-[15px] leading-snug text-mm-dark">{answer.headline}</p>
+                    <p className="min-w-[24ch] flex-1 text-pretty text-[15px] leading-snug text-mm-dark">{answer.headline}</p>
                   </div>
-                  <div className="mt-5">{answer.chart}</div>
-                  {answer.note ? <p className="mt-3 text-[12px] leading-snug text-muted-foreground">{answer.note}</p> : null}
+                  {/* the chart's reading note stays one hover away rather than a line under it */}
+                  <div className="mt-5" title={typeof answer.note === "string" ? answer.note : undefined}>{answer.chart}</div>
                 </>
               ) : (
                 <Empty q={q.label} id={question} bench={bench} none={rows.length === 0} />
@@ -181,15 +178,14 @@ export function DiscoverInsights({
           </AnimatePresence>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border/60 pt-3 text-[12px] text-muted-foreground">
-            <span>
-              {answer ? "Select a configuration to open its run. " : ""}
-              {q.hint}
-              {partial ? ` · ${partial} partial ${partial === 1 ? "run" : "runs"} left out` : ""}
-            </span>
-            <Link href={`/compare?benchmark=${encodeURIComponent(bench)}`} className="group inline-flex items-center gap-1 font-medium text-mm-charge hover:underline">
-              Full {benchmarkName(bench)} comparison
-              <ArrowRight weight="bold" className="size-3 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+            {/* how to read the chart stays one hover away; only a hidden run is worth a word */}
+            <span title={q.hint}>{partial ? `${partial} unfinished ${partial === 1 ? "run" : "runs"} not shown` : ""}</span>
+            {onComparePage ? null : (
+              <Link href={`/compare?benchmark=${encodeURIComponent(bench)}`} className="group inline-flex items-center gap-1 font-medium text-mm-charge hover:underline">
+                Full {benchmarkName(bench)} comparison
+                <ArrowRight weight="bold" className="size-3 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -251,7 +247,8 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
   // FAB is rubric-graded: its headline is partial credit, not a pass rate
   const rateWord = rows[0]?.batch.summary.mean_score != null ? "partial credit" : "pass rate"
   const name = (r: Row) => r.batch.configuration_name
-  const label = (r: Row) => `${name(r)} (${archLabel(r.batch.architecture)})`
+  // "Evaluator (Evaluator)" says nothing twice: name the architecture only when it differs
+  const label = (r: Row) => (name(r) === archLabel(r.batch.architecture) ? name(r) : `${name(r)} (${archLabel(r.batch.architecture)})`)
 
   switch (id) {
     case "best": {
@@ -260,14 +257,18 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
       if (!top) return null
       return {
         metric: { value: top.rate, format: (v) => pct(v, 1), label: `${rateWord}, ${name(top)}` },
-        headline: next ? (
+        headline: next && Math.abs(top.rate - next.rate) < 1e-9 ? (
           <>
-            {label(top)} leads. {label(next)} is next at {pct(next.rate, 1)}; {overlap(top, next) ? "their intervals overlap, so the order is not settled at this n." : "their intervals do not overlap."}
+            {label(top)} and {label(next)} are tied at {pct(top.rate, 1)}.
+          </>
+        ) : next ? (
+          <>
+            {label(top)} leads. {label(next)} is next at {pct(next.rate, 1)}; {overlap(top, next) ? "their likely ranges overlap, so the order isn't settled yet." : "their likely ranges don't overlap."}
           </>
         ) : (
           <>{label(top)} is the only configuration with a complete run so far.</>
         ),
-        note: `Bars are the ${rateWord}; the range beside each is its 95% interval, built on tasks.`,
+        note: `Bars show the ${rateWord}; the numbers under each are its likely range.`,
         chart: (
           <BarList
             c={c}
@@ -356,7 +357,11 @@ function answerFor(id: QuestionId, c: Ctx): Answer | null {
           <>
             The best multi-agent configuration, {label(best)}, {d > 0 ? "beats" : d < 0 ? "trails" : "ties"} the single agent&rsquo;s {pct(single.rate, 1)}
             {sameModel(best, single) ? ", on the same model" : ", but on a different model"}.{" "}
-            {overlap(best, single) ? "The intervals overlap, so this is not a settled difference at this n." : "The intervals do not overlap."}
+            {best.n !== single.n
+              ? `They ran different numbers of questions (${best.n} and ${single.n}), so the gap is not like for like; the Overview headline compares them on the questions both ran.`
+              : overlap(best, single)
+                ? "The ranges overlap, so this is not a settled difference yet."
+                : "The ranges do not overlap: a settled difference."}
           </>
         ),
         note: `Bars show each multi-agent configuration's ${rateWord} minus the single agent's. Pale bars ran a different model, so the gap mixes two effects.`,
@@ -424,8 +429,10 @@ function BarList({ c, bars, footer }: { c: Ctx; bars: Bar[]; footer?: ReactNode 
                   )}
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-[13px] font-medium text-mm-dark">{r.batch.configuration_name}</span>
-                    <span className="block truncate text-[12px] text-muted-foreground">{c.archLabel(r.batch.architecture)}</span>
+                    <span className="block truncate text-[13px] font-medium text-mm-dark">{c.archLabel(r.batch.architecture)}</span>
+                    {r.batch.configuration_name !== c.archLabel(r.batch.architecture) ? (
+                      <span className="block truncate text-[12px] text-muted-foreground">{r.batch.configuration_name}</span>
+                    ) : null}
                   </span>
                   <span className="relative flex h-[14px] overflow-hidden rounded-r-[3px] bg-muted">
                     {b.segments ? (
@@ -470,19 +477,6 @@ function BarList({ c, bars, footer }: { c: Ctx; bars: Bar[]; footer?: ReactNode 
       </ul>
       {footer}
     </div>
-  )
-}
-
-function Legend({ items }: { items: [string, string][] }) {
-  return (
-    <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 px-2 text-[12px] text-muted-foreground">
-      {items.map(([cls, t]) => (
-        <span key={t} className="inline-flex items-center gap-1.5">
-          <span className={cn("size-2 rounded-[2px]", cls)} />
-          {t}
-        </span>
-      ))}
-    </p>
   )
 }
 
@@ -602,9 +596,9 @@ function Diverging({ c, single, multis, span }: { c: Ctx; single: Row; multis: R
                 className={cn("group w-full rounded-[8px] px-2 py-2 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mm-charge/50", rowGrid, on && "bg-muted/50")}
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-medium text-mm-dark">{r.batch.configuration_name}</span>
+                  <span className="block truncate text-[13px] font-medium text-mm-dark">{c.archLabel(r.batch.architecture)}</span>
                   <span className="block truncate text-[12px] text-muted-foreground">
-                    {c.archLabel(r.batch.architecture)}
+                    {r.batch.configuration_name}
                     {same ? "" : " · other model"}
                   </span>
                 </span>
@@ -677,7 +671,7 @@ function Repeatability({ bench, reduce }: { bench: string; reduce: boolean }) {
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <p className="min-w-[24ch] flex-1 text-[15px] leading-snug text-mm-dark">
+        <p className="min-w-[24ch] flex-1 text-pretty text-[15px] leading-snug text-mm-dark">
           {lead && lead.reliability.value != null ? (
             <>
               {lead.configuration_name} passes all {k} of {k} tries on {fmt(lead.reliability.value)} of tasks

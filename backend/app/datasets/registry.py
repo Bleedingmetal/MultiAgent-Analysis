@@ -563,6 +563,18 @@ _SCALE_WORDS: dict[str, float] = {
 }
 _TABLE_UNIT_SCALES = (1e3, 1e6, 1e9)
 _YES_NO = {"yes", "no", "true", "false"}
+# "..., in millions?", "(in $ thousands)", "expressed in billions": the unit the question asks for
+_QUESTION_UNIT_RE = re.compile(
+    r"\bin\s+(?:\$\s*|usd\s+)?(thousands?|millions?|billions?)\b", re.IGNORECASE
+)
+
+
+def question_scale(question: str | None) -> float | None:
+    """The unit a question asks its answer in ("... in millions?" -> 1e6), if it names one."""
+    found = _QUESTION_UNIT_RE.findall(question or "")
+    scales = {_SCALE_WORDS[w.lower()] for w in found}
+    # Two different units named: ambiguous, so none
+    return scales.pop() if len(scales) == 1 else None
 _RELATIVE_TOLERANCE = 0.01
 _ABSOLUTE_TOLERANCE = 1e-4
 
@@ -809,6 +821,7 @@ def score_answer(
     *,
     expected_is_percent: bool | None = None,
     expected_in_percent_units: bool = False,
+    question_unit: float | None = None,
 ) -> bool | None:
     """
     Honest FinQA compare:
@@ -816,6 +829,9 @@ def score_answer(
     - whitelist units ($ / % / thousand|million|billion)
     - unknown unit tails fail (no '94 potatoes')
     - no hunting for a matching number inside reasoning prose
+    - a bare number is read in the unit the question asks for (`question_unit`, from
+      question_scale): "33.458" to "... in millions?" is $33.458 million, the same as a
+      gold of 33458 in thousands
     """
     if expected is None:
         return None
@@ -849,7 +865,15 @@ def score_answer(
             _numeric_match(expected_number, candidate)
             for candidate in (got.value / 100.0, got.value)
         )
-    return any(
-        _numeric_match(expected_number, candidate)
-        for candidate in _candidate_values(got)
-    )
+    if any(_numeric_match(expected_number, candidate) for candidate in _candidate_values(got)):
+        return True
+    # A bare number in the question's unit, against gold kept in a finer table unit
+    # ("33.458" in millions = 33458 in thousands). Only toward finer units, so a bare
+    # "94000" to an "in millions" question never passes as 94 (billions).
+    if question_unit and got.scale == 1.0 and not got.is_percent:
+        return any(
+            _numeric_match(expected_number, got.value * question_unit / unit)
+            for unit in _TABLE_UNIT_SCALES
+            if unit < question_unit
+        )
+    return False

@@ -77,6 +77,25 @@ class FinQATaskTests(unittest.TestCase):
             )
         )
 
+    def test_bare_number_is_read_in_the_questions_unit(self) -> None:
+        from app.datasets.registry import question_scale
+
+        q = "what would 2014 contingent consideration be without the foreign currency translation adjustment , in millions?"
+        unit = question_scale(q)
+        self.assertEqual(unit, 1e6)
+        # Gold 33458 is in thousands; "33.458" answers in the millions asked for
+        self.assertTrue(score_answer("33458", "Final answer: 33.458", question_unit=unit))
+        self.assertTrue(score_answer("33458", "Final answer: $33.458 million", question_unit=unit))
+        # Without the question's unit the bare number stays unread, as before
+        self.assertFalse(score_answer("33458", "Final answer: 33.458"))
+        # Wrong numbers still fail; percents are untouched
+        self.assertFalse(score_answer("33458", "Final answer: 34.9", question_unit=unit))
+        self.assertFalse(score_answer("33458", "Final answer: 33.458%", question_unit=unit))
+        # Unit phrasing, and no unit or two different units: none
+        self.assertEqual(question_scale("net revenue (in $ thousands)?"), 1e3)
+        self.assertIsNone(question_scale("what was the change in revenue?"))
+        self.assertIsNone(question_scale("in millions, or in thousands?"))
+
     def test_score_accepts_equivalent_percentage(self) -> None:
         self.assertTrue(score_answer("0.09864", "9.864%"))
         self.assertTrue(score_answer("0.14464", "14.5%"))

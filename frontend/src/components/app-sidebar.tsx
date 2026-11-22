@@ -25,7 +25,7 @@ import {
 
 const navigation = [
   { title: "Overview", url: "/", icon: ChartBar },
-  { title: "Compare", url: "/compare", icon: GitDiff },
+  { title: "Lab", url: "/compare", icon: GitDiff },
   { title: "Benchmarks", url: "/benchmarks", icon: Database },
   { title: "Configurations", url: "/configurations", icon: SlidersHorizontal },
   { title: "Agent prompts", url: "/agent-prompts", icon: ChatText },
@@ -79,7 +79,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="px-6 pb-6">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[12px] text-white/45">WPI MQP × MassMutual</p>
+          <p className="text-[12px] text-white/60">WPI MQP × MassMutual</p>
           <ThemeToggle />
         </div>
       </SidebarFooter>

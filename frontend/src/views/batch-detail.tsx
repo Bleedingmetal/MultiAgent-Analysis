@@ -26,7 +26,9 @@ import {
   continueBatch,
   createBatch,
   getBatch,
+  getOverviewHidden,
   getRepeatability,
+  setOverviewHidden,
   taskNoun,
 } from "@/lib/api"
 import { getConfiguration } from "@/lib/configuration-storage"
@@ -190,6 +192,29 @@ export default function BatchDetailPage() {
     }
   }, [batch?.id, batch?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Whether this run's configuration is kept off the Overview (test and scratch setups)
+  const [hiddenFromOverview, setHiddenFromOverview] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!batch) return
+    let cancelled = false
+    getOverviewHidden()
+      .then((res) => !cancelled && setHiddenFromOverview(res.hidden_configuration_ids.includes(batch.configuration_id)))
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [batch?.configuration_id]) // eslint-disable-line react-hooks/exhaustive-deps
+  async function toggleOverview() {
+    if (!batch || hiddenFromOverview == null) return
+    const next = !hiddenFromOverview
+    setHiddenFromOverview(next)
+    try {
+      await setOverviewHidden(batch.configuration_id, next)
+    } catch {
+      setHiddenFromOverview(!next)
+    }
+  }
+
   const running = batch?.status === "running"
   useEffect(() => {
     if (!running || !id) return
@@ -305,6 +330,18 @@ export default function BatchDetailPage() {
               >
                 Configuration
                 <ArrowRight className="size-3.5" weight="bold" />
+              </Button>
+            ) : null}
+            {hiddenFromOverview != null ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void toggleOverview()}
+                aria-pressed={hiddenFromOverview}
+                title="Hidden configurations stay under Runs and Compare"
+                className="h-10 cursor-pointer rounded-full px-4 text-sm"
+              >
+                {hiddenFromOverview ? "Show on Overview" : "Hide from Overview"}
               </Button>
             ) : null}
             <Button

@@ -1,17 +1,19 @@
 import { Suspense } from "react"
 
-import Compare from "@/views/compare"
+import Lab from "@/views/lab"
+
+export const metadata = { title: "Lab · MassMutual" }
 
 export default function Page() {
   return (
     <Suspense
       fallback={
         <div className="surface p-6 text-sm text-muted-foreground">
-          Loading compare...
+          Loading the Lab…
         </div>
       }
     >
-      <Compare />
+      <Lab />
     </Suspense>
   )
 }

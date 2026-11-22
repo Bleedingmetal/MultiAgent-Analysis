@@ -12,7 +12,7 @@ import {
 
 const pageTitles: Record<string, string> = {
   "/": "Overview",
-  "/compare": "Compare",
+  "/compare": "Lab",
   "/benchmarks": "Benchmarks",
   "/configurations": "Configurations",
   "/agent-prompts": "Agent prompts",

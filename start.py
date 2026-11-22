@@ -119,8 +119,11 @@ def main() -> int:
     env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
            "NEXT_PUBLIC_API_URL": f"http://localhost:{backend_port}"}
     # --reload-dir app: only our code triggers a restart, not files the benchmark
-    # packages write inside the venv
+    # packages write inside the venv. --timeout-graceful-shutdown: on a reload, stop waiting
+    # for open browser connections after 3s; without it a code change could hang the old
+    # worker on "Reloading..." forever (seen on Windows)
     backend = spawn([str(PY), "-m", "uvicorn", "app.main:app", "--reload", "--reload-dir", "app",
+                     "--timeout-graceful-shutdown", "3",
                      "--port", str(backend_port)], BACKEND, env)
     frontend = spawn([npm, "run", "dev", "--", "--port", str(frontend_port)], FRONTEND, env)
     for name, proc in (("backend", backend), ("frontend", frontend)):

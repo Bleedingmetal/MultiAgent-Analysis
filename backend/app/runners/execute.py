@@ -20,6 +20,7 @@ from app.datasets.finqa_program import (
 from app.datasets.registry import (
     Task,
     score_answer,
+    question_scale,
     split_reasoning_and_answer,
     system_prompt_for,
 )
@@ -159,11 +160,14 @@ def score_task_output(task: Task, answer: str) -> ScoredOutput:
         reasoning = strip_program_from_reasoning(reasoning)
     if task.expected_answer is None and not scored:
         scored = None
+    # A bare number answers in the unit the question asks for ("... in millions?")
+    unit = question_scale(task.question) if task.benchmark_id == "finqa" else None
     success = score_answer(
         task.expected_answer,
         answer,
         expected_is_percent=task.metadata.get("expected_is_percent"),
         expected_in_percent_units=bool(task.metadata.get("expected_in_percent_units")),
+        question_unit=unit,
     )
     alternates = list(task.metadata.get("alternate_answers") or [])
     note = None if success is not None else "Open-ended task; success not auto-scored in MVP."
@@ -173,7 +177,7 @@ def score_task_output(task: Task, answer: str) -> ScoredOutput:
             f"{' / '.join(alternates)} in its annotations). Any of them is accepted."
         )
         # Lenient units here: annotations often drop the % sign.
-        if success is False and any(score_answer(a, answer) for a in alternates):
+        if success is False and any(score_answer(a, answer, question_unit=unit) for a in alternates):
             success = True
     if task.metadata.get("answer_corrected"):
         fixed = str(task.metadata.get("correction_note"))

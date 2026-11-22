@@ -282,7 +282,12 @@ def start(req: BatchRequest) -> BatchRun:
             "Wait for it or cancel it first."
         )
     preflight(req.configuration, req.mode)
-    tasks = registry.sample_tasks(req.benchmark_id, req.size)
+    if req.task_ids is not None:
+        tasks = [registry.get_task(req.benchmark_id, t) for t in dict.fromkeys(req.task_ids)]
+        if not tasks:
+            raise RuntimeError("No questions to run.")
+    else:
+        tasks = registry.sample_tasks(req.benchmark_id, req.size)
     spend_guard.begin_batch()
 
     models = [
@@ -301,6 +306,7 @@ def start(req: BatchRequest) -> BatchRun:
         budget_usd=req.budget_usd,
         concurrency=req.concurrency,
         passes=req.passes,
+        purpose=req.purpose,
         created_at=_now(),
         models=list(dict.fromkeys(models)),
         configuration=req.configuration,

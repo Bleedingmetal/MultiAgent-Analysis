@@ -70,5 +70,72 @@ class BuildTests(unittest.TestCase):
         self.assertIsNone(task["multi"])
 
 
+def topup(bid: str, config: str, arch: str, outcomes: list[bool], ids: list[str], *, created: str) -> BatchRun:
+    return batch(bid, config, arch, outcomes, created=created, ids=ids).model_copy(update={"purpose": "top-up"})
+
+
+class TopUpTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        patcher = mock.patch.object(overview, "HIDDEN_FILE", Path(self.tmp.name) / "hidden.json")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def runs(self, *extra: BatchRun) -> list[BatchRun]:
+        # single ran q0-q9; multi ran q0-q49. Shared 10: 9 of 10 vs 8 of 10, too close to call
+        single = batch("S", "single", "single-agent", [True] * 9 + [False], created="2026-11-01")
+        multi = batch("M", "multi", "evaluator-optimizer", [True] * 8 + [False, False] + [True] * 40,
+                      created="2026-11-02")
+        return sorted([*extra, single, multi], key=lambda b: b.created_at, reverse=True)
+
+    def test_topup_is_pooled_into_the_comparison(self) -> None:
+        before = overview.build(self.runs())["tasks"][0]["comparison"]
+        self.assertEqual(before["shared"], 10)
+        self.assertEqual(before["verdict"], "too-close")
+        extra = topup("T", "single", "single-agent", [True] * 8, [f"q{i}" for i in range(10, 18)], created="2026-11-03")
+        after = overview.build(self.runs(extra))["tasks"][0]["comparison"]
+        self.assertEqual(after["shared"], 18)
+        self.assertAlmostEqual(after["single_accuracy"], 17 / 18)
+
+    def test_question_in_main_and_topup_takes_the_mean(self) -> None:
+        extra = topup("T", "single", "single-agent", [True], ["q9"], created="2026-11-03")  # q9 failed in S
+        c = overview.build(self.runs(extra))["tasks"][0]["comparison"]
+        self.assertEqual(c["shared"], 10)
+        self.assertAlmostEqual(c["single_accuracy"], 9.5 / 10)
+
+    def test_topup_is_never_the_main_run(self) -> None:
+        # a newer, complete-sized, perfect top-up must not stand for its configuration
+        extra = topup("T", "single", "single-agent", [True] * 12, [f"q{i}" for i in range(12)], created="2026-11-09")
+        out = overview.build(self.runs(extra))
+        task = out["tasks"][0]
+        self.assertEqual(task["single"]["batch_id"], "S")
+        self.assertEqual(task["complete_runs"], 2)
+        self.assertFalse(overview.complete(extra))
+        self.assertEqual(out["recent"][0]["not_finished"], "top-up for the comparison")
+        self.assertFalse(any(a.get("batch_id") == "T" for a in out["attention"]))
+
+    def test_settle_plan_counts_missing_questions_per_side(self) -> None:
+        sample = [mock.Mock(id=f"q{i}") for i in range(50)]
+        with mock.patch.object(overview.registry, "sample_tasks", side_effect=lambda _b, n: sample[:n]):
+            c = overview.build(self.runs())["tasks"][0]["comparison"]
+            plan = overview.settle_plan(self.runs(), "finqa")
+        target = c["shared"] + c["more_questions"]
+        self.assertEqual(plan["target_questions"], target)
+        single, multi = plan["sides"]
+        self.assertEqual((single["side"], single["missing"]), ("single", target - 10))
+        self.assertEqual(single["task_ids"], [f"q{i}" for i in range(10, target)])
+        self.assertEqual((multi["side"], multi["configuration_name"], multi["missing"]), ("multi", "multi", 0))
+        # 0.001 per answer (cost / answers, no avg_cost_usd on these runs)
+        self.assertAlmostEqual(single["estimated_cost_usd"], (target - 10) * 0.001)
+        self.assertNotIn("task_ids", overview.public_plan(plan)["sides"][0])
+
+    def test_settle_refuses_a_settled_comparison(self) -> None:
+        single = batch("S", "s", "single-agent", [True] * 30, created="1")
+        multi = batch("M", "m", "routing", [False] * 30, created="2")
+        with self.assertRaises(overview.SettleError):
+            overview.settle_plan([multi, single], "finqa")
+
+
 if __name__ == "__main__":
     unittest.main()

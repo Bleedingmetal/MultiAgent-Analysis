@@ -17,7 +17,6 @@ import type React from "react"
 import { CaretRight, X } from "@phosphor-icons/react"
 
 import { STATUS_STYLE, pct, secs, usd, when } from "@/components/product/batch-results"
-import { DiscoverInsights } from "@/components/product/discover-insights"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   type BatchRun,
@@ -28,7 +27,6 @@ import {
   getHealth,
   listBatches,
   taskNoun,
-  primaryAccuracy,
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -113,11 +111,12 @@ const sameModel = (a: Row, b: Row) => a.batch.models.join() === b.batch.models.j
  * The row each configuration is judged by, per benchmark: its latest eligible run, or failing
  * that its latest finished run with anything graded, marked partial. Eligible rows rank first.
  */
-function leaderboard(batches: BatchRun[]) {
+export function leaderboard(batches: BatchRun[]) {
   const byKey = new Map<string, Row>()
   const sorted = [...batches].sort((a, c) => c.created_at.localeCompare(a.created_at))
   for (const b of sorted) {
     if (!FINISHED.has(b.status)) continue
+    if (b.purpose === "top-up") continue // top-ups only supplement a comparison; they never stand for a configuration
     const row = toRow(b)
     if (!row.graded) continue
     const key = `${b.configuration_id}::${b.benchmark_id}`
@@ -145,14 +144,13 @@ function Heading({ title, aside }: { title: string; aside?: React.ReactNode }) {
   )
 }
 
-export default function Compare() {
+/** Every batch, the budget and the datasets: what the leaderboard and coverage are built from. */
+function useCompareData() {
   const [batches, setBatches] = useState<BatchRun[]>([])
   const [health, setHealth] = useState<Health | null>(null)
   const [datasets, setDatasets] = useState<BenchmarkInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [asOf, setAsOf] = useState<Date | null>(null)
-  const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -162,7 +160,6 @@ export default function Compare() {
         setBatches(b.batches)
         setHealth(h)
         setDatasets(d.benchmarks)
-        setAsOf(new Date())
       })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "Could not load"))
       .finally(() => !cancelled && setLoaded(true))
@@ -179,39 +176,47 @@ export default function Compare() {
       ),
     [board],
   )
-  const taskCount = useMemo(() => Object.fromEntries(datasets.map((d) => [d.id, d.task_count])), [datasets])
-  const recent = useMemo(
-    () => [...batches].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6),
-    [batches],
-  )
   const running = batches.filter((b) => b.status === "running" || b.status === "paused")
+  return { board, benches, running, health, datasets, error, loaded }
+}
+
+type CompareData = ReturnType<typeof useCompareData>
+
+export default function Compare() {
+  const data = useCompareData()
+  const [openId, setOpenId] = useState<string | null>(null)
+  return (
+    <div className={cn("mx-auto w-full max-w-[1180px] transition-[padding] duration-200", openId && "xl:pr-[440px]")}>
+      <header className="min-w-0 max-w-[76ch] px-6">
+        <h2 className="text-[24px] font-semibold tracking-[-0.01em] text-mm-dark">Compare</h2>
+        <HowThisWorks benches={data.benches} />
+        {data.error ? <p className="mt-1.5 text-[12px] text-[#b34800]">{data.error}</p> : null}
+      </header>
+      <Lenses data={data} openId={openId} setOpenId={setOpenId} className="mt-6" />
+    </div>
+  )
+}
+
+/** "Configurations compared" and "Research coverage", with the run panel they open; the Lab shows them under its review. */
+export function CompareLenses({ className }: { className?: string }) {
+  const data = useCompareData()
+  const [openId, setOpenId] = useState<string | null>(null)
+  return (
+    <div className={cn("transition-[padding] duration-200", openId && "xl:pr-[440px]", className)}>
+      {data.error ? <p className="mb-3 px-6 text-[13px] text-mm-dark">The configurations couldn&rsquo;t load: {data.error}</p> : null}
+      <Lenses data={data} openId={openId} setOpenId={setOpenId} />
+    </div>
+  )
+}
+
+function Lenses({ data, openId, setOpenId, className }: { data: CompareData; openId: string | null; setOpenId: (id: string | null) => void; className?: string }) {
+  const { board, benches, running, health, datasets, loaded } = data
   const open = openId ? board.find((r) => r.batch.id === openId) ?? null : null
 
   return (
-    <div className={cn("mx-auto w-full max-w-[1180px] transition-[padding] duration-200", openId && "xl:pr-[440px]")}>
-      {/* 1 · Introduction */}
-      <header className="flex items-end justify-between gap-6 px-6">
-        <div className="min-w-0 max-w-[76ch]">
-          <h2 className="text-[24px] font-semibold tracking-[-0.01em] text-mm-dark">Compare</h2>
-          <HowThisWorks benches={benches} />
-          {error ? <p className="mt-1.5 text-[12px] text-[#b34800]">{error}</p> : null}
-        </div>
-        <Link href="/configurations" className={btnPrimary}>Run an evaluation</Link>
-      </header>
-
-      {/* 2b · Discover insights: pick a question, get the chart that answers it */}
-      <DiscoverInsights
-        onComparePage
-        board={board}
-        benches={benches.length ? benches : datasets.length ? datasets.map((d) => d.id) : ["finqa", "tau2-retail", "fab"]}
-        selectedId={openId}
-        onOpen={setOpenId}
-        archLabel={(a) => arch(a).label}
-      />
-      {/* (shown even before any run exists; each question then explains what it needs) */}
-
-      {/* 3 · Configurations compared */}
-      <section className={cn("mt-4 px-6 pt-5 pb-4", surface)}>
+    <>
+      {/* Configurations compared: each configuration's latest run, grouped by benchmark */}
+      <section className={cn("px-6 pt-5 pb-4", surface, className)}>
         <Heading title="Configurations compared" />
         {board.length ? (
           benches.map((id) => {
@@ -233,7 +238,7 @@ export default function Compare() {
                       key={r.batch.id}
                       row={r}
                       best={r === best}
-                      delta={baseline && r !== baseline && r.eligible && sameModel(r, baseline) && r.n === baseline.n ? r.rate - baseline.rate : null}
+                      delta={baseline && r.batch.architecture !== "single-agent" && r.eligible && sameModel(r, baseline) && r.n === baseline.n ? r.rate - baseline.rate : null}
                       selected={openId === r.batch.id}
                       onOpen={() => setOpenId(r.batch.id)}
                     />
@@ -254,12 +259,12 @@ export default function Compare() {
       </div>
 
       <SidePanel row={open} baseline={open ? board.find((r) => r.eligible && r.batch.benchmark_id === open.batch.benchmark_id && r.batch.architecture === "single-agent") ?? null : null} onClose={() => setOpenId(null)} />
-    </div>
+    </>
   )
 }
 
 /** The definitions, in a popover under the lede. */
-function HowThisWorks({ benches }: { benches: string[] }) {
+export function HowThisWorks({ benches, className = "mt-2" }: { benches: string[]; className?: string }) {
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -274,7 +279,7 @@ function HowThisWorks({ benches }: { benches: string[] }) {
     }
   }, [open])
   return (
-    <div ref={box} className="relative mt-2">
+    <div ref={box} className={cn("relative", className)}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -314,8 +319,6 @@ function HowThisWorks({ benches }: { benches: string[] }) {
     </div>
   )
 }
-
-const overlap = (a: Row, b: Row) => a.low <= b.high && b.low <= a.high
 
 function Delta({ a, b }: { a: number; b: number }) {
   const d = (a - b) * 100
@@ -374,7 +377,7 @@ export function partialWhy(row: Row) {
 
 /** The pass rate as a bar; its 95% interval is printed beside it, under the rate. */
 function Bar({ row, best, delta }: { row: Row; best: boolean; delta: number | null }) {
-  const title = `${pct(row.rate, 1)} of ${nLabel(row)}, 95% interval ${bounds(row)}${delta != null ? `; ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)} points against the baseline` : ""}`
+  const title = `${pct(row.rate, 1)} of ${nLabel(row)}, 95% interval ${bounds(row)}${delta != null ? `; ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)} points against the single agent` : ""}`
   return (
     <span className="flex items-center gap-3" title={title}>
       <span className="relative h-[12px] flex-1 overflow-hidden rounded-r-[2px] bg-muted">
@@ -402,7 +405,7 @@ function ArchBadge({ id }: { id: string }) {
   )
 }
 
-/** Configurations × benchmarks: the latest eligible pass rate with n, or that it has not run. */
+/** Configurations × benchmarks: the rate of the run each is judged by (as on the list), or that it has not run. */
 function Coverage({ board, datasets, health, running, loaded, onOpen }: { board: Row[]; datasets: BenchmarkInfo[]; health: Health | null; running: BatchRun[]; loaded: boolean; onOpen: (id: string) => void }) {
   const benches = (datasets.length ? datasets.map((d) => d.id) : [...new Set(board.map((r) => r.batch.benchmark_id))]).sort(
     (a, b) => (BENCH_ORDER.indexOf(a) + 1 || 99) - (BENCH_ORDER.indexOf(b) + 1 || 99),
@@ -457,7 +460,7 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
                           {pct(r.rate, 1)}
                         </button>
                       ) : (
-                        <span className="text-muted-foreground/70">{scored ? "not run" : "not auto-scored"}</span>
+                        <span className="text-muted-foreground">{scored ? "not run" : "not auto-scored"}</span>
                       )}
                     </td>
                   )
@@ -471,14 +474,25 @@ function Coverage({ board, datasets, health, running, loaded, onOpen }: { board:
         <p className="mt-3 text-[12px] text-muted-foreground">{loaded ? "Nothing has run yet." : "Loading…"}</p>
       )}
       <p className="mt-auto pt-3 text-[12px] text-muted-foreground">
-        Each cell is the latest complete run's pass rate on that benchmark; select one to open its run.
+        {"Each cell is the run a configuration is judged by on that benchmark. Grey cells aren't ranked; hover one to see why, or select it to open the run."}
       </p>
     </section>
   )
 }
 
 /** Everything about one configuration's run, in a panel that stays while other rows are clicked. */
-export function SidePanel({ row, baseline, onClose }: { row: Row | null; baseline: Row | null; onClose: () => void }) {
+export function SidePanel({
+  row,
+  baseline,
+  onClose,
+  actions,
+}: {
+  row: Row | null
+  baseline: Row | null
+  onClose: () => void
+  /** Extra buttons for the footer, after "Open the full run" and "Open the configuration". */
+  actions?: React.ReactNode
+}) {
   const [full, setFull] = useState<BatchRun | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const opener = useRef<HTMLElement | null>(null)
@@ -542,7 +556,13 @@ export function SidePanel({ row, baseline, onClose }: { row: Row | null; baselin
             </p>
             <p className="mt-1 text-[12px] text-muted-foreground">
               {s.passed} of {row.graded} {passes > 1 ? `answers (${row.n} ${taskNoun(b.benchmark_id, row.n)} × ${passes} passes)` : taskNoun(b.benchmark_id, row.graded)} passed; 95% interval on {row.n} {taskNoun(b.benchmark_id, row.n)}
-              {baseline && baseline !== row && row.eligible && sameModel(row, baseline) && row.n === baseline.n ? <>, <Delta a={row.rate} b={baseline.rate} /> against the single-agent baseline</> : baseline === row ? ", the single-agent baseline" : baseline && baseline !== row && row.eligible ? (sameModel(row, baseline) ? ", a different task sample from the baseline, so no delta" : ", no same-model baseline to compare against") : ""}
+              {baseline && baseline !== row && row.eligible && b.architecture !== "single-agent"
+                ? sameModel(row, baseline) && row.n === baseline.n
+                  ? <>, <Delta a={row.rate} b={baseline.rate} /> against the single agent</>
+                  : sameModel(row, baseline)
+                    ? ", on a different set of tasks from the single agent, so not compared"
+                    : ", no single-agent run on the same model to compare against"
+                : ""}
               {!row.eligible ? ` · not ranked: ${partialWhy(row)}` : ""}
             </p>
           </div>
@@ -579,7 +599,7 @@ export function SidePanel({ row, baseline, onClose }: { row: Row | null; baselin
                 ["Total cost", `${usd(s.cost_usd)} of a ${usd(b.budget_usd)} cap`],
                 ["Time per task", `${secs(s.p50_latency_sec)} median, ${secs(s.p95_latency_sec)} at the 95th`],
                 ["Tokens in / out", `${s.prompt_tokens.toLocaleString()} / ${s.completion_tokens.toLocaleString()}`],
-                ["Errors", String(s.errors)],
+                ...(s.errors ? [["Errors", String(s.errors)]] : []),
                 ["Status", `${row.eligible ? "complete" : `not ranked (${partialWhy(row)})`}${b.stop_reason ? `: ${b.stop_reason}` : ""}`],
               ] as [string, string][]
             ).map(([label, value]) => (
@@ -593,6 +613,7 @@ export function SidePanel({ row, baseline, onClose }: { row: Row | null; baselin
           <div className="mt-auto flex flex-wrap gap-2 border-t border-border px-6 py-5 pt-5">
             <Link href={`/runs/e2e/${b.id}`} className={btnPrimary}>Open the full run</Link>
             <Link href={`/configurations/${b.configuration_id}`} className={btnQuiet}>Open the configuration</Link>
+            {actions}
           </div>
         </motion.aside>
       ) : null}

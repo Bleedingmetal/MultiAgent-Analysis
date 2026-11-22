@@ -11,7 +11,7 @@ from app.datasets import registry
 from app.llm import providers_status
 from app.runners.dispatch import CONFIG_ERRORS, execute, preflight
 from app.schemas import BatchRequest, BatchRun, RunRequest, RunResult
-from app import batches, metrics, overview, spend_guard, store
+from app import batches, lab, metrics, overview, spend_guard, store
 
 app = FastAPI(title="Agent Evaluation API", version="0.1.0")
 
@@ -82,10 +82,64 @@ class HideBody(BaseModel):
     hidden: bool = True
 
 
+@app.get("/api/overview/hidden")
+def get_overview_hidden():
+    return {"hidden_configuration_ids": sorted(overview.hidden())}
+
+
 @app.post("/api/overview/hidden")
 def set_overview_hidden(body: HideBody):
     """Keep a configuration (a test or scratch setup) off the Overview, or bring it back."""
     return {"hidden_configuration_ids": sorted(overview.set_hidden(body.configuration_id, body.hidden))}
+
+
+class SettleBody(BaseModel):
+    benchmark_id: str
+    confirm: bool = False
+
+
+@app.post("/api/overview/settle")
+def settle_overview(body: SettleBody):
+    """Settle a too-close single vs multi-agent comparison by running the missing questions.
+
+    Without `confirm`: the plan (questions and estimated cost per side); nothing runs.
+    With `confirm`: starts the top-up runs one after another and returns at once.
+    """
+    try:
+        if not body.confirm:
+            return overview.public_plan(overview.settle_plan(batches.all_batches(), body.benchmark_id))
+        return overview.settle(batches.all_batches(), body.benchmark_id)
+    except overview.SettleError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+    except CONFIG_ERRORS as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/lab/problems")
+def get_lab_problems():
+    """What's worth looking into: failures, flaky questions, too-close and unfinished runs."""
+    return lab.problems(batches.all_batches())
+
+
+@app.get("/api/lab/runs")
+def get_lab_runs(benchmark: str):
+    """Every finished, graded run on one task (top-ups excluded), newest first."""
+    return lab.runs(batches.all_batches(), benchmark)
+
+
+@app.get("/api/lab/diff")
+def get_lab_diff(a: str, b: str):
+    """Run `a` (before) vs run `b` (after) on the questions both graded."""
+    before, after = batches.get(a), batches.get(b)
+    for batch_id, batch in ((a, before), (b, after)):
+        if batch is None:
+            raise HTTPException(status_code=404, detail=f"No run with id {batch_id}.")
+    try:
+        return lab.diff(before, after)
+    except lab.LabError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
 
 @app.get("/api/metrics/repeatability")
