@@ -7,11 +7,15 @@ comes from app.overview, so the Lab and the Overview never disagree about a numb
   single vs multi-agent comparisons and unfinished runs, in plain words;
 - runs: every finished, graded run on one task (top-ups excluded);
 - diff: run A (before) vs run B (after) on the questions both graded, paired question by
-  question, with what flipped and what changed in the configuration.
+  question, with what flipped and what changed in the configuration;
+- steadiness: how steady one setup is across all its runs. Separate runs of the same setup
+  pool like passes of one run, so three one-pass runs give each question three tries.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import statistics
 from datetime import datetime
@@ -134,6 +138,110 @@ def _partner(b: BatchRun, runs_: list[BatchRun]) -> str | None:
     return best_id
 
 
+def _eligible(b: BatchRun) -> bool:
+    return not is_topup(b) and b.status in FINISHED and _graded(b)
+
+
+def _digest(value: Any) -> str:
+    return hashlib.sha1(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()[:12]
+
+
+_PROMPT_CACHE: dict[tuple[str, float], str] = {}
+
+
+def _sent_prompt(b: BatchRun) -> str:
+    """A digest of the system prompt the run actually sent (the app adds the task's own
+    instructions at run time, so it is not in the saved configuration). Read from the
+    run's first stored execution, as app.metrics groups them."""
+    from app.batches import BATCHES_DIR  # here, not at import: batches imports this module's peers
+
+    path = BATCHES_DIR / f"{b.id}.runs.jsonl"
+    try:
+        stamp = path.stat().st_mtime
+    except OSError:
+        return ""
+    if (b.id, stamp) not in _PROMPT_CACHE:
+        prompt = ""
+        with path.open(encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    run = json.loads(line)
+                    steps = run.get("steps") or []
+                    prompt = (steps[0].get("system_prompt") if steps else None) or run.get("system_prompt") or ""
+                    break
+        _PROMPT_CACHE[(b.id, stamp)] = _digest(prompt)
+    return _PROMPT_CACHE[(b.id, stamp)]
+
+
+def setup_key(b: BatchRun) -> tuple:
+    """Runs with the same key ran exactly the same setup, so their results can pool.
+
+    Any change makes a new setup: the configuration's contents (architecture, every step,
+    its model, temperature and prompt, the connections), the mode, the models, and the
+    system prompt actually sent. Pooling runs that differ would count a real change as noise.
+    """
+    cfg = b.configuration.model_dump() if b.configuration else {}
+    layout = {k: cfg.get(k) for k in ("architecture", "nodes", "edges", "layers")}
+    return (b.benchmark_id, b.configuration_id, b.mode, ",".join(b.models), _digest(layout), _sent_prompt(b))
+
+
+def _setup_runs(b: BatchRun, runs_: list[BatchRun]) -> list[BatchRun]:
+    """Every finished run of `b`'s setup (b included), oldest first."""
+    key = setup_key(b)
+    group = [o for o in runs_ if _eligible(o) and setup_key(o) == key]
+    if b not in group:
+        group.append(b)
+    return sorted(group, key=lambda o: o.created_at)
+
+
+def _tries(group: list[BatchRun]) -> dict[str, list[int]]:
+    """task_id -> every graded try at it across the runs (1 right, 0 wrong), passes included."""
+    out: dict[str, list[int]] = {}
+    for run in group:
+        for item in run.items:
+            for a in item.attempts:
+                if a.status in ("passed", "failed"):
+                    right = a.score >= 1 if a.score is not None else a.status == "passed"
+                    out.setdefault(item.task_id, []).append(int(right))
+    return out
+
+
+def steadiness(batches: list[BatchRun], batch_id: str) -> dict[str, Any]:
+    """How steady a run's setup is across all its runs, on questions tried more than once."""
+    b = next((x for x in batches if x.id == batch_id), None)
+    if b is None:
+        raise LabError(f"No run with id {batch_id}.", 404)
+    group = _setup_runs(b, [x for x in batches if x.benchmark_id == b.benchmark_id])
+    tries = {t: o for t, o in _tries(group).items() if len(o) > 1}
+    always = sum(1 for o in tries.values() if all(o))
+    never = sum(1 for o in tries.values() if not any(o))
+    questions = {i.task_id: i.question for run in group for i in run.items}
+    mixed = sorted(
+        ((t, o) for t, o in tries.items() if 0 < sum(o) < len(o)),
+        key=lambda x: abs(sum(x[1]) / len(x[1]) - 0.5),  # the closest to a coin flip first
+    )
+    counts = sorted({len(o) for o in tries.values()})
+    return {
+        "batch_id": b.id,
+        "configuration_name": b.configuration_name,
+        "runs": [{"batch_id": r.id, "created_at": r.created_at, "passes": r.passes, "accuracy": accuracy(r)} for r in group],
+        "questions": len(tries),
+        "tries_per_question": {"min": counts[0], "max": counts[-1]} if counts else None,
+        "always_right": always,
+        "never_right": never,
+        "sometimes": len(mixed),
+        # pass^3 (τ-bench): the chance three tries at a question are all right, averaged over questions
+        "pass_hat_3": (
+            statistics.fmean(math.comb(sum(o), 3) / math.comb(len(o), 3) for o in tries.values() if len(o) >= 3)
+            if any(len(o) >= 3 for o in tries.values()) else None
+        ),
+        "mixed": [
+            {"task_id": t, "question": questions.get(t), "right": sum(o), "tries": len(o)}
+            for t, o in mixed[:MAX_FLIPS]
+        ],
+    }
+
+
 def _is_mixed(item: BatchItem) -> bool:
     if item.status == "mixed":
         return True
@@ -160,24 +268,28 @@ def _failures(runs_: list[BatchRun]) -> list[dict[str, Any]]:
 
 
 def _flaky(runs_: list[BatchRun]) -> list[dict[str, Any]]:
-    def repeated(b: BatchRun) -> bool:
-        return not is_topup(b) and b.status in FINISHED and b.passes > 1 and _graded(b)
-
     rows = []
-    for b in _latest_per_key(runs_, repeated):
-        mixed = sum(1 for i in b.items if _is_mixed(i))
+    # Each setup once, through its newest run; its tries pool every run of that setup
+    for b in _latest_per_key(runs_, _eligible):
+        group = _setup_runs(b, runs_)
+        tries = _tries(group)
+        mixed = sum(1 for outcomes in tries.values() if len(outcomes) > 1 and 0 < sum(outcomes) < len(outcomes))
         if mixed:
-            rows.append((mixed, b))
+            rows.append((mixed, b, group))
     rows.sort(key=lambda r: -r[0])
-    return [
-        _problem(
+    out = []
+    for mixed, b, group in rows:
+        across = f"{len(group)} runs" if len(group) > 1 else f"{b.passes} passes"
+        earlier = [g for g in group if g.id != b.id]
+        out.append(_problem(
             "flaky",
             f"{b.configuration_name} gave different results on {_plural(mixed, task_name(b.benchmark_id) + ' question')}"
-            f" across passes",
-            _detail(b, f"{b.passes} passes"), b.benchmark_id, b.configuration_id, b.id, _partner(b, runs_),
-        )
-        for mixed, b in rows
-    ]
+            f" across {across}",
+            _detail(b, across), b.benchmark_id, b.configuration_id, b.id,
+            # another run of the same setup when there is one, so the Lab shows run-to-run change
+            earlier[-1].id if earlier else _partner(b, runs_),
+        ))
+    return out
 
 
 def _too_close(runs_: list[BatchRun]) -> list[dict[str, Any]]:
@@ -395,6 +507,14 @@ def diff(a: BatchRun, b: BatchRun) -> dict[str, Any]:
     still_right = sum(1 for t in same if sa[t][0] >= 1)
 
     changes = config_changes(a, b, a.configuration, b.configuration)
+    same_setup = setup_key(a) == setup_key(b)
+    if not changes and not same_setup:
+        # Nothing in the saved configuration differs, but the runs did not run the same thing:
+        # the system prompt the app sent (or the mode) changed between them
+        if _sent_prompt(a) != _sent_prompt(b):
+            changes.append({"what": "System prompt sent", "before": "earlier version", "after": "newer version"})
+        else:
+            changes.append({"what": "Run settings", "before": a.mode, "after": b.mode})
     return {
         "a": run_point(a),
         "b": run_point(b),
@@ -421,5 +541,5 @@ def diff(a: BatchRun, b: BatchRun) -> dict[str, Any]:
         "still_wrong": len(same) - still_right,
         "still_right": still_right,
         "changes": changes,
-        "same_config": a.configuration_id == b.configuration_id and not changes,
+        "same_config": same_setup,
     }

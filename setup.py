@@ -10,7 +10,8 @@ Everything the app needs that is missing gets installed here, without admin righ
      when present, otherwise installs uv into this Python and lets it fetch 3.12.
   3. backend/.venv with backend/requirements.txt (the two tau-bench packages come
      from GitHub as archives, so Git itself is not required).
-  4. backend/.env from .env.example when there is no .env yet.
+  4. backend/.env from .env.example when there is no .env yet; an existing one keeps
+     every value and gets any setting added since it was made.
   5. The benchmark data that is not committed (FinQA, FAB, tau2-bench).
   6. The frontend's npm packages.
 Safe to rerun: each step is skipped when already done; an old 3.10 venv is moved
@@ -202,6 +203,20 @@ def retire_old_venv() -> None:
     VENV.rename(target)
 
 
+def update_env(env_file: Path, example: Path) -> list[str]:
+    """Append settings from .env.example that the .env lacks. Never changes an existing value."""
+    have = {line.split("=", 1)[0].strip() for line in env_file.read_text(encoding="utf-8").splitlines()
+            if "=" in line and not line.lstrip().startswith("#")}
+    missing = [line for line in example.read_text(encoding="utf-8").splitlines()
+               if "=" in line and not line.lstrip().startswith("#") and line.split("=", 1)[0].strip() not in have]
+    # API keys are never filled with the example's placeholders
+    missing = [line for line in missing if not line.split("=", 1)[0].strip().endswith("_API_KEY")]
+    if missing:
+        with env_file.open("a", encoding="utf-8") as f:
+            f.write("\n# Added by setup.py (new settings, default values)\n" + "\n".join(missing) + "\n")
+    return [line.split("=", 1)[0].strip() for line in missing]
+
+
 def setup_backend() -> None:
     uv = uv_command()
     retire_old_venv()
@@ -227,7 +242,11 @@ def setup_backend() -> None:
         shutil.copy(BACKEND / ".env.example", env_file)
         say(f"Created {env_file.relative_to(ROOT)}: add OPENAI_API_KEY and ANTHROPIC_API_KEY to it")
     else:
-        say("Keeping the existing backend/.env (new settings all have defaults)")
+        added = update_env(env_file, BACKEND / ".env.example")
+        if added:
+            say(f"Added {len(added)} new setting(s) to backend/.env with their defaults: {', '.join(added)}")
+        else:
+            say("backend/.env is up to date (your values are kept)")
 
     say("Checking benchmark data")
     run([str(PY), str(BACKEND / "scripts" / "download_datasets.py")])

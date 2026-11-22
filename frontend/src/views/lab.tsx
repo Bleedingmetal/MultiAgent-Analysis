@@ -21,10 +21,12 @@ import { pct, secs, usd, when } from "@/components/product/batch-results"
 import {
   type LabDiff,
   type LabFlip,
+  type LabSteadiness,
   type LabProblem,
   type LabRunPoint,
   benchmarkName,
   getLabDiff,
+  getLabSteadiness,
   getLabProblems,
   getLabRuns,
   taskNoun,
@@ -91,6 +93,7 @@ function useLoad<T>(key: string | null, fetcher: (key: string) => Promise<T>) {
 
 const fetchRuns = (bench: string) => getLabRuns(bench)
 const fetchProblems = () => getLabProblems()
+const fetchSteadiness = (batch: string) => getLabSteadiness(batch)
 const fetchDiff = (pair: string) => {
   const [a, b] = pair.split("|")
   return getLabDiff(a, b)
@@ -139,6 +142,7 @@ export default function Lab() {
   const problems = useLoad("all", fetchProblems)
   const pair = a && b && a !== b ? `${a}|${b}` : null
   const diff = useLoad(pair, fetchDiff)
+  const steady = useLoad(pair ? b : null, fetchSteadiness)
 
   // Only an "after" chosen: pick its "before" for it
   useEffect(() => {
@@ -255,6 +259,7 @@ export default function Lab() {
 
       {/* Below the opening row: what changed, and the questions it fixed or broke */}
       {pair && diff.data ? <Evidence d={diff.data} /> : null}
+      {pair && diff.data && steady.data ? <Steadiness s={steady.data} bench={bench} /> : null}
 
       {/* Every configuration's standing, and what has run where */}
       <div className="mt-8 px-1 sm:px-6">
@@ -1304,6 +1309,72 @@ function Problems({
           {all ? "Show fewer" : `Show all (${items.length})`}
         </button>
       ) : null}
+    </section>
+  )
+}
+
+/* ── How steady a setup is ─────────────────────────────────────────────── */
+
+/** The after run's setup across all its runs: separate runs of exactly the same setup pool
+ *  like passes of one run. Any change to the setup starts a new one, so nothing here mixes
+ *  a real change in with run-to-run noise. */
+function Steadiness({ s, bench }: { s: LabSteadiness; bench: string }) {
+  const [all, setAll] = useState(false)
+  const runs = s.runs.length
+  const tries = s.tries_per_question
+  const across = runs > 1 ? `${runs} runs` : `${s.runs[0]?.passes ?? 1} passes`
+  const figure = (n: number, words: string, title: string) => (
+    <p className="min-w-0" title={title}>
+      <span className="block text-[30px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-mm-dark">{n}</span>
+      <span className="block text-[13px] text-muted-foreground">{words}</span>
+    </p>
+  )
+  const shown = all ? s.mixed : s.mixed.slice(0, SHOWN)
+  return (
+    <section className={cn("mt-4 px-5 py-6 sm:px-8 sm:py-7", surface)} aria-labelledby="steady-title">
+      <h4 id="steady-title" className="text-[15px] font-semibold text-mm-dark">
+        How steady {s.configuration_name} is
+      </h4>
+      {s.questions === 0 ? (
+        <p className="mt-2 text-[13px] text-muted-foreground">
+          One try per question so far. Run this setup again on the same questions, or with 3 passes, to see it.
+        </p>
+      ) : (
+        <>
+          <p
+            className="mt-1 text-[13px] text-muted-foreground"
+            title={s.runs.map((r) => `${day(r.created_at)}: ${pct(r.accuracy, 0)}${r.passes > 1 ? `, ${r.passes} passes` : ""}`).join("\n")}
+          >
+            Across {across} of the same setup · {s.questions} {taskNoun(bench, s.questions)} tried{" "}
+            {tries && tries.min === tries.max ? `${tries.min} times each` : tries ? `${tries.min}\u2013${tries.max} times` : ""}
+            {s.pass_hat_3 != null ? ` · ${pct(s.pass_hat_3, 0)} chance three tries are all right` : ""}
+          </p>
+          <div className="mt-5 grid grid-cols-3 gap-4 sm:max-w-[520px]">
+            {figure(s.always_right, "right every time", "Right on every try")}
+            {figure(s.sometimes, "right sometimes", "Right on some tries, wrong on others")}
+            {figure(s.never_right, "never right", "Wrong on every try")}
+          </div>
+          {s.mixed.length ? (
+            <ul className="mt-6 divide-y divide-border border-t border-border">
+              {shown.map((m) => (
+                <li key={m.task_id} className="flex items-baseline gap-4 py-2.5 text-[13px]">
+                  <span className="min-w-0 flex-1 truncate text-mm-dark" title={m.question ?? m.task_id}>
+                    {m.question || m.task_id}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    right {m.right} of {m.tries}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {s.mixed.length > SHOWN ? (
+            <button type="button" onClick={() => setAll((v) => !v)} aria-expanded={all} className={cn("mt-2 text-[12px]", link)}>
+              {all ? "Show fewer" : `Show all ${s.mixed.length}`}
+            </button>
+          ) : null}
+        </>
+      )}
     </section>
   )
 }

@@ -713,6 +713,24 @@ export function getLabRuns(benchmarkId: string) {
   return api<{ benchmark_id: string; runs: LabRunPoint[] }>(`/api/lab/runs?benchmark=${encodeURIComponent(benchmarkId)}`)
 }
 
+/** How steady one setup is across all its runs; separate runs pool like passes. */
+export type LabSteadiness = {
+  batch_id: string
+  configuration_name: string
+  runs: { batch_id: string; created_at: string; passes: number; accuracy: number | null }[]
+  questions: number
+  tries_per_question: { min: number; max: number } | null
+  always_right: number
+  never_right: number
+  sometimes: number
+  pass_hat_3: number | null
+  mixed: { task_id: string; question: string | null; right: number; tries: number }[]
+}
+
+export function getLabSteadiness(batchId: string) {
+  return api<LabSteadiness>(`/api/lab/steadiness?batch=${encodeURIComponent(batchId)}`)
+}
+
 export function getLabDiff(beforeBatchId: string, afterBatchId: string) {
   return api<LabDiff>(`/api/lab/diff?a=${encodeURIComponent(beforeBatchId)}&b=${encodeURIComponent(afterBatchId)}`)
 }

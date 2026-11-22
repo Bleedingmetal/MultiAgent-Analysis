@@ -5,7 +5,9 @@
 
 Sets the repository up first (venv, packages, data) if anything is missing, so a
 fresh clone works with just this command once the API keys are in backend/.env.
-If port 8000 or 3000 is taken, the next free port is used and printed.
+A copy of this app still running from before (often an older version, left behind
+after a pull or a crash) is stopped first, so the app always opens on 3000 and 8000 with
+the current code. If something else holds a port, the next free port is used and printed.
 Ctrl-C stops both servers. Preferred ports: BACKEND_PORT (8000), FRONTEND_PORT (3000).
 """
 
@@ -18,6 +20,9 @@ import socket
 import subprocess
 import sys
 import threading
+import json
+import time
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -49,6 +54,61 @@ def listening(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.3)
         return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def _ours(port: int) -> bool:
+    """True if what answers on the port is a copy of this app (any version), not something else."""
+    try:
+        if port == int(os.environ.get("BACKEND_PORT", "8000")):
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=2) as r:
+                body = json.loads(r.read().decode("utf-8", "replace"))
+            return body.get("status") == "ok" and "providers" in body
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as r:
+            return "MassMutual" in r.read(20000).decode("utf-8", "replace")
+    except Exception:
+        return False
+
+
+def _port_pids(port: int) -> set[int]:
+    """Processes listening on the port (best effort, no extra packages)."""
+    pids: set[int] = set()
+    try:
+        if os.name == "nt":
+            out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True).stdout
+            for line in out.splitlines():
+                parts = line.split()
+                if len(parts) >= 5 and parts[3].upper() == "LISTENING" and parts[1].endswith(f":{port}"):
+                    pids.add(int(parts[4]))
+        else:
+            out = subprocess.run(["lsof", "-ti", f"tcp:{port}", "-sTCP:LISTEN"], capture_output=True, text=True).stdout
+            pids.update(int(x) for x in out.split() if x.isdigit())
+    except (OSError, ValueError):
+        pass
+    pids.discard(0)
+    return pids
+
+
+def stop_leftover(port: int) -> None:
+    """Stop an earlier copy of this app that still holds the port. On Windows a reloader's
+    worker can outlive its parent and keep answering with old code."""
+    if not listening(port) or not _ours(port):
+        return
+    pids = _port_pids(port)
+    if not pids:
+        return
+    print(f"An earlier copy of the app is still running on port {port}; stopping it.", flush=True)
+    for pid in pids:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+        else:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+    for _ in range(20):
+        if not listening(port):
+            return
+        time.sleep(0.25)
 
 
 def free_port(preferred: int) -> int:
@@ -110,6 +170,8 @@ def main() -> int:
     npm = shutil.which("npm") or shutil.which("npm.cmd")
     if not npm:
         sys.exit("npm not found; install Node.js from https://nodejs.org/")
+    for port in (int(os.environ.get("BACKEND_PORT", "8000")), int(os.environ.get("FRONTEND_PORT", "3000"))):
+        stop_leftover(port)
     backend_port = free_port(int(os.environ.get("BACKEND_PORT", "8000")))
     frontend_port = free_port(int(os.environ.get("FRONTEND_PORT", "3000")))
     for name, want, got in (("backend", os.environ.get("BACKEND_PORT", "8000"), backend_port),

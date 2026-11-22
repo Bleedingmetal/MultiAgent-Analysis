@@ -157,7 +157,7 @@ class ProblemsTests(unittest.TestCase):
         self.assertIn(("flaky", "F"), kinds)
         self.assertIn(("failures", "W"), kinds)
         title = next(p["title"] for p in found if p["kind"] == "flaky")
-        self.assertEqual(title, "Evaluator gave different results on 6 Financial calculation questions across passes")
+        self.assertEqual(title, "Evaluator gave different results on 6 Financial calculation questions across 2 passes")
         fail = next(p for p in found if p["kind"] == "failures")
         self.assertEqual(fail["title"], "weak got 7 of 10 Financial calculation questions wrong")
         self.assertEqual(fail["detail"], "Single agent · claude-haiku-5-5 · Nov 15")
@@ -179,3 +179,59 @@ class ProblemsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SteadinessTests(unittest.TestCase):
+    """Separate runs of exactly the same setup pool like passes; any change starts a new setup."""
+
+    def setUp(self) -> None:
+        # The prompt actually sent lives beside each run on disk; here every run sent the same one
+        patcher = mock.patch.object(lab, "_sent_prompt", lambda b: "same")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_three_one_pass_runs_pool_into_three_tries(self) -> None:
+        cfg = config("c", prompt="p", model="claude-haiku-5-5")
+        runs = [
+            batch("R1", "c", "single-agent", [True, True, False, False], created="2026-11-20T10:00:00", configuration=cfg),
+            batch("R2", "c", "single-agent", [True, False, False, True], created="2026-11-21T10:00:00", configuration=cfg),
+            batch("R3", "c", "single-agent", [True, True, False, True], created="2026-11-22T10:00:00", configuration=cfg),
+        ]
+        s = lab.steadiness(runs, "R3")
+        self.assertEqual([r["batch_id"] for r in s["runs"]], ["R1", "R2", "R3"])
+        self.assertEqual(s["questions"], 4)
+        self.assertEqual(s["tries_per_question"], {"min": 3, "max": 3})
+        self.assertEqual((s["always_right"], s["sometimes"], s["never_right"]), (1, 2, 1))
+        # pass^3: q0 1, q1 0 (2 of 3), q2 0, q3 0 -> 0.25
+        self.assertAlmostEqual(s["pass_hat_3"], 0.25)
+        self.assertEqual({m["task_id"]: (m["right"], m["tries"]) for m in s["mixed"]}, {"q1": (2, 3), "q3": (2, 3)})
+
+    def test_a_changed_setup_does_not_pool(self) -> None:
+        old = config("c", prompt="p", model="claude-haiku-5-5")
+        new = config("c", prompt="p, but shorter", model="claude-haiku-5-5")
+        r1 = batch("R1", "c", "single-agent", [True, False], created="2026-11-20T10:00:00", configuration=old)
+        r2 = batch("R2", "c", "single-agent", [False, True], created="2026-11-21T10:00:00", configuration=new)
+        s = lab.steadiness([r1, r2], "R2")
+        self.assertEqual([r["batch_id"] for r in s["runs"]], ["R2"])
+        self.assertEqual(s["questions"], 0)  # one try each: nothing to say yet
+        self.assertFalse(lab.diff(r1, r2)["same_config"])
+
+    def test_a_changed_sent_prompt_does_not_pool(self) -> None:
+        cfg = config("c", prompt="p", model="claude-haiku-5-5")
+        r1 = batch("R1", "c", "single-agent", [True, False], created="2026-11-20T10:00:00", configuration=cfg)
+        r2 = batch("R2", "c", "single-agent", [False, True], created="2026-11-21T10:00:00", configuration=cfg)
+        with mock.patch.object(lab, "_sent_prompt", lambda b: b.id):
+            self.assertEqual(lab.steadiness([r1, r2], "R2")["questions"], 0)
+            d = lab.diff(r1, r2)
+        self.assertFalse(d["same_config"])
+        self.assertEqual(d["changes"][0]["what"], "System prompt sent")
+
+    def test_flaky_problem_counts_separate_runs(self) -> None:
+        cfg = config("c", prompt="p", model="claude-haiku-5-5")
+        r1 = batch("R1", "c", "single-agent", [True, True, False], created="2026-11-20T10:00:00", configuration=cfg)
+        r2 = batch("R2", "c", "single-agent", [True, False, False], created="2026-11-21T10:00:00", configuration=cfg)
+        with mock.patch.object(overview, "hidden", return_value=set()):
+            flaky = [p for p in lab.problems([r2, r1])["problems"] if p["kind"] == "flaky"]
+        self.assertEqual(len(flaky), 1)
+        self.assertIn("1 Financial calculation question across 2 runs", flaky[0]["title"])
+        self.assertEqual((flaky[0]["batch_id"], flaky[0]["other_batch_id"]), ("R2", "R1"))

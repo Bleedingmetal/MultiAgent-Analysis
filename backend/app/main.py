@@ -42,6 +42,10 @@ def _on_startup() -> None:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings()["cors_origins"],
+    # The app on this machine, on any port: start.py moves the frontend to 3001, 3002...
+    # when 3000 is taken, and an older backend/.env lists only 3000. Without this the
+    # browser's preflight gets "400 Bad Request" and every API call fails.
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -138,6 +142,15 @@ def get_lab_diff(a: str, b: str):
             raise HTTPException(status_code=404, detail=f"No run with id {batch_id}.")
     try:
         return lab.diff(before, after)
+    except lab.LabError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+
+@app.get("/api/lab/steadiness")
+def get_lab_steadiness(batch: str):
+    """How steady a run's setup is across all its runs (separate runs pool like passes)."""
+    try:
+        return lab.steadiness(batches.all_batches(), batch)
     except lab.LabError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
