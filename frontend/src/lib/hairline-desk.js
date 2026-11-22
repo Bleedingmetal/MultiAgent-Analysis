@@ -761,6 +761,19 @@ function at(P, th, lean, dx, dy, z) {
   return P(AX + dx * c - dy * s, AY + lean + dx * s + dy * c, z);
 }
 
+/** World [x, y] of a point on the agent: (dx, dy) from the axis, turned and leaned. */
+function wpt(th, lean, dx, dy) {
+  const c = Math.cos(rad(th)), s = Math.sin(rad(th));
+  return [AX + dx * c - dy * s, AY + lean + dx * s + dy * c];
+}
+
+/** A limb between two world points, each [x, y, z, r]: the hull of a small ring at each end. */
+function limb(P, a, b) {
+  const ring = ([x, y, , r]) => rrect(x - r, y - r, x + r, y + r, r, 4);
+  return poly(hull(ringAt(P, ring(a), a[2] - a[3] * 0.6).concat(
+    ringAt(P, ring(a), a[2] + a[3] * 0.6), ringAt(P, ring(b), b[2] - b[3] * 0.6), ringAt(P, ring(b), b[2] + b[3] * 0.6))));
+}
+
 /** A forearm: a rounded bar from (x0, y0) at height z0 to (x1, y1) at z1, as the hull of two small rings. */
 function arm(P, x0, y0, z0, x1, y1, z1) {
   const a = rrect(x0 - 3, y0 - 3, x0 + 3, y0 + 3, 3, 4), b = rrect(x1 - 3.4, y1 - 3.4, x1 + 3.4, y1 + 3.4, 3.4, 4);
@@ -777,11 +790,17 @@ function mount({ stage, svg, read }, value) {
   const g = mk("g", {}, svg);
 
   // the agent, painted first: it sits behind the counter
+  // a person, not a block: sloped shoulders, upper arms, a neck, a round head with a hairline
   const agent = mk("g", {}, g);
-  const torso = solid(agent), head = solid(agent);
+  const torso = solid(agent);
+  const upperL = mk("path", { class: "sil" }, agent), upperR = mk("path", { class: "sil" }, agent);
+  const neck = mk("path", { class: "sil" }, agent);
+  const head = mk("ellipse", { class: "sil" }, agent), hair = mk("path", { class: "nf lo" }, agent);
   const band = mk("path", { class: "nf" }, agent), ear = mk("path", { class: "nf hi" }, agent), boom = mk("path", { class: "nf" }, agent);
-  const [hips] = rings(...HIPS, 9, 1.4), [should, shouldInner] = rings(...SHOULD, 9, 1.5);
-  const [headRing, headInner] = [circ(HEAD_R, 16), circ(HEAD_R - 1.3, 16)].map((r) => r.map((q) => ({ ...q, u: q.u + AX, v: q.v + AY })));
+  const [hips] = rings(...HIPS, 9, 1.4), [should] = rings(...SHOULD, 11, 1.5);
+  // where the shoulders round off towards the neck
+  const yoke = rrect(AX - 9, AY - 7, AX + 9, AY + 7, 7, 4);
+  const neckRing = circ(3.4, 16).map((q) => ({ ...q, u: q.u + AX, v: q.v + AY }));
 
   // the counter, then what stands on it, back to front; the forearms lie on it
   const [dRing, dInner] = rings(...DESK, 6, 1.8);
@@ -801,10 +820,32 @@ function mount({ stage, svg, read }, value) {
     if (th === drawnTurn && k === drawnPick) return;
     drawnTurn = th; drawnPick = k;
     const lean = LEAN * k;
-    // torso: shoulders wider than the hips, so its two rings are hulled by hand (rule 09)
-    torso.sil.setAttribute("d", poly(hull(ringAt(P, turned(hips, th, lean), 0).concat(ringAt(P, turned(should, th, lean), TH)))));
-    torso.cr.setAttribute("d", open(ringAt(P, run(turned(shouldInner, th, lean), front), TH)));
-    put(head, prism(P, front, turned(headRing, th, lean), turned(headInner, th, lean), HZ0, HZ1));
+    // torso: hips, the chest at full shoulder width, then the shoulders sloping in to the neck
+    torso.sil.setAttribute("d", poly(hull(ringAt(P, turned(hips, th, lean), 0).concat(
+      ringAt(P, turned(should, th, lean), TH - 7), ringAt(P, turned(yoke, th, lean), TH)))));
+    torso.cr.setAttribute("d", "");
+    // upper arms: from each shoulder down to the elbow resting on the counter
+    const sL = wpt(th, lean, -14, 2), sR = wpt(th, lean, 14, 2);
+    upperL.setAttribute("d", limb(P, [sL[0], sL[1], TH - 6, 3.6], [22, 14 + lean, DH + 2.5, 3.2]));
+    upperR.setAttribute("d", limb(P, [sR[0], sR[1], TH - 6, 3.6], [50, 14 + lean, DH + 2.5, 3.2]));
+    // neck, then the head: a sphere seen from any side is a circle, slightly long for a face
+    neck.setAttribute("d", prism(P, front, turned(neckRing, th, lean), null, TH - 2, HZ0 + 3).sil);
+    const hc = at(P, th, lean, 0, 0.6, (HZ0 + HZ1) / 2 + 0.6);
+    head.setAttribute("cx", hc[0].toFixed(2));
+    head.setAttribute("cy", hc[1].toFixed(2));
+    head.setAttribute("rx", (HEAD_R * C.S * 0.92).toFixed(2));
+    head.setAttribute("ry", (HEAD_R * C.S * 1.02).toFixed(2));
+    // the hairline across the brow, on the side the face looks towards (+y); only the part the camera sees
+    const hairPts = [];
+    const s = Math.sin(C.az), c = Math.cos(C.az), ct = Math.cos(rad(th)), st = Math.sin(rad(th));
+    for (let i = 0; i <= 20; i++) {
+      const a = Math.PI * (i / 20), nx = Math.cos(a), ny = Math.sin(a);
+      // the normal, turned with the head, must face the camera
+      if ((nx * ct - ny * st) * s + (nx * st + ny * ct) * c < 0.05) continue;
+      const rr = HEAD_R * 0.9;
+      hairPts.push(at(P, th, lean, rr * nx, 0.6 + rr * ny * 0.82, HZ1 - 3.2 + 1.6 * ny));
+    }
+    hair.setAttribute("d", open(hairPts));
     // the headset: a band over the crown ear to ear, the earpiece on the near ear, the mic on its boom
     const arc = [];
     for (let i = 0; i <= 14; i++) { const a = Math.PI * (i / 14); arc.push(at(P, th, lean, -BAND_R * Math.cos(a), 0, EAR_Z + BAND_R * Math.sin(a))); }
